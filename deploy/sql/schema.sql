@@ -262,7 +262,7 @@ CREATE INDEX idx_honor_user ON student_honor(user_id);
 
 -- 默认管理员账号 (密码: admin123, BCrypt 哈希)
 INSERT INTO sys_user (student_id, name, password, role_level, status)
-VALUES ('admin', '系统管理员', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', 1, 1);
+VALUES ('admin', '系统管理员', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 1, 1);
 
 -- 默认审批类型
 INSERT INTO approval_type (name, description, approval_chain) VALUES
