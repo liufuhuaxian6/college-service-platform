@@ -36,16 +36,16 @@ college-service-platform/
 
 ## 环境要求
 
-| 工具 | 版本 | 说明 |
-|------|------|------|
-| JDK | 17+ | 后端运行环境 |
-| Maven | 3.8+ | 后端构建工具 |
-| Node.js | 18+ | 前端构建环境 |
-| npm | 9+ | 随 Node.js 安装 |
-| PostgreSQL | 14+ | 开发阶段数据库（替代 Kingbase） |
-| Redis | 7+ | 缓存 |
-| 微信开发者工具 | 最新版 | 小程序端调试（D 同学需要） |
-| Docker + Docker Compose | 最新版 | 可选，用于一键部署 |
+| 工具                    | 版本   | 说明                            |
+| ----------------------- | ------ | ------------------------------- |
+| JDK                     | 17+    | 后端运行环境                    |
+| Maven                   | 3.8+   | 后端构建工具                    |
+| Node.js                 | 18+    | 前端构建环境                    |
+| npm                     | 9+     | 随 Node.js 安装                 |
+| PostgreSQL              | 14+    | 开发阶段数据库（替代 Kingbase） |
+| Redis                   | 7+     | 缓存                            |
+| 微信开发者工具          | 最新版 | 小程序端调试（D 同学需要）      |
+| Docker + Docker Compose | 最新版 | 可选，用于一键部署              |
 
 ---
 
@@ -101,7 +101,7 @@ docker run -d --name college-redis -p 6379:6379 redis:7-alpine
 cd backend
 
 # 安装依赖并启动（首次会下载依赖，耐心等待）
-mvn spring-boot:run
+./mvn.cmd spring-boot:run
 
 # 或者先编译再运行
 mvn clean package -DskipTests
@@ -109,6 +109,7 @@ java -jar target/college-service-platform-1.0.0-SNAPSHOT.jar
 ```
 
 启动成功后：
+
 - 后端接口：http://localhost:8080/api
 - API 文档：http://localhost:8080/api/doc.html
 
@@ -126,8 +127,8 @@ npm run dev
 
 访问 http://localhost:5173 ，使用以下账号登录：
 
-| 账号 | 密码 | 角色 |
-|------|------|------|
+| 账号  | 密码     | 角色           |
+| ----- | -------- | -------------- |
 | admin | admin123 | 院领导（一级） |
 
 ### 6. 启动小程序端
@@ -146,11 +147,13 @@ npm run dev:h5
 ```
 
 **微信小程序调试**：
+
 1. 打开微信开发者工具
 2. 导入项目，选择 `frontend-mp/dist/dev/mp-weixin` 目录
 3. AppID 可使用测试号，或在 `src/manifest.json` 中填入正式 AppID
 
 **H5 调试**：
+
 - 访问终端输出的地址（默认 http://localhost:5173）
 
 ---
@@ -174,12 +177,14 @@ docker-compose logs -f backend
 ```
 
 启动后：
+
 - 管理端：http://localhost（Nginx 80 端口）
 - 后端 API：http://localhost/api
 - Kingbase：localhost:54321
 - Redis：localhost:6379
 
 停止所有服务：
+
 ```bash
 docker-compose down
 ```
@@ -190,31 +195,34 @@ docker-compose down
 
 ### 后端配置文件
 
-| 文件 | 用途 |
-|------|------|
-| `application.yml` | 主配置（端口、JWT、AI 开关等） |
-| `application-dev.yml` | 开发环境（连 PostgreSQL） |
-| `application-prod.yml` | 生产环境（连 Kingbase） |
+| 文件                   | 用途                           |
+| ---------------------- | ------------------------------ |
+| `application.yml`      | 主配置（端口、JWT、AI 开关等） |
+| `application-dev.yml`  | 开发环境（连 PostgreSQL）      |
+| `application-prod.yml` | 生产环境（连 Kingbase）        |
 
 切换环境：修改 `application.yml` 中的 `spring.profiles.active`：
+
 ```yaml
 spring:
   profiles:
-    active: dev   # dev=开发 / prod=生产
+    active: dev # dev=开发 / prod=生产
 ```
 
 修改数据库连接：编辑 `application-dev.yml`：
+
 ```yaml
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/college_service
     username: postgres
-    password: postgres    # 改成你的密码
+    password: postgres # 改成你的密码
 ```
 
 ### 前端代理配置
 
 管理端 `frontend-admin/vite.config.js` 已配置代理，开发时自动转发 `/api` 请求到后端：
+
 ```js
 proxy: {
   '/api': {
@@ -313,6 +321,7 @@ git push origin feat/backend-base
 ```
 
 **PR 合并条件**（必须全部满足）：
+
 1. 至少 **1 名其他成员** 审核通过（Code Review）
 2. 没有未解决的 Review 评论
 3. 与 dev 分支 **无冲突**（有冲突先在本地解决再推送）
@@ -334,6 +343,7 @@ git pull origin dev
 ```
 
 **main 分支合并条件**：
+
 1. **全员确认**：4 名成员均审核通过
 2. **全部功能可用**：后端启动正常，前端页面可访问，核心流程跑通
 3. **无已知严重 Bug**
@@ -348,6 +358,7 @@ git pull origin dev
 在 GitHub 仓库 Settings → Branches → Add rule 中配置：
 
 **`main` 分支**：
+
 - [x] Require a pull request before merging
 - [x] Require approvals: **2**（至少 2 人审核）
 - [x] Require status checks to pass（如配置了 CI）
@@ -355,6 +366,7 @@ git pull origin dev
 - [x] Do not allow deletions
 
 **`dev` 分支**：
+
 - [x] Require a pull request before merging
 - [x] Require approvals: **1**（至少 1 人审核）
 - [x] Do not allow force pushes
@@ -362,36 +374,37 @@ git pull origin dev
 ### Commit 消息规范
 
 格式：
+
 ```
 <type>(<scope>): <简要描述>
 ```
 
 **type 类型**：
 
-| type | 含义 | 示例 |
-|------|------|------|
-| `feat` | 新功能 | `feat(approval): 实现审批状态机锁定逻辑` |
-| `fix` | Bug 修复 | `fix(qa): 修复关键词匹配时的空指针异常` |
-| `docs` | 文档更新 | `docs(readme): 添加环境配置说明` |
-| `style` | 样式/格式调整（不影响逻辑） | `style(admin): 统一表格列宽` |
-| `refactor` | 重构（不改变功能） | `refactor(party): 抽取流程步骤构建方法` |
-| `test` | 添加/修改测试 | `test(auth): 添加登录接口单元测试` |
-| `chore` | 构建/配置/依赖变更 | `chore: 升级 Element Plus 到 2.7.1` |
+| type       | 含义                        | 示例                                     |
+| ---------- | --------------------------- | ---------------------------------------- |
+| `feat`     | 新功能                      | `feat(approval): 实现审批状态机锁定逻辑` |
+| `fix`      | Bug 修复                    | `fix(qa): 修复关键词匹配时的空指针异常`  |
+| `docs`     | 文档更新                    | `docs(readme): 添加环境配置说明`         |
+| `style`    | 样式/格式调整（不影响逻辑） | `style(admin): 统一表格列宽`             |
+| `refactor` | 重构（不改变功能）          | `refactor(party): 抽取流程步骤构建方法`  |
+| `test`     | 添加/修改测试               | `test(auth): 添加登录接口单元测试`       |
+| `chore`    | 构建/配置/依赖变更          | `chore: 升级 Element Plus 到 2.7.1`      |
 
 **scope 范围**：
 
-| scope | 对应模块 | 负责人 |
-|-------|---------|--------|
-| `auth` | 认证登录 | A |
-| `system` | 系统管理 | A |
-| `qa` | 智能问答 | B |
-| `party` | 党团流程 | B |
-| `approval` | 审批流程 | B |
-| `student` | 学生画像 | B |
-| `admin` | 管理端前端 | C |
-| `mp` | 小程序端前端 | D |
-| `deploy` | 部署相关 | A |
-| `db` | 数据库变更 | A |
+| scope      | 对应模块     | 负责人 |
+| ---------- | ------------ | ------ |
+| `auth`     | 认证登录     | A      |
+| `system`   | 系统管理     | A      |
+| `qa`       | 智能问答     | B      |
+| `party`    | 党团流程     | B      |
+| `approval` | 审批流程     | B      |
+| `student`  | 学生画像     | B      |
+| `admin`    | 管理端前端   | C      |
+| `mp`       | 小程序端前端 | D      |
+| `deploy`   | 部署相关     | A      |
+| `db`       | 数据库变更   | A      |
 
 ### 冲突解决规则
 
@@ -406,15 +419,15 @@ git pull origin dev
 
 ### 禁止事项
 
-| 操作 | 原因 |
-|------|------|
-| `git push origin main` | 直接推送到 main，绕过 Review |
-| `git push origin dev` | 直接推送到 dev，绕过 Review |
-| `git push --force` | 强制推送会覆盖他人代码 |
-| `git reset --hard` 后推送 | 会丢失提交历史 |
+| 操作                                    | 原因                                     |
+| --------------------------------------- | ---------------------------------------- |
+| `git push origin main`                  | 直接推送到 main，绕过 Review             |
+| `git push origin dev`                   | 直接推送到 dev，绕过 Review              |
+| `git push --force`                      | 强制推送会覆盖他人代码                   |
+| `git reset --hard` 后推送               | 会丢失提交历史                           |
 | 提交 `node_modules/`、`target/`、`.env` | 这些在 .gitignore 中已排除，不要手动添加 |
-| 修改他人分支的代码 | 只改自己分支，通过 PR 合并 |
-| 在 PR 未审核通过时自行合并 | 必须等 Review 通过 |
+| 修改他人分支的代码                      | 只改自己分支，通过 PR 合并               |
+| 在 PR 未审核通过时自行合并              | 必须等 Review 通过                       |
 
 ### 紧急修复流程（Hotfix）
 
@@ -445,11 +458,12 @@ git push origin v1.0.1
 
 执行 `schema.sql` 后自动创建：
 
-| 学号 | 密码 | 角色 | 说明 |
-|------|------|------|------|
+| 学号  | 密码     | 角色           | 说明         |
+| ----- | -------- | -------------- | ------------ |
 | admin | admin123 | 一级（院领导） | 拥有全部权限 |
 
 可通过管理端"用户管理"页面或直接操作数据库添加更多测试账号：
+
 ```sql
 -- 添加一个二级管理员（辅导员）
 INSERT INTO sys_user (student_id, name, password, role_level, grade, major, status)
@@ -473,6 +487,7 @@ VALUES ('2024001', '李同学',
 ### 后端启动报错 "Cannot connect to database"
 
 确认 PostgreSQL 已启动，且 `application-dev.yml` 中的连接信息正确：
+
 ```bash
 # 测试连接
 psql -U postgres -d college_service -c "SELECT 1;"
@@ -481,6 +496,7 @@ psql -U postgres -d college_service -c "SELECT 1;"
 ### 后端启动报错 "Cannot connect to Redis"
 
 确认 Redis 已启动：
+
 ```bash
 redis-cli ping
 # 应返回 PONG
@@ -489,6 +505,7 @@ redis-cli ping
 ### 前端启动报 "ENOENT" 或依赖错误
 
 删除 node_modules 重新安装：
+
 ```bash
 rm -rf node_modules package-lock.json
 npm install
