@@ -101,7 +101,7 @@ docker run -d --name college-redis -p 6379:6379 redis:7-alpine
 cd backend
 
 # 安装依赖并启动（首次会下载依赖，耐心等待）
-./mvn.cmd spring-boot:run
+./mvnw.cmd spring-boot:run
 
 # 或者先编译再运行
 mvn clean package -DskipTests
