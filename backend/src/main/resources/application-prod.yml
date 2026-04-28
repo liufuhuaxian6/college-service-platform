@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    # Kingbase 连接 (兼容 PostgreSQL JDBC)
+    url: jdbc:kingbase8://localhost:54321/college_service
+    username: system
+    password: ${DB_PASSWORD}
+    driver-class-name: com.kingbase8.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+
+# 生产环境关闭 SQL 日志
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# 生产环境关闭 Swagger
+knife4j:
+  enable: false
