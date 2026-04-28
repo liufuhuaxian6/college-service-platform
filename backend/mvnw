@@ -1,0 +1,29 @@
+#!/bin/sh
+# Maven Wrapper script - downloads Maven if not present, then runs it
+set -e
+
+MAVEN_HOME="${HOME}/.m2/wrapper/dists/apache-maven-3.9.9"
+MVN_CMD="${MAVEN_HOME}/bin/mvn"
+
+if [ ! -f "$MVN_CMD" ]; then
+  echo "Maven not found, downloading..."
+  mkdir -p "${MAVEN_HOME}"
+  TMPFILE=$(mktemp /tmp/maven-XXXXXX.zip)
+
+  # Try multiple mirrors
+  URL="https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip"
+  curl -fsSL "$URL" -o "$TMPFILE" || {
+    URL="https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip"
+    curl -fsSL "$URL" -o "$TMPFILE"
+  }
+
+  unzip -qo "$TMPFILE" -d "${HOME}/.m2/wrapper/dists/"
+  # Flatten if nested
+  if [ -d "${HOME}/.m2/wrapper/dists/apache-maven-3.9.9" ]; then
+    true
+  fi
+  rm -f "$TMPFILE"
+  echo "Maven 3.9.9 installed to ${MAVEN_HOME}"
+fi
+
+exec "$MVN_CMD" "$@"
