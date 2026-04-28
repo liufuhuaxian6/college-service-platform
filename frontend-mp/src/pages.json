@@ -1,0 +1,31 @@
+{
+  "pages": [
+    { "path": "pages/index/index", "style": { "navigationBarTitleText": "学院综合服务" } },
+    { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
+    { "path": "pages/qa/index", "style": { "navigationBarTitleText": "智能问答" } },
+    { "path": "pages/qa/document", "style": { "navigationBarTitleText": "政策文档" } },
+    { "path": "pages/party/index", "style": { "navigationBarTitleText": "我的党团进度" } },
+    { "path": "pages/party/detail", "style": { "navigationBarTitleText": "流程详情" } },
+    { "path": "pages/approval/index", "style": { "navigationBarTitleText": "我的申请" } },
+    { "path": "pages/approval/apply", "style": { "navigationBarTitleText": "提交申请" } },
+    { "path": "pages/profile/index", "style": { "navigationBarTitleText": "个人中心" } },
+    { "path": "pages/notify/index", "style": { "navigationBarTitleText": "消息中心" } }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "学院综合服务",
+    "navigationBarBackgroundColor": "#1a3a5c",
+    "backgroundColor": "#f0f2f5"
+  },
+  "tabBar": {
+    "color": "#999",
+    "selectedColor": "#1a3a5c",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页", "iconPath": "static/tab-home.png", "selectedIconPath": "static/tab-home-active.png" },
+      { "pagePath": "pages/qa/index", "text": "问答", "iconPath": "static/tab-qa.png", "selectedIconPath": "static/tab-qa-active.png" },
+      { "pagePath": "pages/approval/index", "text": "申请", "iconPath": "static/tab-approval.png", "selectedIconPath": "static/tab-approval-active.png" },
+      { "pagePath": "pages/profile/index", "text": "我的", "iconPath": "static/tab-profile.png", "selectedIconPath": "static/tab-profile-active.png" }
+    ]
+  }
+}

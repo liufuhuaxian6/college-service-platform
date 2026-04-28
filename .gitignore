@@ -1,0 +1,38 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java
+target/
+*.class
+*.jar
+*.war
+
+# Node
+node_modules/
+dist/
+.nuxt/
+.output/
+
+# uni-app build
+frontend-mp/dist/
+frontend-mp/unpackage/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# Environment
+.env
+.env.local
+.env.production
+*.log
+
+# Uploads
+uploads/
+
+# Compiled
+*.pyc
+__pycache__/
