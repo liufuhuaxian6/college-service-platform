@@ -1,4 +1,6 @@
-const BASE_URL = '/api'
+// 小程序环境没有代理，必须用完整地址
+// 开发时指向本机后端，上线后改为正式域名
+const BASE_URL = 'http://localhost:8080/api'
 
 function getToken() {
   return uni.getStorageSync('token') || ''
