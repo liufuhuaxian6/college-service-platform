@@ -36,95 +36,238 @@ college-service-platform/
 
 ## 环境配置完整指南（新成员必读）
 
-> 按照以下步骤从零配置开发环境，全程约 30 分钟。
-
-### 前置条件
-
-确认你的电脑已安装以下工具（括号内为检查命令）：
-
-| 工具 | 版本 | 检查命令 | 未安装怎么办 |
-|------|------|---------|-------------|
-| Git | 任意 | `git --version` | https://git-scm.com/download |
-| JDK | 17+ | `java -version` | https://adoptium.net （选 JDK 17 或更高） |
-| Node.js | 18+ | `node -v` | https://nodejs.org （选 LTS 版本） |
-| npm | 9+ | `npm -v` | 随 Node.js 一起安装 |
-
-> Maven **不需要单独安装**，项目自带 `mvnw.cmd` 会自动下载。
+> 本指南假设你的电脑上**什么开发工具都没有**，从零开始配置。
+> 全程约 30-60 分钟（取决于网速）。请按顺序执行，不要跳步。
 
 ---
 
-### 第一步：克隆项目
+### 第一步：安装 Git
+
+Git 是代码版本管理工具，用来克隆仓库和提交代码。
+
+#### 检查是否已安装
 
 ```bash
-git clone git@github.com:liufuhuaxian6/college-service-platform.git
-cd college-service-platform
-git checkout dev
+git --version
+# 如果输出 git version 2.x.x 就跳过这步
+```
+
+#### Windows 安装
+
+1. 下载：https://git-scm.com/download/win
+2. 双击安装，**全部默认选项**一路 Next 即可
+3. 安装完成后重新打开终端，输入 `git --version` 验证
+
+> 安装时会自带一个 **Git Bash** 终端，后续所有命令都可以在 Git Bash 里执行。
+
+#### macOS 安装
+
+```bash
+# 方式一：Xcode 命令行工具（推荐，自带 Git）
+xcode-select --install
+
+# 方式二：Homebrew
+brew install git
 ```
 
 ---
 
-### 第二步：安装 PostgreSQL
+### 第二步：安装 JDK（Java 开发工具包）
 
-#### Windows（推荐用 winget）
+后端是 Java 项目，需要 JDK 17 或更高版本来编译和运行。
+
+#### 检查是否已安装
+
+```bash
+java -version
+# 如果输出 openjdk version "17.x.x" 或更高，跳过这步
+```
+
+#### Windows 安装
+
+**方式一：winget（推荐）**
 
 ```powershell
-# PowerShell 管理员模式运行
+# 打开 PowerShell，执行：
+winget install Microsoft.OpenJDK.17
+```
+
+**方式二：手动下载**
+
+1. 访问 https://adoptium.net
+2. 选择 **JDK 17** → **Windows x64** → **.msi** 安装包
+3. 双击安装，勾选 **Set JAVA_HOME variable** 和 **Add to PATH**
+
+#### macOS 安装
+
+```bash
+brew install openjdk@17
+
+# 设置环境变量
+echo 'export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+#### 验证
+
+```bash
+java -version
+# 应输出 openjdk version "17.x.x" 或更高
+
+javac -version
+# 应输出 javac 17.x.x 或更高
+```
+
+> **注意**：Maven **不需要单独安装**！项目自带 `mvnw.cmd`（Windows）/ `mvnw`（Mac）脚本，首次运行时自动下载 Maven。
+
+---
+
+### 第三步：安装 Node.js 和 npm
+
+前端项目（管理端 + 小程序端）使用 Node.js 构建。npm 是 Node.js 的包管理器，随 Node.js 一起安装。
+
+#### 检查是否已安装
+
+```bash
+node -v
+# 如果输出 v18.x.x 或更高，跳过这步
+
+npm -v
+# 如果输出 9.x.x 或更高，跳过这步
+```
+
+#### Windows 安装
+
+**方式一：winget（推荐）**
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+**方式二：手动下载**
+
+1. 访问 https://nodejs.org
+2. 下载 **LTS 版本**（长期支持版）
+3. 双击安装，**全部默认**一路 Next
+
+#### macOS 安装
+
+```bash
+brew install node@18
+```
+
+#### 验证
+
+安装完成后**重新打开终端**（必须重开，否则 PATH 没生效）：
+
+```bash
+node -v    # 应输出 v18.x.x 或更高
+npm -v     # 应输出 9.x.x 或更高
+```
+
+---
+
+### 第四步：安装 PostgreSQL 数据库
+
+系统的所有数据（用户、知识库、审批等）存储在 PostgreSQL 中。
+
+#### 检查是否已安装
+
+```bash
+psql --version
+# 如果输出 psql (PostgreSQL) 14.x 或更高，跳过安装步骤
+```
+
+#### Windows 安装
+
+**方式一：winget（推荐）**
+
+```powershell
 winget install PostgreSQL.PostgreSQL.16
 ```
 
-安装过程中会要求设置密码，**请设置为 `postgres`**（与项目配置一致）。
+安装过程中弹出对话框，要求设置 superuser 密码 → **输入 `postgres`**（必须是这个，与项目配置一致）。
 
-安装完成后 PostgreSQL 作为 Windows 服务自动启动，无需手动启动。
+**方式二：手动下载**
 
-#### macOS
+1. 访问 https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+2. 选择 **Windows x86-64**，版本 **16.x**
+3. 双击安装
+4. 密码设置为 `postgres`
+5. 端口保持默认 `5432`
+6. 其余全部默认 Next
+
+#### macOS 安装
 
 ```bash
 brew install postgresql@16
 brew services start postgresql@16
+
+# 创建 postgres 用户并设置密码
+createuser -s postgres
+psql -U postgres -c "ALTER USER postgres PASSWORD 'postgres';"
 ```
 
-#### 验证安装
+#### 配置 PATH（Windows）
 
-```bash
-# Windows（需要先把 PostgreSQL bin 目录加到 PATH，或用完整路径）
-"C:\Program Files\PostgreSQL\16\bin\psql" -U postgres -c "SELECT 1;"
-# 输入密码 postgres，看到 1 就是成功
+安装完成后，`psql` 命令可能找不到，需要把 PostgreSQL 加到系统 PATH：
 
-# macOS
-psql -U postgres -c "SELECT 1;"
-```
-
-#### 如果提示 psql 找不到
-
-**Windows**：把 PostgreSQL 加到系统 PATH：
 ```powershell
-# 临时生效（当前终端）
-$env:Path += ";C:\Program Files\PostgreSQL\16\bin"
-
-# 永久生效（需要管理员权限）
+# 永久生效（PowerShell 管理员模式执行）
 [Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Program Files\PostgreSQL\16\bin", "Machine")
 ```
 
+然后**重新打开终端**。
+
+#### 验证安装和连接
+
+```bash
+psql -U postgres -c "SELECT version();"
+# 输入密码: postgres
+# 应输出 PostgreSQL 16.x.x 的版本信息
+```
+
+#### 验证服务是否在运行
+
+```powershell
+# Windows PowerShell
+Get-Service postgresql*
+# Status 应为 Running
+
+# 如果没在运行
+Start-Service postgresql-x64-16
+```
+
+```bash
+# macOS
+brew services list | grep postgresql
+# 应显示 started
+```
+
+> PostgreSQL 安装后注册为系统服务，**开机自动启动**，后续不需要手动管理。
+
 ---
 
-### 第三步：安装 Redis
+### 第五步：安装 Redis
 
-#### Windows
+Redis 是内存缓存，用于加速热点数据读取和会话管理。
+
+#### Windows 安装
 
 ```powershell
 winget install Redis.Redis
 ```
 
-安装完成后 Redis 作为 Windows 服务自动启动。
+> 安装完成后提示 "IMPORTANT: ReStart your Terminal"，**必须重新打开终端**。
 
-#### macOS
+#### macOS 安装
 
 ```bash
 brew install redis
 brew services start redis
 ```
 
-#### 验证安装
+#### 验证
 
 ```bash
 # Windows
@@ -133,34 +276,85 @@ brew services start redis
 
 # macOS
 redis-cli ping
+# 应返回 PONG
+```
+
+#### 验证服务是否在运行
+
+```powershell
+# Windows PowerShell
+Get-Service Redis
+# Status 应为 Running
+
+# 如果没在运行
+Start-Service Redis
+```
+
+> Redis 同样是系统服务，**开机自动启动**。
+
+---
+
+### 第六步：安装微信开发者工具（仅 D 同学需要）
+
+用于调试微信小程序。其他同学可以跳过这步。
+
+1. 下载：https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html
+2. 选择 **稳定版 Stable Build**
+3. 下载 Windows 64 或 macOS 版本
+4. 安装后用微信扫码登录
+
+---
+
+### 第七步：克隆项目
+
+```bash
+git clone git@github.com:liufuhuaxian6/college-service-platform.git
+cd college-service-platform
+```
+
+如果提示 SSH key 未配置，改用 HTTPS：
+
+```bash
+git clone https://github.com/liufuhuaxian6/college-service-platform.git
+cd college-service-platform
+```
+
+切到开发分支：
+
+```bash
+git checkout dev
 ```
 
 ---
 
-### 第四步：初始化数据库
+### 第八步：初始化数据库
 
 ```bash
 # 1. 创建数据库
 psql -U postgres -c "CREATE DATABASE college_service;"
 # 输入密码: postgres
 
-# 2. 执行建表脚本（在项目根目录下运行）
+# 2. 执行建表脚本
 psql -U postgres -d college_service -f deploy/sql/schema.sql
+# 输入密码: postgres
 ```
 
-成功后会看到大量 `CREATE TABLE`、`CREATE INDEX`、`INSERT` 输出。
+成功后会看到大量 `CREATE TABLE`、`CREATE INDEX`、`INSERT` 输出，最后几行是：
+```
+INSERT 0 1    (管理员账号)
+INSERT 0 4    (审批类型)
+INSERT 0 1    (入党流程模板)
+INSERT 0 8    (入党流程步骤)
+INSERT 0 1    (入团流程模板)
+INSERT 0 5    (入团流程步骤)
+```
 
-这一步做完后，数据库里就有了：
-- 14 张表
-- 1 个管理员账号（admin / admin123）
-- 4 种审批类型
-- 入党流程模板（8步）+ 入团流程模板（5步）
-
-> **注意**：这一步只需要做一次。以后再启动项目不需要重新建表。
+> 这一步**只需要做一次**。后续重新启动项目不需要重新建表。
+> 如果要重建数据库（清空所有数据），先执行 `psql -U postgres -c "DROP DATABASE college_service;"` 再重复上面两步。
 
 ---
 
-### 第五步：启动后端
+### 第九步：启动后端
 
 ```bash
 cd backend
@@ -172,47 +366,49 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-**首次启动**会自动下载 Maven 和所有依赖，需要 5-10 分钟，耐心等待。
+**首次启动**会自动下载 Maven 3.9.9 和所有 Java 依赖包（约 200MB），需要 5-15 分钟，耐心等待。
 
 看到以下输出表示启动成功：
 ```
 Started CollegeApplication in X.XXX seconds
 ```
 
-#### 验证后端
+#### 快速验证
 
-打开另一个终端窗口：
+打开**另一个终端窗口**：
 ```bash
 curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d "{\"studentId\":\"admin\",\"password\":\"admin123\"}"
 ```
 
-看到 `{"code":200, ...}` 返回 token 就是成功。
+看到 `{"code":200, ... "token":"eyJ..."}` 就是成功。
 
-或直接浏览器访问 API 文档：http://localhost:8080/api/doc.html
+也可以浏览器直接访问 API 文档：http://localhost:8080/api/doc.html
 
 ---
 
-### 第六步：启动管理端前端（C 同学 + 需要看页面的同学）
+### 第十步：启动管理端前端
+
+管理端使用 **Vite** 作为构建工具。Vite 不需要单独安装，`npm install` 会自动安装它。
 
 ```bash
 cd frontend-admin
-npm install          # 首次需要，后续不用
-npm run dev
+npm install          # 首次需要，约 1-2 分钟。会自动安装 Vite、Vue3、Element Plus 等所有依赖
+npm run dev          # 启动 Vite 开发服务器
 ```
 
 看到 `Local: http://localhost:5173/` 后，浏览器打开该地址。
 
-登录账号：`admin` / `admin123`
+登录：**admin** / **admin123**
+
+> **Vite 的作用**：它是前端开发服务器，做了两件事：
+> 1. 把 Vue 源码实时编译成浏览器能运行的 JS
+> 2. 把 `/api` 开头的请求代理转发到后端 `localhost:8080`（解决跨域问题）
+>
+> 所以开发时浏览器访问的是 Vite（:5173），但 API 请求实际到了后端（:8080）。
 
 ---
 
-### 第七步：启动小程序端（D 同学）
-
-#### 7.1 安装微信开发者工具
-
-下载地址：https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html
-
-#### 7.2 编译小程序
+### 第十一步：启动小程序端（仅 D 同学）
 
 ```bash
 cd frontend-mp
@@ -220,50 +416,64 @@ npm install          # 首次需要
 npm run dev:mp-weixin
 ```
 
-保持这个终端不要关（它会监听文件变化自动重新编译）。
+保持这个终端不要关。然后在微信开发者工具中：
 
-#### 7.3 导入微信开发者工具
+1. 选择 **导入项目**
+2. 目录选择：`frontend-mp/dist/dev/mp-weixin`
+   > **注意**：是 `dist/dev/mp-weixin` 目录，**不是** `frontend-mp` 根目录！
+3. AppID 选 **测试号**
+4. 点确定
+5. 右上角 **详情** → **本地设置** → 勾选 **不校验合法域名**
 
-1. 打开微信开发者工具
-2. 选择 **导入项目**
-3. 目录选择：`frontend-mp/dist/dev/mp-weixin`（**不是** `frontend-mp` 根目录！）
-4. AppID 选"测试号"即可
-5. 点确定
+---
 
-#### 7.4 关闭域名校验
+### 环境配置检查清单
 
-微信开发者工具 → 右上角 **详情** → **本地设置** → 勾选 **不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书**
+配置完成后，对照此表确认所有环境正常：
 
-> 这一步必须做，否则小程序请求 localhost 会报网络错误。
+| # | 检查项 | 检查命令 | 期望结果 |
+|---|--------|---------|----------|
+| 1 | Git | `git --version` | `git version 2.x.x` |
+| 2 | JDK | `java -version` | `openjdk version "17.x.x"` 或更高 |
+| 3 | Node.js | `node -v` | `v18.x.x` 或更高 |
+| 4 | npm | `npm -v` | `9.x.x` 或更高 |
+| 5 | PostgreSQL | `psql -U postgres -c "SELECT 1;"` | 返回 `1` |
+| 6 | Redis | `redis-cli ping` 或 `"C:\Program Files\Redis\redis-cli.exe" ping` | 返回 `PONG` |
+| 7 | 数据库已建表 | `psql -U postgres -d college_service -c "SELECT count(*) FROM sys_user;"` | 返回 `1`（管理员账号） |
+| 8 | 后端能启动 | 启动后访问 http://localhost:8080/api/doc.html | 看到 Swagger 文档页 |
+| 9 | 后端登录可用 | curl 登录接口 | 返回 `{"code":200, ...}` |
+| 10 | 管理端能访问 | http://localhost:5173 | 看到登录页面 |
 
 ---
 
 ### 各角色需要启动什么
 
-| 你是谁 | 需要启动的服务 | 需要安装的工具 |
-|--------|--------------|---------------|
-| **A 同学**（后端基础） | 后端 | JDK + PostgreSQL + Redis |
-| **B 同学**（后端业务） | 后端 | JDK + PostgreSQL + Redis |
-| **C 同学**（管理端前端） | 后端 + 管理端前端 | JDK + Node.js + PostgreSQL + Redis |
-| **D 同学**（小程序前端） | 后端 + 小程序编译 + 微信开发者工具 | JDK + Node.js + PostgreSQL + Redis + 微信开发者工具 |
+| 你是谁 | 需要启动的服务 | 需要安装的额外工具 |
+|--------|--------------|-------------------|
+| **A 同学**（后端基础） | 后端 | — |
+| **B 同学**（后端业务） | 后端 | — |
+| **C 同学**（管理端前端） | 后端 + 管理端前端 | — |
+| **D 同学**（小程序前端） | 后端 + 小程序编译 | 微信开发者工具 |
 
+> 所有人都需要安装：Git + JDK + Node.js + npm + PostgreSQL + Redis
 > 前端同学也需要启动后端，否则页面请求接口会全部报错。
 
 ---
 
-### 每日开发启动流程（配好环境后）
+### 每日开发启动流程
 
 PostgreSQL 和 Redis 是系统服务，**开机自动运行**，不用管。
 
 每次开发只需打开终端执行：
 
 ```bash
-# 终端 1：启动后端
+# 终端 1：启动后端（所有人）
 cd college-service-platform/backend
-.\mvnw.cmd spring-boot:run
+.\mvnw.cmd spring-boot:run          # Windows
+./mvnw spring-boot:run              # macOS
 # 等看到 "Started CollegeApplication" 再继续
 
-# 终端 2：启动管理端（C 同学或需要看页面的同学）
+# 终端 2：启动管理端前端（C 同学或需要看页面的同学）
 cd college-service-platform/frontend-admin
 npm run dev
 
@@ -275,27 +485,40 @@ npm run dev:mp-weixin
 
 ### 关闭所有服务
 
-直接关掉对应的终端窗口，或 `Ctrl+C` 停止。
+在各终端窗口按 `Ctrl+C` 即可停止。
 
 如果端口被占用（提示 Port 8080 already in use）：
+
 ```powershell
-# 查看谁占用了端口
+# Windows PowerShell：查看谁占用了端口
 netstat -ano | findstr :8080
 
 # 杀掉进程（替换 <PID> 为实际数字）
 taskkill /F /PID <PID>
 ```
 
-### 验证数据库和 Redis 是否在运行
+```bash
+# macOS
+lsof -i :8080
+kill -9 <PID>
+```
+
+### 数据库和 Redis 没在运行怎么办
 
 ```powershell
 # Windows PowerShell
-Get-Service postgresql*    # Status 应为 Running
-Get-Service Redis          # Status 应为 Running
+Get-Service postgresql*    # 查看状态
+Get-Service Redis
 
-# 如果没有在运行，手动启动
+# 手动启动
 Start-Service postgresql-x64-16
 Start-Service Redis
+```
+
+```bash
+# macOS
+brew services start postgresql@16
+brew services start redis
 ```
 
 ---
