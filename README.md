@@ -34,7 +34,273 @@ college-service-platform/
 
 ---
 
-## 环境要求
+## 环境配置完整指南（新成员必读）
+
+> 按照以下步骤从零配置开发环境，全程约 30 分钟。
+
+### 前置条件
+
+确认你的电脑已安装以下工具（括号内为检查命令）：
+
+| 工具 | 版本 | 检查命令 | 未安装怎么办 |
+|------|------|---------|-------------|
+| Git | 任意 | `git --version` | https://git-scm.com/download |
+| JDK | 17+ | `java -version` | https://adoptium.net （选 JDK 17 或更高） |
+| Node.js | 18+ | `node -v` | https://nodejs.org （选 LTS 版本） |
+| npm | 9+ | `npm -v` | 随 Node.js 一起安装 |
+
+> Maven **不需要单独安装**，项目自带 `mvnw.cmd` 会自动下载。
+
+---
+
+### 第一步：克隆项目
+
+```bash
+git clone git@github.com:liufuhuaxian6/college-service-platform.git
+cd college-service-platform
+git checkout dev
+```
+
+---
+
+### 第二步：安装 PostgreSQL
+
+#### Windows（推荐用 winget）
+
+```powershell
+# PowerShell 管理员模式运行
+winget install PostgreSQL.PostgreSQL.16
+```
+
+安装过程中会要求设置密码，**请设置为 `postgres`**（与项目配置一致）。
+
+安装完成后 PostgreSQL 作为 Windows 服务自动启动，无需手动启动。
+
+#### macOS
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+```
+
+#### 验证安装
+
+```bash
+# Windows（需要先把 PostgreSQL bin 目录加到 PATH，或用完整路径）
+"C:\Program Files\PostgreSQL\16\bin\psql" -U postgres -c "SELECT 1;"
+# 输入密码 postgres，看到 1 就是成功
+
+# macOS
+psql -U postgres -c "SELECT 1;"
+```
+
+#### 如果提示 psql 找不到
+
+**Windows**：把 PostgreSQL 加到系统 PATH：
+```powershell
+# 临时生效（当前终端）
+$env:Path += ";C:\Program Files\PostgreSQL\16\bin"
+
+# 永久生效（需要管理员权限）
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Program Files\PostgreSQL\16\bin", "Machine")
+```
+
+---
+
+### 第三步：安装 Redis
+
+#### Windows
+
+```powershell
+winget install Redis.Redis
+```
+
+安装完成后 Redis 作为 Windows 服务自动启动。
+
+#### macOS
+
+```bash
+brew install redis
+brew services start redis
+```
+
+#### 验证安装
+
+```bash
+# Windows
+"C:\Program Files\Redis\redis-cli.exe" ping
+# 应返回 PONG
+
+# macOS
+redis-cli ping
+```
+
+---
+
+### 第四步：初始化数据库
+
+```bash
+# 1. 创建数据库
+psql -U postgres -c "CREATE DATABASE college_service;"
+# 输入密码: postgres
+
+# 2. 执行建表脚本（在项目根目录下运行）
+psql -U postgres -d college_service -f deploy/sql/schema.sql
+```
+
+成功后会看到大量 `CREATE TABLE`、`CREATE INDEX`、`INSERT` 输出。
+
+这一步做完后，数据库里就有了：
+- 14 张表
+- 1 个管理员账号（admin / admin123）
+- 4 种审批类型
+- 入党流程模板（8步）+ 入团流程模板（5步）
+
+> **注意**：这一步只需要做一次。以后再启动项目不需要重新建表。
+
+---
+
+### 第五步：启动后端
+
+```bash
+cd backend
+
+# Windows
+.\mvnw.cmd spring-boot:run
+
+# macOS / Linux
+./mvnw spring-boot:run
+```
+
+**首次启动**会自动下载 Maven 和所有依赖，需要 5-10 分钟，耐心等待。
+
+看到以下输出表示启动成功：
+```
+Started CollegeApplication in X.XXX seconds
+```
+
+#### 验证后端
+
+打开另一个终端窗口：
+```bash
+curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d "{\"studentId\":\"admin\",\"password\":\"admin123\"}"
+```
+
+看到 `{"code":200, ...}` 返回 token 就是成功。
+
+或直接浏览器访问 API 文档：http://localhost:8080/api/doc.html
+
+---
+
+### 第六步：启动管理端前端（C 同学 + 需要看页面的同学）
+
+```bash
+cd frontend-admin
+npm install          # 首次需要，后续不用
+npm run dev
+```
+
+看到 `Local: http://localhost:5173/` 后，浏览器打开该地址。
+
+登录账号：`admin` / `admin123`
+
+---
+
+### 第七步：启动小程序端（D 同学）
+
+#### 7.1 安装微信开发者工具
+
+下载地址：https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html
+
+#### 7.2 编译小程序
+
+```bash
+cd frontend-mp
+npm install          # 首次需要
+npm run dev:mp-weixin
+```
+
+保持这个终端不要关（它会监听文件变化自动重新编译）。
+
+#### 7.3 导入微信开发者工具
+
+1. 打开微信开发者工具
+2. 选择 **导入项目**
+3. 目录选择：`frontend-mp/dist/dev/mp-weixin`（**不是** `frontend-mp` 根目录！）
+4. AppID 选"测试号"即可
+5. 点确定
+
+#### 7.4 关闭域名校验
+
+微信开发者工具 → 右上角 **详情** → **本地设置** → 勾选 **不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书**
+
+> 这一步必须做，否则小程序请求 localhost 会报网络错误。
+
+---
+
+### 各角色需要启动什么
+
+| 你是谁 | 需要启动的服务 | 需要安装的工具 |
+|--------|--------------|---------------|
+| **A 同学**（后端基础） | 后端 | JDK + PostgreSQL + Redis |
+| **B 同学**（后端业务） | 后端 | JDK + PostgreSQL + Redis |
+| **C 同学**（管理端前端） | 后端 + 管理端前端 | JDK + Node.js + PostgreSQL + Redis |
+| **D 同学**（小程序前端） | 后端 + 小程序编译 + 微信开发者工具 | JDK + Node.js + PostgreSQL + Redis + 微信开发者工具 |
+
+> 前端同学也需要启动后端，否则页面请求接口会全部报错。
+
+---
+
+### 每日开发启动流程（配好环境后）
+
+PostgreSQL 和 Redis 是系统服务，**开机自动运行**，不用管。
+
+每次开发只需打开终端执行：
+
+```bash
+# 终端 1：启动后端
+cd college-service-platform/backend
+.\mvnw.cmd spring-boot:run
+# 等看到 "Started CollegeApplication" 再继续
+
+# 终端 2：启动管理端（C 同学或需要看页面的同学）
+cd college-service-platform/frontend-admin
+npm run dev
+
+# 终端 3：启动小程序编译（D 同学）
+cd college-service-platform/frontend-mp
+npm run dev:mp-weixin
+# 然后打开微信开发者工具
+```
+
+### 关闭所有服务
+
+直接关掉对应的终端窗口，或 `Ctrl+C` 停止。
+
+如果端口被占用（提示 Port 8080 already in use）：
+```powershell
+# 查看谁占用了端口
+netstat -ano | findstr :8080
+
+# 杀掉进程（替换 <PID> 为实际数字）
+taskkill /F /PID <PID>
+```
+
+### 验证数据库和 Redis 是否在运行
+
+```powershell
+# Windows PowerShell
+Get-Service postgresql*    # Status 应为 Running
+Get-Service Redis          # Status 应为 Running
+
+# 如果没有在运行，手动启动
+Start-Service postgresql-x64-16
+Start-Service Redis
+```
+
+---
+
+## 环境要求（汇总）
 
 | 工具                    | 版本   | 说明                            |
 | ----------------------- | ------ | ------------------------------- |
@@ -524,5 +790,6 @@ npm install
 
 ## 相关文档
 
+- [项目运行架构与通信方式](docs/ARCHITECTURE.md) — 系统全景图、各端通信方式、请求生命周期
 - [团队协作与 API 接口文档](docs/TEAM-COLLABORATION.md) — 分工、全部接口清单、状态机、迭代计划
 - [文件说明文档](docs/FILE-REFERENCE.md) — 每个文件的用途与实现说明
