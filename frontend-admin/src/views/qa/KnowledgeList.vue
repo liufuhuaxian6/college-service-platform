@@ -9,15 +9,25 @@
       </template>
       <el-form inline style="margin-bottom:16px">
         <el-form-item label="分类">
-          <el-select v-model="query.category" clearable placeholder="全部" @change="loadData">
+          <el-select
+            v-model="query.category"
+            clearable
+            placeholder="全部"
+            style="width: 140px"
+            @change="handleSearch"
+          >
             <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
         <el-form-item label="关键词">
-          <el-input v-model="query.keyword" clearable @keyup.enter="loadData" placeholder="搜索问题或关键词" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadData">搜索</el-button>
+        <el-input
+          v-model="query.keyword"
+          clearable
+          style="width: 260px"
+          @keyup.enter="handleSearch"
+          placeholder="搜索问题或关键词"
+        />
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
         </el-form-item>
       </el-form>
 
@@ -88,12 +98,30 @@ function showDialog(row) {
 async function loadData() {
   loading.value = true
   try {
-    const res = await qaApi.getKnowledgePage(query)
-    list.value = res.data.records
-    total.value = res.data.total
-  } finally { loading.value = false }
-}
+    const params = {
+      page: query.page,
+      size: query.size,
+    }
 
+    if (query.category) {
+      params.category = query.category
+    }
+
+    if (query.keyword) {
+      params.keyword = query.keyword
+    }
+
+    const res = await qaApi.getKnowledgePage(params)
+    list.value = res.data.records || []
+    total.value = res.data.total || 0
+  } finally {
+    loading.value = false
+  }
+}
+function handleSearch() {
+  query.page = 1
+  loadData()
+}
 async function handleSubmit() {
   submitting.value = true
   try {
