@@ -8,6 +8,7 @@
       <input class="input" v-model="form.studentId" placeholder="请输入学号" />
       <input class="input" v-model="form.password" type="password" placeholder="请输入密码" />
       <button class="btn-login" :loading="loading" @click="handleLogin">登 录</button>
+      <text class="dev-link" @click="goDevHome">开发者入口：跳至首页</text>
     </view>
   </view>
 </template>
@@ -35,6 +36,17 @@ async function handleLogin() {
   } catch (e) { /* handled */ }
   finally { loading.value = false }
 }
+
+function goDevHome() {
+  userStore.setLoginInfo({
+    token: 'dev-token-123',
+    userId: '',
+    name: '开发者同学',
+    roleLevel: 1,
+    studentId: '',
+  })
+  uni.switchTab({ url: '/pages/index/index' })
+}
 </script>
 
 <style scoped>
@@ -45,4 +57,5 @@ async function handleLogin() {
 .form { background: #fff; border-radius: 16rpx; padding: 40rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,.1); }
 .input { border: 1rpx solid #ddd; border-radius: 8rpx; padding: 20rpx 24rpx; margin-bottom: 24rpx; font-size: 28rpx; }
 .btn-login { background: #1a3a5c; color: #fff; border: none; border-radius: 8rpx; padding: 20rpx; font-size: 30rpx; margin-top: 12rpx; }
+.dev-link { display: block; text-align: center; margin-top: 18rpx; font-size: 24rpx; color: #8a8f98; }
 </style>
