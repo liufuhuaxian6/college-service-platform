@@ -10,6 +10,8 @@ import com.ruc.college.module.approval.entity.ApprovalType;
 import com.ruc.college.module.approval.service.ApprovalService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -68,6 +70,11 @@ public class ApprovalController {
         // 触发锁定! 状态变为 downloaded
         ApprovalApplication app = approvalService.downloadCert(id);
         return Result.ok(app);
+    }
+
+    @GetMapping("/my/{id}/download-file")
+    public ResponseEntity<Resource> downloadFile(@PathVariable Long id) {
+        return approvalService.downloadCertFile(id);
     }
 
     // ==================== 管理端 ====================

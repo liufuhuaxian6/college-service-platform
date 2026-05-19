@@ -4,6 +4,7 @@ import com.ruc.college.common.log.OperationLog;
 import com.ruc.college.common.result.Result;
 import com.ruc.college.common.security.RequireRole;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -25,7 +26,11 @@ import java.util.UUID;
 @RequestMapping("/file")
 public class FileController {
 
-    private static final long MAX_FILE_SIZE = 30L * 1024 * 1024;
+    @Value("${file.upload-path:./uploads}")
+    private String uploadPath;
+
+    @Value("${file.max-size:31457280}")
+    private long maxSize;
 
     @PostMapping("/upload")
     @RequireRole(minLevel = 2)
@@ -36,7 +41,7 @@ public class FileController {
                 return Result.fail("上传文件不能为空");
             }
 
-            if (file.getSize() > MAX_FILE_SIZE) {
+            if (file.getSize() > maxSize) {
                 return Result.fail("文件大小不能超过30MB");
             }
 
@@ -49,12 +54,11 @@ public class FileController {
                 suffix = cleanName.substring(dotIndex);
             }
 
+            String normalizedUploadPath = normalizeRelativePath(uploadPath);
             String datePath = LocalDate.now().toString();
-            String uploadDirPath = System.getProperty("user.dir")
-                    + File.separator + "uploads"
-                    + File.separator + datePath;
+            File baseDir = new File(System.getProperty("user.dir"));
+            File uploadDir = new File(baseDir, normalizedUploadPath + File.separator + datePath);
 
-            File uploadDir = new File(uploadDirPath);
             if (!uploadDir.exists() && !uploadDir.mkdirs()) {
                 return Result.fail("创建上传目录失败");
             }
@@ -64,9 +68,10 @@ public class FileController {
 
             file.transferTo(targetFile);
 
-            String relativePath = "uploads/" + datePath + "/" + storedName;
+            String relativePath = normalizedUploadPath.replace("\\", "/") + "/" + datePath + "/" + storedName;
 
             return Result.ok(Map.of(
+                    "fileId", relativePath,
                     "fileName", cleanName,
                     "filePath", relativePath,
                     "fileSize", file.getSize(),
@@ -74,7 +79,7 @@ public class FileController {
             ));
         } catch (Exception e) {
             log.error("文件上传失败", e);
-            return Result.fail("文件上传失败: " + e.getMessage());
+            return Result.fail("文件上传失败");
         }
     }
 
@@ -86,7 +91,13 @@ public class FileController {
                 return ResponseEntity.badRequest().build();
             }
 
-            File file = new File(System.getProperty("user.dir") + File.separator + cleanPath);
+            String normalizedUploadPath = normalizeRelativePath(uploadPath).replace("\\", "/");
+            String cleanPathNorm = cleanPath.replace("\\", "/");
+            if (!cleanPathNorm.startsWith(normalizedUploadPath + "/")) {
+                return ResponseEntity.status(403).build();
+            }
+
+            File file = new File(System.getProperty("user.dir") + File.separator + cleanPathNorm);
             if (!file.exists() || !file.isFile()) {
                 return ResponseEntity.notFound().build();
             }
@@ -102,5 +113,28 @@ public class FileController {
             log.error("文件下载失败", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @GetMapping("/download/{*fileId}")
+    public ResponseEntity<Resource> downloadById(@PathVariable String fileId) {
+        return download(fileId);
+    }
+
+    private static String normalizeRelativePath(String raw) {
+        String value = StringUtils.hasText(raw) ? raw.trim() : "uploads";
+        value = value.replace("\\", "/");
+        if (value.startsWith("./")) {
+            value = value.substring(2);
+        }
+        while (value.startsWith("/")) {
+            value = value.substring(1);
+        }
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        if (!StringUtils.hasText(value)) {
+            value = "uploads";
+        }
+        return value;
     }
 }
