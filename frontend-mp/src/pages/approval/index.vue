@@ -25,6 +25,8 @@
 import { ref, onMounted } from 'vue'
 import { approvalApi } from '@/api'
 
+const BASE_URL = 'http://localhost:8080/api'
+
 const list = ref([])
 
 const statusMap = {
@@ -48,8 +50,32 @@ async function handleDownload(id) {
     content: '下载后证明将被锁定，不可再撤回。确认下载？',
     success: async (res) => {
       if (res.confirm) {
-        await approvalApi.download(id)
-        uni.showToast({ title: '下载成功，已锁定', icon: 'success' })
+        const token = uni.getStorageSync('token') || ''
+        uni.showLoading({ title: '下载中' })
+        uni.downloadFile({
+          url: `${BASE_URL}/approval/my/${id}/download-file`,
+          header: token ? { Authorization: `Bearer ${token}` } : {},
+          success: (r) => {
+            if (r.statusCode !== 200) {
+              uni.showToast({ title: '下载失败', icon: 'none' })
+              return
+            }
+            uni.openDocument({
+              filePath: r.tempFilePath,
+              showMenu: true,
+              fail: () => {
+                uni.showToast({ title: '打开文件失败', icon: 'none' })
+              },
+            })
+            uni.showToast({ title: '下载成功，已锁定', icon: 'success' })
+          },
+          fail: () => {
+            uni.showToast({ title: '下载失败', icon: 'none' })
+          },
+          complete: () => {
+            uni.hideLoading()
+          },
+        })
         // 刷新列表
         const r = await approvalApi.getMyPage({ page: 1, size: 50 })
         list.value = r.data?.records || []

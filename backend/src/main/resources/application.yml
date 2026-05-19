@@ -35,9 +35,10 @@ jwt:
 
 # AI 配置 (预留, 后续填入具体模型)
 ai:
-  provider: none  # none / wenxin / qianfan / openai
+  provider: none  # none / http / wenxin / qianfan / openai
   api-key: ""
   api-url: ""
+  timeout-ms: 5000
 
 # 文件上传
 file:

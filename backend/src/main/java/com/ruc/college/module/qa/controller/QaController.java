@@ -11,9 +11,18 @@ import com.ruc.college.module.qa.service.QaService;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -96,8 +105,40 @@ public class QaController {
     }
 
     @GetMapping("/document/{id}/download")
-    public Result<QaDocument> downloadDocument(@PathVariable Long id) {
-        return Result.ok(qaService.getDocumentForDownload(id));
+    public ResponseEntity<Resource> downloadDocument(@PathVariable Long id) {
+        QaDocument doc = qaService.getDocumentForDownload(id);
+        String cleanPath = StringUtils.cleanPath(doc.getFilePath());
+        if (cleanPath.contains("..")) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        File file = new File(System.getProperty("user.dir") + File.separator + cleanPath);
+        if (!file.exists() || !file.isFile()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String extension = "";
+        int dotIndex = cleanPath.lastIndexOf('.');
+        int slashIndex = Math.max(cleanPath.lastIndexOf('/'), cleanPath.lastIndexOf('\\'));
+        if (dotIndex > slashIndex) {
+            extension = cleanPath.substring(dotIndex);
+        }
+        String baseName = StringUtils.hasText(doc.getTitle()) ? doc.getTitle().trim() : file.getName();
+        String downloadName = baseName;
+        if (StringUtils.hasText(extension)) {
+            String lowerBase = baseName.toLowerCase();
+            String lowerExt = extension.toLowerCase();
+            if (!lowerBase.endsWith(lowerExt)) {
+                downloadName = baseName + extension;
+            }
+        }
+        String encodedName = URLEncoder.encode(downloadName, StandardCharsets.UTF_8).replace("+", "%20");
+
+        Resource resource = new FileSystemResource(file);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
+                .body(resource);
     }
 
     @DeleteMapping("/document/{id}")
