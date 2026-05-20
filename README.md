@@ -27,7 +27,9 @@ college-service-platform/
 │   └── nginx.conf           # Nginx 配置
 ├── docs/                    # 项目文档
 │   ├── TEAM-COLLABORATION.md  # 团队协作与 API 接口文档
-│   └── FILE-REFERENCE.md     # 文件说明文档
+│   ├── FILE-REFERENCE.md     # 文件说明文档
+│   ├── ARCHITECTURE.md       # 系统架构与通信方式
+│   └── DEPLOYMENT.md         # 服务器部署文档（离线部署）
 ├── docker-compose.yml       # Docker 一键部署
 └── README.md
 ```
@@ -647,7 +649,9 @@ npm run dev:h5
 
 ---
 
-## Docker 一键部署（生产环境）
+## Docker 部署（生产环境）
+
+> 详细的服务器部署流程（含离线环境）请参阅 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ```bash
 # 1. 先构建管理端前端
@@ -669,7 +673,7 @@ docker-compose logs -f backend
 
 - 管理端：http://localhost（Nginx 80 端口）
 - 后端 API：http://localhost/api
-- Kingbase：localhost:54321
+- PostgreSQL / Kingbase：localhost:5432
 - Redis：localhost:6379
 
 停止所有服务：
@@ -1016,3 +1020,4 @@ npm install
 - [项目运行架构与通信方式](docs/ARCHITECTURE.md) — 系统全景图、各端通信方式、请求生命周期
 - [团队协作与 API 接口文档](docs/TEAM-COLLABORATION.md) — 分工、全部接口清单、状态机、迭代计划
 - [文件说明文档](docs/FILE-REFERENCE.md) — 每个文件的用途与实现说明
+- [服务器部署文档](docs/DEPLOYMENT.md) — 离线环境部署流程、Docker 镜像导入、运维操作
