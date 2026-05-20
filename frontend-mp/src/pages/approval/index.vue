@@ -23,12 +23,12 @@
     <view class="empty" v-if="!applicationList.length">暂无申请记录</view>
 
     <button class="btn-apply" @click="goApply">提交新申请</button>
+    <text class="dev-mock-btn" @click="loadMockData">加载测试数据</text><!-- // @UI_DEV_ONLY -->
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
 import { approvalApi } from '@/api'
 
 const applicationList = ref([])
@@ -41,8 +41,12 @@ const statusLabel = (s) => statusMap[s] || s
 
 onMounted(async () => {
   if (applicationList.value.length) return
-  const res = await approvalApi.getMyPage({ page: 1, size: 50 })
-  applicationList.value = res.data?.records || []
+  try {
+    const res = await approvalApi.getMyPage({ page: 1, size: 50 })
+    applicationList.value = res.data?.records || []
+  } catch (e) {
+    applicationList.value = []
+  }
 })
 
 function formatDate(offsetDays) {
@@ -54,13 +58,13 @@ function formatDate(offsetDays) {
   return `${y}-${m}-${day}`
 }
 
-onLoad(() => {
-  applicationList.value = [
-    { id: 1, appNo: '在读证明', status: 'pending', createdAt: formatDate(0) },
-    { id: 2, appNo: '成绩证明', status: 'approved', createdAt: formatDate(-1) },
-    { id: 3, appNo: '离校证明', status: 'rejected', rejectReason: '材料不全', createdAt: formatDate(-2) },
-  ]
-})
+function loadMockData() { // @UI_DEV_ONLY
+  applicationList.value = [ // @UI_DEV_ONLY
+    { id: 1, appNo: '在读证明', status: 'pending', createdAt: formatDate(0) }, // @UI_DEV_ONLY
+    { id: 2, appNo: '成绩证明', status: 'approved', createdAt: formatDate(-1) }, // @UI_DEV_ONLY
+    { id: 3, appNo: '离校证明', status: 'rejected', rejectReason: '材料不全', createdAt: formatDate(-2) }, // @UI_DEV_ONLY
+  ] // @UI_DEV_ONLY
+} // @UI_DEV_ONLY
 
 function viewDetail(id) {
   // TODO: 详情页
@@ -124,4 +128,11 @@ function goApply() {
 .locked-tag { margin-top: 12rpx; font-size: 22rpx; color: #909399; }
 .empty { text-align: center; color: #999; padding: 80rpx; }
 .btn-apply { background: #1a3a5c; color: #fff; border: none; border-radius: 8rpx; margin-top: 20rpx; font-size: 30rpx; }
+.dev-mock-btn { /* // @UI_DEV_ONLY */
+  display: block; /* // @UI_DEV_ONLY */
+  text-align: center; /* // @UI_DEV_ONLY */
+  font-size: 20rpx; /* // @UI_DEV_ONLY */
+  color: #c0c4cc; /* // @UI_DEV_ONLY */
+  margin-top: 10rpx; /* // @UI_DEV_ONLY */
+} /* // @UI_DEV_ONLY */
 </style>
