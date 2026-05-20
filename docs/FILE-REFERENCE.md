@@ -38,7 +38,7 @@
 | 文件 | 用途 |
 |------|------|
 | `Result.java` | 所有接口的统一返回格式 `{code, message, data}`。提供工厂方法：`Result.ok(data)` 成功、`Result.fail(msg)` 失败、`Result.unauthorized()` 未登录(401)、`Result.forbidden()` 无权限(403)。前端只需判断 `code === 200` |
-| `PageResult.java` | 分页查询专用响应，包含 `total`(总数)、`page`(当前页)、`size`(每页条数)、`records`(数据列表) |
+| `PageResult.java` | 预留的分页响应封装类（含 `total`/`page`/`size`/`records`），当前未使用。实际分页接口直接返回 MyBatis-Plus 的 `Page<T>` 对象，响应格式为 `{total, current, size, pages, records}` |
 
 #### 2.3.2 枚举 (`common/enums/`)
 

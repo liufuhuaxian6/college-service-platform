@@ -148,6 +148,8 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/auth/profile` | 获取当前用户信息 | 全部角色 | 无 | `SysUser` (脱敏) |
 | PUT | `/auth/password` | 修改密码 | 全部角色 | `{ oldPassword, newPassword }` | 无 |
 
+> 注: `PUT /auth/password` 实际实现在 `SystemController` 中（路径仍为 `/auth/password`），由 A 同学维护。
+
 ### 3.2 系统管理 — `/system` (A 同学)
 
 | 方法 | 路径 | 说明 | 权限 | 请求体/参数 | 响应 |
@@ -183,6 +185,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 |------|------|------|------|------|------|
 | GET | `/notify/page` | 我的通知列表 | 全部角色 | `?page=1&size=20&type=` | `PageResult<Notification>` |
 | GET | `/notify/unread-count` | 未读数量 | 全部角色 | 无 | `{ count: 5 }` |
+| GET | `/notify/unread` | 未读数量(别名) | 全部角色 | 无 | `{ count: 5 }` |
 | PUT | `/notify/{id}/read` | 标记已读 | 全部角色 | 无 | 无 |
 | PUT | `/notify/read-all` | 全部标记已读 | 全部角色 | 无 | 无 |
 
@@ -280,8 +283,8 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/approval/my/page` | 我的申请列表 | 全部角色 | `?page=1&size=20&status=` | `PageResult<Application>` |
 | GET | `/approval/my/{id}` | 申请详情 | 全部角色 | 无 | `Application` (含审批记录) |
 | PUT | `/approval/my/{id}/withdraw` | 撤回申请 | 全部角色 | 无 | 无 |
-| GET | `/approval/my/{id}/download` | 锁定申请(不返回文件) | 全部角色 | 无 | `Application` |
-| GET | `/approval/my/{id}/download-file` | 下载证明文件(触发锁定!) | 全部角色 | 无 | PDF 文件流 |
+| GET | `/approval/my/{id}/download` | 锁定申请并返回申请对象 | 全部角色 | 无 | `Application` |
+| GET | `/approval/my/{id}/download-file` | 生成并下载证明文件(同样触发锁定) | 全部角色 | 无 | PDF 文件流 |
 | **管理端** |
 | GET | `/approval/pending/page` | 待审批列表 | ≤2级 | `?page=1&size=20&typeId=` | `PageResult<Application>` |
 | PUT | `/approval/{id}/approve` | 通过 | ≤2级 | `{ comment }` | 无 |
@@ -303,7 +306,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
                │   ┌────▼─────┐
                │   │ approved │ 已通过 (撤回窗口期: 1-2天)
                │   └────┬─────┘
-               │        │ GET /download-file (学生下载证明文件)
+               │        │ GET /download 或 /download-file (学生下载证明)
                │   ┌────▼──────┐
                │   │downloaded │ ★已锁定 — 所有修改操作被禁止
                │   └───────────┘
@@ -358,7 +361,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/student/profile` | 我的个人信息 | 全部角色 | 无 | `StudentProfile` |
 | GET | `/student/honors` | 我的荣誉列表 | 全部角色 | 无 | `List<Honor>` |
 | **管理端** |
-| GET | `/student/page` | 学生列表(含筛选) | ≤2级 | `?page=1&size=20&grade=&major=&className=` | `PageResult<StudentProfile>` |
+| GET | `/student/page` | 学生列表(含筛选) | ≤3级 | `?page=1&size=20&grade=&major=&className=` | `PageResult<StudentProfile>` |
 | GET | `/student/{id}/detail` | 学生详情画像 | ≤2级 | 无 | `StudentProfile` (含荣誉/流程/申请) |
 | POST | `/student/{id}/honor` | 录入荣誉 | ≤2级 | `{ honorName, honorLevel, awardDate, certFile }` | `{ id }` |
 | PUT | `/student/honor/{honorId}` | 修改荣誉 | ≤2级 | 同上 | 无 |
@@ -391,7 +394,7 @@ Content-Type: application/json
   "data": { ... }       // 成功时的业务数据
 }
 
-# 分页响应
+# 分页响应 (MyBatis-Plus Page<T> 格式)
 {
   "code": 200,
   "data": {
@@ -404,7 +407,7 @@ Content-Type: application/json
 }
 
 # 分页请求参数(统一)
-?page=1&size=20&sortField=createdAt&sortOrder=desc
+?page=1&size=20
 ```
 
 ### 4.2 Git 分支策略
