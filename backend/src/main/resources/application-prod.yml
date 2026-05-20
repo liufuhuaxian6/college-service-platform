@@ -1,14 +1,14 @@
 spring:
   datasource:
-    # Kingbase 连接 (兼容 PostgreSQL JDBC)
-    url: jdbc:kingbase8://localhost:54321/college_service
-    username: system
-    password: ${DB_PASSWORD}
-    driver-class-name: com.kingbase8.Driver
+    # Docker 环境中使用容器名连接；非 Docker 环境改为实际 IP
+    url: jdbc:postgresql://${DB_HOST:kingbase}:${DB_PORT:5432}/${DB_NAME:college_service}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       database: 0
