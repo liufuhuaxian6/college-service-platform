@@ -35,7 +35,6 @@ cd college-service-platform/backend
 
 ```bash
 ssh user@10.10.0.27
-# 密码: Yb9GU5N%NZ!}7J1@Fx4u
 ```
 
 > 如果提示 `Are you sure you want to continue connecting`，输入 `yes`。
@@ -201,6 +200,7 @@ curl -I http://localhost
 ```
 
 从外部浏览器访问：
+
 - 管理端：`http://10.10.0.27`
 - API：`http://10.10.0.27/api/doc.html`（如果开启了 Swagger）
 
@@ -219,7 +219,7 @@ curl -I http://localhost
 // const BASE_URL = 'http://localhost:8080/api'
 
 // 生产环境（改为服务器地址）
-const BASE_URL = 'http://10.10.0.27/api'
+const BASE_URL = "http://10.10.0.27/api";
 
 // 如果有域名和 HTTPS
 // const BASE_URL = 'https://your-domain.com/api'
@@ -249,6 +249,7 @@ docker compose ps
 ```
 
 输出示例：
+
 ```
 NAME                IMAGE               STATUS          PORTS
 backend             ...                 Up (healthy)    0.0.0.0:8080->8080/tcp
@@ -383,6 +384,7 @@ spring:
 ```
 
 > 注意：Kingbase JDBC 驱动不在 Maven 中央仓库，需要从金仓官网下载 jar 后手动安装到本地仓库：
+>
 > ```bash
 > mvn install:install-file -Dfile=kingbase8-8.6.0.jar -DgroupId=com.kingbase8 -DartifactId=kingbase8 -Dversion=8.6.0 -Dpackaging=jar
 > ```
@@ -413,7 +415,7 @@ docker compose up -d --build backend
 ```yaml
 services:
   kingbase:
-    image: kingbase/kingbase:v8    # 替换为实际镜像名
+    image: kingbase/kingbase:v8 # 替换为实际镜像名
     ports:
       - "54321:54321"
     environment:
@@ -445,21 +447,22 @@ docker compose up -d
 ### 方式三：继续使用 PostgreSQL（当前方案）
 
 不需要任何修改。PostgreSQL 和 Kingbase 的 SQL 语法完全兼容，`schema.sql` 在两者上都能正常执行。当前方案适用于：
+
 - 开发阶段
 - 答辩演示
 - 学校未提供 Kingbase 环境时
 
 ### 切换对照表
 
-| 配置项 | PostgreSQL（当前） | Kingbase |
-|--------|-------------------|----------|
-| `.env` DB_HOST | postgres（容器名） | kingbase 或学校 IP |
-| `.env` DB_PORT | 5432 | 54321 |
-| `.env` DB_USER | postgres | system |
+| 配置项            | PostgreSQL（当前）    | Kingbase             |
+| ----------------- | --------------------- | -------------------- |
+| `.env` DB_HOST    | postgres（容器名）    | kingbase 或学校 IP   |
+| `.env` DB_PORT    | 5432                  | 54321                |
+| `.env` DB_USER    | postgres              | system               |
 | driver-class-name | org.postgresql.Driver | com.kingbase8.Driver |
-| JDBC URL 前缀 | jdbc:postgresql:// | jdbc:kingbase8:// |
-| pom.xml 依赖 | postgresql（已有） | kingbase8（需添加） |
-| SQL 语法 | 相同 | 相同 |
+| JDBC URL 前缀     | jdbc:postgresql://    | jdbc:kingbase8://    |
+| pom.xml 依赖      | postgresql（已有）    | kingbase8（需添加）  |
+| SQL 语法          | 相同                  | 相同                 |
 
 ---
 
@@ -521,6 +524,7 @@ docker compose logs backend | tail -50
 ```
 
 常见原因：
+
 - 数据库还没启动完就连接 → 已通过 healthcheck + depends_on 解决
 - 端口被占用 → `sudo lsof -i :8080`
 - 内存不足 → `free -h` 检查
@@ -538,6 +542,7 @@ docker compose exec postgres psql -U postgres -c "SELECT 1;"
 ### Nginx 502 Bad Gateway
 
 说明 Nginx 无法连接到后端：
+
 ```bash
 # 检查后端是否在运行
 docker compose ps backend
