@@ -1,49 +1,139 @@
 <template>
   <el-card>
-    <template #header><span>学生流程管理</span></template>
+    <template #header>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span>学生流程管理</span>
+        <el-button type="primary" @click="showCreateDialog">创建学生流程</el-button>
+      </div>
+    </template>
+
     <el-form inline style="margin-bottom:16px">
       <el-form-item label="流程">
-        <el-select v-model="query.templateId" clearable placeholder="全部" @change="loadData">
+        <el-select
+          v-model="query.templateId"
+          clearable
+          placeholder="全部"
+          style="width: 160px"
+          @change="handleSearch"
+        >
           <el-option v-for="t in templates" :key="t.id" :label="t.name" :value="t.id" />
         </el-select>
       </el-form-item>
+
       <el-form-item label="状态">
-        <el-select v-model="query.status" clearable placeholder="全部" @change="loadData">
+        <el-select
+          v-model="query.status"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="handleSearch"
+        >
           <el-option label="进行中" value="active" />
           <el-option label="已完成" value="completed" />
           <el-option label="已暂停" value="suspended" />
         </el-select>
       </el-form-item>
-      <el-form-item><el-button type="primary" @click="loadData">查询</el-button></el-form-item>
+
+      <el-form-item label="学生ID">
+        <el-input
+          v-model="query.userId"
+          clearable
+          placeholder="输入学生用户ID"
+          style="width: 160px"
+          @keyup.enter="handleSearch"
+        />
+      </el-form-item>
+
+      <el-form-item>
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+      </el-form-item>
     </el-form>
 
     <el-table :data="list" v-loading="loading" border stripe>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="userId" label="学生ID" width="100" />
-      <el-table-column prop="templateId" label="流程模板" width="120" />
+      <el-table-column label="流程模板" min-width="150">
+        <template #default="{ row }">
+          {{ getTemplateName(row.templateId) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="currentStep" label="当前步骤" width="100" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'active' ? 'primary' : row.status === 'completed' ? 'success' : 'warning'">
-            {{ { active: '进行中', completed: '已完成', suspended: '已暂停' }[row.status] }}
+          <el-tag :type="getStatusTagType(row.status)">
+            {{ getStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="startDate" label="开始日期" width="120" />
+      <el-table-column prop="startDate" label="开始日期" width="140" />
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="advance(row.id)" :disabled="row.status !== 'active'">推进</el-button>
-          <el-button link type="warning" @click="suspend(row.id)" :disabled="row.status !== 'active'">暂停</el-button>
+          <el-button
+            link
+            type="primary"
+            :disabled="row.status !== 'active'"
+            @click="advance(row)"
+          >
+            推进
+          </el-button>
+          <el-button
+            link
+            type="warning"
+            :disabled="row.status !== 'active'"
+            @click="suspend(row)"
+          >
+            暂停
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
+
     <el-pagination
       style="margin-top:16px;justify-content:flex-end"
       v-model:current-page="query.page"
+      v-model:page-size="query.size"
       :total="total"
       layout="total, prev, pager, next"
       @current-change="loadData"
     />
+
+    <el-dialog v-model="dialogVisible" title="创建学生流程" width="520px">
+      <el-form :model="form" label-width="100px">
+        <el-form-item label="学生用户ID" required>
+          <el-input
+            v-model="form.userId"
+            placeholder="请输入学生用户ID，例如 2"
+          />
+        </el-form-item>
+
+        <el-form-item label="流程模板" required>
+          <el-select
+            v-model="form.templateId"
+            placeholder="请选择流程模板"
+            style="width: 100%"
+          >
+            <el-option v-for="t in templates" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="开始日期" required>
+          <el-date-picker
+            v-model="form.startDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="请选择开始日期"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleCreate">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -53,39 +143,196 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { partyApi } from '@/api'
 
 const loading = ref(false)
+const submitting = ref(false)
+const dialogVisible = ref(false)
+
 const list = ref([])
 const total = ref(0)
 const templates = ref([])
-const query = reactive({ page: 1, size: 20, templateId: null, status: null })
+
+const query = reactive({
+  page: 1,
+  size: 20,
+  templateId: null,
+  status: '',
+  userId: '',
+})
+
+const form = reactive({
+  userId: '',
+  templateId: null,
+  startDate: '',
+})
+
+function buildQueryParams() {
+  const params = {
+    page: query.page,
+    size: query.size,
+  }
+
+  if (query.templateId) {
+    params.templateId = query.templateId
+  }
+
+  if (query.status) {
+    params.status = query.status
+  }
+
+  if (query.userId) {
+    params.userId = Number(query.userId)
+  }
+
+  return params
+}
+
+async function loadTemplates() {
+  const res = await partyApi.getTemplatePage({ page: 1, size: 100 })
+  templates.value = res.data.records || []
+}
 
 async function loadData() {
   loading.value = true
+
   try {
-    const res = await partyApi.getInstancePage(query)
-    list.value = res.data.records
-    total.value = res.data.total
-  } finally { loading.value = false }
+    const res = await partyApi.getInstancePage(buildQueryParams())
+    list.value = res.data.records || []
+    total.value = res.data.total || 0
+  } finally {
+    loading.value = false
+  }
 }
 
-async function advance(id) {
-  const { value } = await ElMessageBox.prompt('请输入备注(可选)', '推进步骤')
-  await partyApi.advanceStep(id, { remark: value })
-  ElMessage.success('推进成功')
+function handleSearch() {
+  query.page = 1
   loadData()
 }
 
-async function suspend(id) {
-  await ElMessageBox.confirm('确定暂停该流程?')
-  await partyApi.suspendInstance(id, {})
-  ElMessage.success('已暂停')
-  loadData()
+function showCreateDialog() {
+  form.userId = ''
+  form.templateId = null
+  form.startDate = new Date().toISOString().slice(0, 10)
+  dialogVisible.value = true
+}
+
+function validateCreateForm() {
+  if (!form.userId) {
+    ElMessage.warning('请输入学生用户ID')
+    return false
+  }
+
+  if (Number.isNaN(Number(form.userId))) {
+    ElMessage.warning('学生用户ID必须是数字')
+    return false
+  }
+
+  if (!form.templateId) {
+    ElMessage.warning('请选择流程模板')
+    return false
+  }
+
+  if (!form.startDate) {
+    ElMessage.warning('请选择开始日期')
+    return false
+  }
+
+  return true
+}
+
+async function handleCreate() {
+  if (!validateCreateForm()) {
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    await partyApi.createInstance({
+      userId: Number(form.userId),
+      templateId: form.templateId,
+      startDate: form.startDate,
+    })
+
+    ElMessage.success('创建学生流程成功')
+    dialogVisible.value = false
+    query.page = 1
+    loadData()
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function advance(row) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `确定推进流程「${getTemplateName(row.templateId)}」到下一步吗？`,
+      '推进步骤',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '备注，可不填',
+      }
+    )
+
+    await partyApi.advanceStep(row.id, { remark: value || '' })
+    ElMessage.success('推进成功')
+    loadData()
+  } catch (error) {
+    // 用户取消时不提示错误
+  }
+}
+
+async function suspend(row) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `确定暂停流程「${getTemplateName(row.templateId)}」吗？`,
+      '暂停流程',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '暂停原因，可不填',
+      }
+    )
+
+    await partyApi.suspendInstance(row.id, { remark: value || '' })
+    ElMessage.success('已暂停')
+    loadData()
+  } catch (error) {
+    // 用户取消时不提示错误
+  }
+}
+
+function getTemplateName(templateId) {
+  const template = templates.value.find(item => item.id === templateId)
+  return template ? template.name : templateId
+}
+
+function getStatusText(status) {
+  const map = {
+    active: '进行中',
+    completed: '已完成',
+    suspended: '已暂停',
+  }
+
+  return map[status] || status || '-'
+}
+
+function getStatusTagType(status) {
+  const map = {
+    active: 'primary',
+    completed: 'success',
+    suspended: 'warning',
+  }
+
+  return map[status] || 'info'
 }
 
 onMounted(async () => {
   try {
-    const res = await partyApi.getTemplatePage({ page: 1, size: 100 })
-    templates.value = res.data.records
-  } catch (e) { /* ignore */ }
+    await loadTemplates()
+  } catch (error) {
+    ElMessage.warning('流程模板加载失败')
+  }
+
   loadData()
 })
 </script>
