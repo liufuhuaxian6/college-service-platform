@@ -105,7 +105,7 @@ public class StudentService {
                         .orderByDesc(PartyProcessInstance::getUpdatedAt)
                         .last("LIMIT 50")
         );
-        Map<Long, PartyProcessTemplate> templateMap = Map.of();
+        final Map<Long, PartyProcessTemplate> templateMap;
         if (processes != null && !processes.isEmpty()) {
             Set<Long> templateIds = processes.stream()
                     .map(PartyProcessInstance::getTemplateId)
@@ -115,6 +115,8 @@ public class StudentService {
             templateMap = templates.stream()
                     .filter(t -> t.getId() != null)
                     .collect(Collectors.toMap(PartyProcessTemplate::getId, Function.identity(), (a, b) -> a));
+        } else {
+            templateMap = Map.of();
         }
         List<Map<String, Object>> processList = processes.stream().map(p -> {
             Map<String, Object> m = new HashMap<>();
@@ -137,7 +139,7 @@ public class StudentService {
                         .orderByDesc(ApprovalApplication::getUpdatedAt)
                         .last("LIMIT 50")
         );
-        Map<Long, ApprovalType> typeMap = Map.of();
+        final Map<Long, ApprovalType> typeMap;
         if (approvals != null && !approvals.isEmpty()) {
             Set<Long> typeIds = approvals.stream()
                     .map(ApprovalApplication::getTypeId)
@@ -147,6 +149,8 @@ public class StudentService {
             typeMap = types.stream()
                     .filter(t -> t.getId() != null)
                     .collect(Collectors.toMap(ApprovalType::getId, Function.identity(), (a, b) -> a));
+        } else {
+            typeMap = Map.of();
         }
         List<Map<String, Object>> approvalList = approvals.stream().map(a -> {
             Map<String, Object> m = new HashMap<>();
