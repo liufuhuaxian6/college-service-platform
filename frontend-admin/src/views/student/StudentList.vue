@@ -115,6 +115,26 @@
         </el-table-column>
       </el-table>
 
+      <div style="font-weight:600;margin:20px 0 12px">党团流程</div>
+      <el-table :data="processes" border stripe>
+        <el-table-column prop="id" label="流程ID" width="90" />
+        <el-table-column prop="templateName" label="流程名称" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column prop="currentStep" label="当前步骤" width="100" />
+        <el-table-column prop="startDate" label="开始日期" width="120" />
+        <el-table-column prop="updatedAt" label="更新时间" min-width="170" show-overflow-tooltip />
+      </el-table>
+
+      <div style="font-weight:600;margin:20px 0 12px">电子证明申请</div>
+      <el-table :data="approvals" border stripe>
+        <el-table-column prop="id" label="申请ID" width="90" />
+        <el-table-column prop="appNo" label="申请编号" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="typeName" label="类型" width="120" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column prop="currentApproverLevel" label="当前审批层级" width="120" />
+        <el-table-column prop="downloadedAt" label="下载时间" min-width="170" show-overflow-tooltip />
+      </el-table>
+
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
@@ -176,6 +196,8 @@ const list = ref([])
 const total = ref(0)
 const detail = ref({})
 const honors = ref([])
+const processes = ref([])
+const approvals = ref([])
 const currentStudentId = ref(null)
 
 const query = reactive({
@@ -237,6 +259,8 @@ async function viewDetail(id) {
   const res = await studentApi.getDetail(id)
   detail.value = res.data || {}
   honors.value = detail.value.honors || []
+  processes.value = detail.value.processes || []
+  approvals.value = detail.value.approvals || []
 
   detailVisible.value = true
 }

@@ -92,6 +92,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { qaApi, fileApi } from '@/api'
+import { useUserStore } from '@/stores/user'
+import router from '@/router'
 
 const loading = ref(false)
 const uploading = ref(false)
@@ -211,8 +213,48 @@ async function handleUpload() {
   }
 }
 
-function download(row) {
-  window.open(qaApi.getDocumentDownloadUrl(row.id))
+async function download(row) {
+  const userStore = useUserStore()
+  if (!userStore.token) {
+    ElMessage.error('请先登录')
+    router.push('/login')
+    return
+  }
+
+  const url = qaApi.getDocumentDownloadUrl(row.id)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${userStore.token}`,
+    },
+  })
+
+  if (res.status === 401) {
+    userStore.logout()
+    ElMessage.error('登录已过期，请重新登录')
+    router.push('/login')
+    return
+  }
+
+  if (!res.ok) {
+    ElMessage.error('下载失败')
+    return
+  }
+
+  const blob = await res.blob()
+  const objectUrl = URL.createObjectURL(blob)
+
+  const disposition = res.headers.get('content-disposition') || ''
+  const filename = parseDownloadFilename(disposition) || `${row.title || 'document'}`
+
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(objectUrl)
+  loadData()
 }
 
 async function handleDelete(id) {
@@ -226,6 +268,19 @@ function formatSize(bytes) {
   if (bytes < 1024) return bytes + 'B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB'
   return (bytes / 1024 / 1024).toFixed(1) + 'MB'
+}
+
+function parseDownloadFilename(disposition) {
+  if (!disposition) return ''
+  const match = disposition.match(/filename\*\=UTF-8''([^;]+)/i)
+  if (match && match[1]) {
+    try {
+      return decodeURIComponent(match[1])
+    } catch {
+      return match[1]
+    }
+  }
+  return ''
 }
 
 onMounted(loadData)

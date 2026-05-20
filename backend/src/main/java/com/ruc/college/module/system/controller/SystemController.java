@@ -115,6 +115,11 @@ public class SystemController {
         return Result.ok(Map.of("count", systemService.getUnreadCount()));
     }
 
+    @GetMapping("/notify/unread")
+    public Result<Map<String, Object>> unread() {
+        return Result.ok(Map.of("count", systemService.getUnreadCount()));
+    }
+
     @PutMapping("/notify/{id}/read")
     public Result<Void> markRead(@PathVariable Long id) {
         systemService.markRead(id);

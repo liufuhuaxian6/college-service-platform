@@ -34,6 +34,11 @@ public class AuthController {
         return Result.ok();
     }
 
+    @GetMapping("/profile")
+    public Result<Map<String, Object>> profile() {
+        return Result.ok(authService.getProfile());
+    }
+
     @Data
     public static class LoginRequest {
         @NotBlank(message = "学号不能为空")
