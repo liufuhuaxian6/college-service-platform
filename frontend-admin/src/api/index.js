@@ -47,6 +47,7 @@ export const qaApi = {
 // ==================== 党团流程 ====================
 export const partyApi = {
   getTemplatePage: (params) => request.get('/party/template/page', { params }),
+  getTemplateDetail: (id) => request.get(`/party/template/${id}`),
   createTemplate: (data) => request.post('/party/template', data),
   updateTemplate: (id, data) => request.put(`/party/template/${id}`, data),
   getInstancePage: (params) => request.get('/party/instance/page', { params }),

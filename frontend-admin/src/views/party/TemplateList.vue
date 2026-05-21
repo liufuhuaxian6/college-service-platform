@@ -34,7 +34,7 @@
       @current-change="loadData"
     />
 
-    <el-dialog v-model="dialogVisible" title="新建流程模板" width="760px">
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑流程模板' : '新建流程模板'" width="760px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="流程名称" required>
           <el-input v-model="form.name" placeholder="例如：入党流程、入团流程" />
@@ -121,6 +121,7 @@ import { partyApi } from '@/api'
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
+const editingId = ref(null)
 
 const list = ref([])
 const total = ref(0)
@@ -163,6 +164,7 @@ async function loadData() {
 }
 
 function showCreateDialog() {
+  editingId.value = null
   form.name = ''
   form.description = ''
   steps.value = [createEmptyStep()]
@@ -220,20 +222,41 @@ async function handleSubmit() {
   submitting.value = true
 
   try {
-    await partyApi.createTemplate(payload)
-    ElMessage.success('新建模板成功')
+    if (editingId.value) {
+      await partyApi.updateTemplate(editingId.value, payload)
+      ElMessage.success('修改模板成功')
+    } else {
+      await partyApi.createTemplate(payload)
+      ElMessage.success('新建模板成功')
+    }
     dialogVisible.value = false
-    query.page = 1
     loadData()
   } finally {
     submitting.value = false
   }
 }
 
-function editTemplate(row) {
-  ElMessage.warning(
-    `暂不支持编辑「${row.name}」。后端当前未提供模板步骤详情接口，直接编辑可能覆盖原有步骤。`
-  )
+async function editTemplate(row) {
+  try {
+    loading.value = true
+    const res = await partyApi.getTemplateDetail(row.id)
+    const { template, steps: stepList } = res.data
+    editingId.value = row.id
+    form.name = template.name || ''
+    form.description = template.description || ''
+    steps.value = stepList.map(s => ({
+      name: s.name || '',
+      description: s.description || '',
+      durationDays: s.durationDays || 0,
+      requiredMaterials: s.requiredMaterials || '',
+    }))
+    if (steps.value.length === 0) steps.value = [createEmptyStep()]
+    dialogVisible.value = true
+  } catch (e) {
+    ElMessage.error('加载模板详情失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(loadData)

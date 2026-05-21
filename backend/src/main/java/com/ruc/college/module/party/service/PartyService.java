@@ -121,6 +121,20 @@ public class PartyService {
         return templateMapper.selectPage(new Page<>(page, size), null);
     }
 
+    public Map<String, Object> getTemplateDetail(Long id) {
+        PartyProcessTemplate template = templateMapper.selectById(id);
+        if (template == null) throw new BusinessException("流程模板不存在");
+        List<PartyProcessStep> steps = stepMapper.selectList(
+                new LambdaQueryWrapper<PartyProcessStep>()
+                        .eq(PartyProcessStep::getTemplateId, id)
+                        .orderByAsc(PartyProcessStep::getStepOrder)
+        );
+        Map<String, Object> result = new HashMap<>();
+        result.put("template", template);
+        result.put("steps", steps);
+        return result;
+    }
+
     @Transactional
     public Long createTemplate(PartyProcessTemplate template, List<PartyProcessStep> steps) {
         if (template == null) throw new BusinessException("模板信息不能为空");
