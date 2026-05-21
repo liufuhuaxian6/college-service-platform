@@ -26,16 +26,15 @@
 
 | 文件 | 来源 | 用途 |
 |------|------|------|
+| `college-backend-1.0.0.tar` | `docker save` | 后端应用镜像（含 JRE + JAR） |
 | `postgres-16-alpine.tar` | `docker save` | PostgreSQL 镜像 |
 | `redis-7-alpine.tar` | `docker save` | Redis 镜像 |
 | `nginx-alpine.tar` | `docker save` | Nginx 镜像 |
-| `backend.jar` | `mvn package` | 后端可执行包 |
 | `frontend-admin/dist/` | `npm run build` | 管理端静态文件 |
-| `docker-compose.yml` | 项目根目录 | 编排配置 |
+| `docker-compose.prod.yml` | `deploy/` 目录 | 生产编排配置（使用 image 引用） |
 | `deploy/nginx.conf` | 项目目录 | Nginx 配置 |
 | `deploy/sql/schema.sql` | 项目目录 | 数据库建表脚本 |
-| `Dockerfile.offline` | 新建 | 离线版后端 Dockerfile |
-| `.env` | 新建 | 环境变量配置 |
+| `.env.prod` | `deploy/` 目录 | 环境变量配置 |
 
 ---
 
@@ -58,35 +57,26 @@ npm run build
 # 产物: dist/ 目录
 ```
 
-### 2.3 拉取并导出 Docker 镜像
+### 2.3 构建后端 Docker 镜像并导出
 
 ```bash
-# 拉取镜像（本地有网络）
+# 使用精简 Dockerfile 构建后端镜像（基于已编译的 JAR）
+cd college-service-platform/backend
+docker build -t college-backend:1.0.0 -f Dockerfile.prod .
+
+# 拉取基础设施镜像
 docker pull postgres:16-alpine
 docker pull redis:7-alpine
-docker pull eclipse-temurin:17-jre-alpine
 docker pull nginx:alpine
 
 # 导出为 tar 文件
-docker save postgres:16-alpine -o postgres-16-alpine.tar
-docker save redis:7-alpine -o redis-7-alpine.tar
-docker save eclipse-temurin:17-jre-alpine -o temurin-17-jre-alpine.tar
-docker save nginx:alpine -o nginx-alpine.tar
+docker save college-backend:1.0.0 -o deploy/images/college-backend-1.0.0.tar
+docker save postgres:16-alpine -o deploy/images/postgres-16-alpine.tar
+docker save redis:7-alpine -o deploy/images/redis-7-alpine.tar
+docker save nginx:alpine -o deploy/images/nginx-alpine.tar
 ```
 
-> 四个镜像合计约 400-500MB，建议放在同一个目录下统一传输。
-
-### 2.4 创建离线版 Dockerfile
-
-在项目根目录创建 `Dockerfile.offline`（替代原来需要联网编译的 Dockerfile）：
-
-```dockerfile
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-COPY backend/target/college-service-platform-1.0.0-SNAPSHOT.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
+> 四个镜像 tar 合计约 293MB。`backend/Dockerfile.prod` 直接复制预编译 JAR，无需在服务器上执行 Maven 构建。
 
 ---
 
@@ -172,19 +162,16 @@ ssh user@10.10.0.27 "sudo tar -xf ~/node-v18.20.8-linux-x64.tar.xz -C /usr/local
 mkdir -p ~/deploy-package && cd ~/deploy-package
 
 # 复制镜像 tar 文件
-cp postgres-16-alpine.tar redis-7-alpine.tar temurin-17-jre-alpine.tar nginx-alpine.tar ./
-
-# 复制后端 JAR
-cp college-service-platform/backend/target/college-service-platform-1.0.0-SNAPSHOT.jar ./backend.jar
+cp college-service-platform/deploy/images/*.tar ./
 
 # 复制前端构建产物
-cp -r college-service-platform/frontend-admin/dist/ ./frontend-dist/
+cp -r college-service-platform/frontend-admin/dist/ ./admin/
 
 # 复制配置文件
-cp college-service-platform/docker-compose.yml ./
+cp college-service-platform/deploy/docker-compose.prod.yml ./docker-compose.yml
+cp college-service-platform/deploy/.env.prod ./.env
 cp college-service-platform/deploy/nginx.conf ./
 cp college-service-platform/deploy/sql/schema.sql ./
-cp college-service-platform/Dockerfile.offline ./Dockerfile
 ```
 
 ### 4.2 传输到服务器
@@ -202,152 +189,49 @@ scp -r ~/deploy-package/ user@10.10.0.27:~/deploy-package/
 ssh user@10.10.0.27
 cd ~/deploy-package
 
-# 加载镜像（每个约 30 秒）
-docker load < postgres-16-alpine.tar
-docker load < redis-7-alpine.tar
-docker load < temurin-17-jre-alpine.tar
-docker load < nginx-alpine.tar
+# 加载镜像
+docker load -i college-backend-1.0.0.tar
+docker load -i postgres-16-alpine.tar
+docker load -i redis-7-alpine.tar
+docker load -i nginx-alpine.tar
 
 # 验证
 docker images
 ```
 
-### 4.4 组织项目目录结构
+### 4.4 组织项目目录并启动
 
 ```bash
-mkdir -p ~/college-service-platform/{backend/target,frontend-admin,deploy/sql}
+sudo mkdir -p /opt/college-service/{sql,admin}
 
 # 放置文件
-cp ~/deploy-package/backend.jar ~/college-service-platform/backend/target/college-service-platform-1.0.0-SNAPSHOT.jar
-cp -r ~/deploy-package/frontend-dist ~/college-service-platform/frontend-admin/dist
-cp ~/deploy-package/docker-compose.yml ~/college-service-platform/
-cp ~/deploy-package/Dockerfile ~/college-service-platform/backend/Dockerfile
-cp ~/deploy-package/nginx.conf ~/college-service-platform/deploy/
-cp ~/deploy-package/schema.sql ~/college-service-platform/deploy/sql/
+sudo cp ~/deploy-package/docker-compose.yml /opt/college-service/
+sudo cp ~/deploy-package/.env /opt/college-service/
+sudo cp ~/deploy-package/nginx.conf /opt/college-service/
+sudo cp ~/deploy-package/schema.sql /opt/college-service/sql/
+sudo cp -r ~/deploy-package/admin/* /opt/college-service/admin/
 ```
 
-### 4.5 修改 docker-compose.yml（离线版）
-
-服务器上的 `docker-compose.yml` 需要修改后端服务的构建方式：
-
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: ${DB_NAME:-college_service}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    volumes:
-      - db-data:/var/lib/postgresql/data
-      - ./deploy/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-college_service}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-DefaultDevSecretKeyMustBeAtLeast32Bytes!!}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - upload-data:/app/uploads
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./frontend-admin/dist:/usr/share/nginx/html/admin
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-volumes:
-  db-data:
-  redis-data:
-  upload-data:
-```
-
-### 4.6 创建环境配置文件
+### 4.5 启动所有服务
 
 ```bash
-cd ~/college-service-platform
-cat > .env << 'EOF'
-# 数据库配置
-DB_NAME=college_service
-DB_USER=postgres
-DB_PASSWORD=College@2026!Secure
+cd /opt/college-service
 
-# Spring Boot
-SPRING_PROFILES_ACTIVE=prod
-
-# JWT 密钥（务必修改为随机字符串）
-JWT_SECRET=YourProductionSecretKeyMustBeAtLeast32BytesLong!!
-
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-EOF
-```
-
-### 4.7 启动所有服务
-
-```bash
-cd ~/college-service-platform
-
-# 构建后端镜像并启动所有服务
-docker-compose up -d
+# 启动（无需构建，所有镜像已预加载）
+sudo docker-compose up -d
 
 # 查看启动状态
-docker-compose ps
+sudo docker-compose ps
 
 # 查看后端日志（确认启动成功）
-docker-compose logs -f backend
+sudo docker-compose logs -f backend
 # 看到 "Started CollegeApplication" 表示成功
 # Ctrl+C 退出日志
 ```
 
-### 4.8 验证部署
+> `docker-compose.prod.yml` 中所有服务均使用 `image:` 引用预构建镜像，无需在服务器上执行任何构建操作。
+
+### 4.6 验证部署
 
 ```bash
 # 测试后端 API
@@ -401,8 +285,8 @@ npm run build:mp-weixin
 ### 6.1 查看服务状态
 
 ```bash
-cd ~/college-service-platform
-docker-compose ps
+cd /opt/college-service
+sudo docker-compose ps
 ```
 
 ### 6.2 查看日志
@@ -459,22 +343,27 @@ docker-compose exec -T postgres psql -U postgres college_service < backup_202605
 # 1. 重新构建后端
 cd backend && ./mvnw.cmd package -DskipTests && cd ..
 
-# 2. 重新构建前端
+# 2. 重新构建前端（如有改动）
 cd frontend-admin && npm run build && cd ..
 
-# 3. 传输更新文件到服务器
-scp backend/target/college-service-platform-1.0.0-SNAPSHOT.jar user@10.10.0.27:~/college-service-platform/backend/target/
-scp -r frontend-admin/dist/ user@10.10.0.27:~/college-service-platform/frontend-admin/dist/
+# 3. 重新构建后端镜像
+docker build -t college-backend:1.0.0 -f backend/Dockerfile.prod backend/
+docker save college-backend:1.0.0 -o deploy/images/college-backend-1.0.0.tar
+
+# 4. 传输到服务器
+scp deploy/images/college-backend-1.0.0.tar user@10.10.0.27:/tmp/
+scp -r frontend-admin/dist/* user@10.10.0.27:/opt/college-service/admin/
 
 # === 服务器操作 ===
 ssh user@10.10.0.27
-cd ~/college-service-platform
 
-# 4. 重建后端镜像并重启
-docker-compose up -d --build backend
+# 5. 加载新镜像并重启
+docker load -i /tmp/college-backend-1.0.0.tar
+cd /opt/college-service
+sudo docker-compose restart backend
 
-# 5. 如果修改了 nginx.conf
-docker-compose restart nginx
+# 6. 如果修改了 nginx.conf
+sudo docker-compose restart nginx
 ```
 
 ---
@@ -563,35 +452,25 @@ docker --version && docker-compose --version && git --version && node --version 
 ```bash
 # 1. 加载 Docker 镜像
 cd ~/deploy-package
-docker load < postgres-16-alpine.tar
-docker load < redis-7-alpine.tar
-docker load < temurin-17-jre-alpine.tar
-docker load < nginx-alpine.tar
+docker load -i college-backend-1.0.0.tar
+docker load -i postgres-16-alpine.tar
+docker load -i redis-7-alpine.tar
+docker load -i nginx-alpine.tar
 
-# 2. 组织项目目录
-mkdir -p ~/college-service-platform/{backend/target,frontend-admin,deploy/sql}
-cp backend.jar ~/college-service-platform/backend/target/college-service-platform-1.0.0-SNAPSHOT.jar
-cp -r frontend-dist ~/college-service-platform/frontend-admin/dist
-cp docker-compose.yml ~/college-service-platform/
-cp Dockerfile ~/college-service-platform/backend/
-cp nginx.conf ~/college-service-platform/deploy/
-cp schema.sql ~/college-service-platform/deploy/sql/
+# 2. 部署到 /opt/college-service
+sudo mkdir -p /opt/college-service/{sql,admin}
+sudo cp docker-compose.yml /opt/college-service/
+sudo cp .env /opt/college-service/
+sudo cp nginx.conf /opt/college-service/
+sudo cp schema.sql /opt/college-service/sql/
+sudo cp -r admin/* /opt/college-service/admin/
 
-# 3. 创建 .env
-cd ~/college-service-platform
-cat > .env << 'ENVEOF'
-DB_NAME=college_service
-DB_USER=postgres
-DB_PASSWORD=College@2026!Secure
-SPRING_PROFILES_ACTIVE=prod
-JWT_SECRET=YourProductionSecretKeyMustBeAtLeast32BytesLong!!
-ENVEOF
+# 3. 启动
+cd /opt/college-service
+sudo docker-compose up -d
 
-# 4. 启动
-docker-compose up -d
-
-# 5. 验证
-docker-compose ps
+# 4. 验证
+sudo docker-compose ps
 curl -s http://localhost:8080/api/auth/login -X POST -H "Content-Type: application/json" -d '{"studentId":"admin","password":"admin123"}' | head -c 100
 ```
 
