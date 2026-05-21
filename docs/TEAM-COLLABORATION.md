@@ -118,7 +118,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | 页面 | 功能 | 对接接口(B同学) |
 |------|------|----------------|
 | 登录页 | 学号+密码登录 | `POST /auth/login` |
-| 首页 | 四宫格入口 + 通知列表 | `GET /notify/unread` |
+| 首页 | 四宫格入口 + 通知列表 | `GET /notify/unread-count` |
 | 智能问答 | 对话式问答界面 | `POST /qa/chat` |
 | 政策文档 | 文档列表、分类、下载 | `GET /qa/document/*` |
 | 我的党团进度 | 步骤条可视化、当前进度 | `GET /party/my-progress` |
@@ -148,6 +148,8 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/auth/profile` | 获取当前用户信息 | 全部角色 | 无 | `SysUser` (脱敏) |
 | PUT | `/auth/password` | 修改密码 | 全部角色 | `{ oldPassword, newPassword }` | 无 |
 
+> 注: `PUT /auth/password` 实际实现在 `SystemController` 中（路径仍为 `/auth/password`），由 A 同学维护。
+
 ### 3.2 系统管理 — `/system` (A 同学)
 
 | 方法 | 路径 | 说明 | 权限 | 请求体/参数 | 响应 |
@@ -170,8 +172,12 @@ A 同学 (后端基础)          B 同学 (后端业务)
 
 | 方法 | 路径 | 说明 | 权限 | 请求体 | 响应 |
 |------|------|------|------|--------|------|
-| POST | `/file/upload` | 通用文件上传(≤30MB) | ≤2级 | `multipart/form-data` | `{ fileId, filePath, fileName, fileSize }` |
+| POST | `/file/upload` | 通用文件上传(≤30MB) | ≤2级 | `multipart/form-data` | `{ fileId, filePath, fileName, fileSize, fileType }` |
 | GET | `/file/download/{fileId}` | 文件下载 | 全部角色 | 无 | 文件流 |
+
+说明：
+1. `fileId` 当前等同于 `filePath`（上传后直接返回相对路径作为 fileId）
+2. 后端仅允许下载 `file.upload-path` 目录下的文件
 
 ### 3.5 通知消息 — `/notify` (A 同学)
 
@@ -179,6 +185,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 |------|------|------|------|------|------|
 | GET | `/notify/page` | 我的通知列表 | 全部角色 | `?page=1&size=20&type=` | `PageResult<Notification>` |
 | GET | `/notify/unread-count` | 未读数量 | 全部角色 | 无 | `{ count: 5 }` |
+| GET | `/notify/unread` | 未读数量(别名) | 全部角色 | 无 | `{ count: 5 }` |
 | PUT | `/notify/{id}/read` | 标记已读 | 全部角色 | 无 | 无 |
 | PUT | `/notify/read-all` | 全部标记已读 | 全部角色 | 无 | 无 |
 
@@ -199,9 +206,13 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | DELETE | `/qa/knowledge/{id}` | 删除知识条目 | ≤2级 | 无 | 无 |
 | **政策文档** |
 | GET | `/qa/document/list` | 文档列表(含分类) | 全部角色 | `?category=` | `List<QaDocument>` |
-| POST | `/qa/document` | 上传政策文档 | ≤2级 | `multipart/form-data + { title, category }` | `{ id }` |
-| GET | `/qa/document/{id}/download` | 下载文档 | 全部角色 | 无 | 文件流(计数+1) |
+| POST | `/qa/document` | 新增政策文档记录(保存元数据) | ≤2级 | `application/json: { title, category, filePath, fileSize, fileType }` | `{ id }` |
+| GET | `/qa/document/{id}/download` | 下载文档(计数+1) | 全部角色 | 需要Token | 文件流 |
 | DELETE | `/qa/document/{id}` | 删除文档 | ≤2级 | 无 | 无 |
+
+说明：
+1. 上传文件本身请先调用 `POST /file/upload`（表单上传），拿到 `filePath/fileSize/fileType`
+2. 再调用 `POST /qa/document` 保存文档信息到数据库（title/category/filePath 等）
 
 #### 关键数据结构
 
@@ -225,7 +236,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | 方法 | 路径 | 说明 | 权限 | 请求体/参数 | 响应 |
 |------|------|------|------|------------|------|
 | **学生端** |
-| GET | `/party/templates` | 所有流程模板 | 全部角色 | 无 | `List<ProcessTemplate>` (含步骤) |
+| GET | `/party/templates` | 所有流程模板 | 全部角色 | 无 | `List<PartyProcessTemplate>` (不含步骤) |
 | GET | `/party/my-progress` | 我的所有流程进度 | 全部角色 | 无 | `List<ProcessInstance>` (含当前步骤) |
 | GET | `/party/my-progress/{instanceId}` | 流程详情 | 全部角色 | 无 | `ProcessInstance` (含全部步骤状态) |
 | **管理端** |
@@ -272,7 +283,8 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/approval/my/page` | 我的申请列表 | 全部角色 | `?page=1&size=20&status=` | `PageResult<Application>` |
 | GET | `/approval/my/{id}` | 申请详情 | 全部角色 | 无 | `Application` (含审批记录) |
 | PUT | `/approval/my/{id}/withdraw` | 撤回申请 | 全部角色 | 无 | 无 |
-| GET | `/approval/my/{id}/download` | 下载证明(触发锁定!) | 全部角色 | 无 | 文件流 |
+| GET | `/approval/my/{id}/download` | 锁定申请并返回申请对象 | 全部角色 | 无 | `Application` |
+| GET | `/approval/my/{id}/download-file` | 生成并下载证明文件(同样触发锁定) | 全部角色 | 无 | PDF 文件流 |
 | **管理端** |
 | GET | `/approval/pending/page` | 待审批列表 | ≤2级 | `?page=1&size=20&typeId=` | `PageResult<Application>` |
 | PUT | `/approval/{id}/approve` | 通过 | ≤2级 | `{ comment }` | 无 |
@@ -294,7 +306,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
                │   ┌────▼─────┐
                │   │ approved │ 已通过 (撤回窗口期: 1-2天)
                │   └────┬─────┘
-               │        │ GET /download (学生下载证明)
+               │        │ GET /download 或 /download-file (学生下载证明)
                │   ┌────▼──────┐
                │   │downloaded │ ★已锁定 — 所有修改操作被禁止
                │   └───────────┘
@@ -311,7 +323,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 ```
 
 **锁定规则**(B 同学务必严格实现):
-1. 学生调用 `/download` → 状态变为 `downloaded` + 记录 `downloaded_at`
+1. 学生调用 `/download-file` → 状态变为 `downloaded` + 记录 `downloaded_at`，并返回 PDF 文件流
 2. `downloaded` 状态后，**任何** PUT 接口必须拒绝并返回 403
 3. 管理员撤回: 仅 `approved` 状态 + `downloaded_at IS NULL` + 未超过 `withdraw_deadline`
 
@@ -322,16 +334,18 @@ A 同学 (后端基础)          B 同学 (后端业务)
 {
   "code": 200,
   "data": {
-    "id": 1,
-    "appNo": "CERT-20260428-001",
-    "typeName": "在读证明",
-    "status": "approved",
-    "formData": { "purpose": "考研", "copies": 2 },
-    "withdrawDeadline": "2026-04-30 17:00:00",
-    "downloadedAt": null,
-    "createdAt": "2026-04-28 10:00:00",
+    "application": {
+      "id": 1,
+      "appNo": "CERT-20260428-0001",
+      "typeId": 1,
+      "status": "approved",
+      "formData": { "purpose": "考研", "copies": 2 },
+      "withdrawDeadline": "2026-04-30 17:00:00",
+      "downloadedAt": null,
+      "createdAt": "2026-04-28 10:00:00"
+    },
     "records": [
-      { "approverName": "张老师", "action": "approve", "comment": "同意", "createdAt": "2026-04-28 14:00:00" }
+      { "approverId": 2, "action": "approve", "comment": "同意", "createdAt": "2026-04-28 14:00:00" }
     ]
   }
 }
@@ -347,7 +361,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/student/profile` | 我的个人信息 | 全部角色 | 无 | `StudentProfile` |
 | GET | `/student/honors` | 我的荣誉列表 | 全部角色 | 无 | `List<Honor>` |
 | **管理端** |
-| GET | `/student/page` | 学生列表(含筛选) | ≤2级 | `?page=1&size=20&grade=&major=&className=` | `PageResult<StudentProfile>` |
+| GET | `/student/page` | 学生列表(含筛选) | ≤3级 | `?page=1&size=20&grade=&major=&className=` | `PageResult<StudentProfile>` |
 | GET | `/student/{id}/detail` | 学生详情画像 | ≤2级 | 无 | `StudentProfile` (含荣誉/流程/申请) |
 | POST | `/student/{id}/honor` | 录入荣誉 | ≤2级 | `{ honorName, honorLevel, awardDate, certFile }` | `{ id }` |
 | PUT | `/student/honor/{honorId}` | 修改荣誉 | ≤2级 | 同上 | 无 |
@@ -380,19 +394,20 @@ Content-Type: application/json
   "data": { ... }       // 成功时的业务数据
 }
 
-# 分页响应
+# 分页响应 (MyBatis-Plus Page<T> 格式)
 {
   "code": 200,
   "data": {
     "total": 156,
-    "page": 1,
     "size": 20,
+    "current": 1,
+    "pages": 8,
     "records": [ ... ]
   }
 }
 
 # 分页请求参数(统一)
-?page=1&size=20&sortField=createdAt&sortOrder=desc
+?page=1&size=20
 ```
 
 ### 4.2 Git 分支策略

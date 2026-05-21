@@ -2,7 +2,9 @@ package com.ruc.college.module.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ruc.college.common.exception.BusinessException;
+import com.ruc.college.common.security.UserContext;
 import com.ruc.college.common.security.JwtUtil;
+import com.ruc.college.common.util.EncryptUtil;
 import com.ruc.college.module.auth.entity.SysUser;
 import com.ruc.college.module.auth.mapper.SysUserMapper;
 import cn.hutool.crypto.digest.BCrypt;
@@ -55,5 +57,29 @@ public class AuthService {
         user.setStatus(1);
         user.setRoleLevel(4); // 默认普通学生
         userMapper.insert(user);
+    }
+
+    public Map<String, Object> getProfile() {
+        SysUser user = userMapper.selectById(UserContext.getUserId());
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("userId", user.getId());
+        profile.put("studentId", user.getStudentId());
+        profile.put("name", user.getName());
+        profile.put("roleLevel", user.getRoleLevel());
+        profile.put("grade", user.getGrade());
+        profile.put("major", user.getMajor());
+        profile.put("className", user.getClassName());
+        profile.put("phone", user.getPhone());
+
+        if (user.getIdCardEnc() != null && !user.getIdCardEnc().isBlank()) {
+            String decrypted = EncryptUtil.decrypt(user.getIdCardEnc());
+            profile.put("idCard", EncryptUtil.desensitize(decrypted, 3, 4));
+        }
+
+        return profile;
     }
 }

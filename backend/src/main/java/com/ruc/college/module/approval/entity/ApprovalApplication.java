@@ -1,7 +1,7 @@
 package com.ruc.college.module.approval.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.ruc.college.common.mybatis.JsonbTypeHandler;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -16,7 +16,7 @@ public class ApprovalApplication {
     private Long userId;
     private Long typeId;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = JsonbTypeHandler.class)
     private Map<String, Object> formData;
 
     private String status;

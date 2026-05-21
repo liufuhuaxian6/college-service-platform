@@ -9,7 +9,9 @@ import com.ruc.college.module.party.mapper.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -68,6 +70,7 @@ public class PartyService {
         result.put("status", instance.getStatus());
         result.put("startDate", instance.getStartDate());
 
+        LocalDate startDate = instance.getStartDate();
         List<Map<String, Object>> stepList = steps.stream().map(step -> {
             Map<String, Object> s = new HashMap<>();
             s.put("stepOrder", step.getStepOrder());
@@ -81,11 +84,35 @@ public class PartyService {
                     .filter(r -> r.getStepId().equals(step.getId()) && r.getCompletedAt() != null)
                     .findFirst()
                     .ifPresent(r -> s.put("completedAt", r.getCompletedAt()));
+            LocalDate expectedEnd = calcExpectedEnd(startDate, steps, step.getStepOrder());
+            if (expectedEnd != null) {
+                s.put("expectedEnd", expectedEnd);
+            }
             return s;
         }).toList();
 
         result.put("steps", stepList);
         return result;
+    }
+
+    private LocalDate calcExpectedEnd(LocalDate startDate, List<PartyProcessStep> steps, Integer stepOrder) {
+        if (startDate == null || steps == null || steps.isEmpty() || stepOrder == null) {
+            return null;
+        }
+        long days = 0;
+        for (PartyProcessStep step : steps) {
+            if (step.getStepOrder() == null) {
+                continue;
+            }
+            if (step.getStepOrder() > stepOrder) {
+                continue;
+            }
+            Integer d = step.getDurationDays();
+            if (d != null && d > 0) {
+                days += d;
+            }
+        }
+        return startDate.plusDays(days);
     }
 
     // ==================== 管理端 ====================
@@ -94,13 +121,34 @@ public class PartyService {
         return templateMapper.selectPage(new Page<>(page, size), null);
     }
 
+    public Map<String, Object> getTemplateDetail(Long id) {
+        PartyProcessTemplate template = templateMapper.selectById(id);
+        if (template == null) throw new BusinessException("流程模板不存在");
+        List<PartyProcessStep> steps = stepMapper.selectList(
+                new LambdaQueryWrapper<PartyProcessStep>()
+                        .eq(PartyProcessStep::getTemplateId, id)
+                        .orderByAsc(PartyProcessStep::getStepOrder)
+        );
+        Map<String, Object> result = new HashMap<>();
+        result.put("template", template);
+        result.put("steps", steps);
+        return result;
+    }
+
     @Transactional
     public Long createTemplate(PartyProcessTemplate template, List<PartyProcessStep> steps) {
+        if (template == null) throw new BusinessException("模板信息不能为空");
+        if (!StringUtils.hasText(template.getName())) throw new BusinessException("模板名称不能为空");
+        if (steps == null || steps.isEmpty()) throw new BusinessException("步骤不能为空");
+
         template.setStatus(1);
         template.setTotalSteps(steps.size());
         templateMapper.insert(template);
         for (int i = 0; i < steps.size(); i++) {
             PartyProcessStep step = steps.get(i);
+            if (step == null) throw new BusinessException("步骤不能为空");
+            if (!StringUtils.hasText(step.getName())) throw new BusinessException("步骤名称不能为空");
+            if (step.getDurationDays() != null && step.getDurationDays() < 0) throw new BusinessException("预计天数不能为负数");
             step.setTemplateId(template.getId());
             step.setStepOrder(i + 1);
             stepMapper.insert(step);
@@ -112,6 +160,10 @@ public class PartyService {
     public void updateTemplate(Long id, PartyProcessTemplate template, List<PartyProcessStep> steps) {
         PartyProcessTemplate existing = templateMapper.selectById(id);
         if (existing == null) throw new BusinessException("流程模板不存在");
+        if (template == null) throw new BusinessException("模板信息不能为空");
+        if (!StringUtils.hasText(template.getName())) throw new BusinessException("模板名称不能为空");
+        if (steps == null || steps.isEmpty()) throw new BusinessException("步骤不能为空");
+
         template.setId(id);
         template.setTotalSteps(steps.size());
         templateMapper.updateById(template);
@@ -119,6 +171,9 @@ public class PartyService {
         stepMapper.delete(new LambdaQueryWrapper<PartyProcessStep>().eq(PartyProcessStep::getTemplateId, id));
         for (int i = 0; i < steps.size(); i++) {
             PartyProcessStep step = steps.get(i);
+            if (step == null) throw new BusinessException("步骤不能为空");
+            if (!StringUtils.hasText(step.getName())) throw new BusinessException("步骤名称不能为空");
+            if (step.getDurationDays() != null && step.getDurationDays() < 0) throw new BusinessException("预计天数不能为负数");
             step.setId(null);
             step.setTemplateId(id);
             step.setStepOrder(i + 1);
@@ -135,15 +190,27 @@ public class PartyService {
         return instanceMapper.selectPage(new Page<>(page, size), wrapper);
     }
 
-    public Long createInstance(Long userId, Long templateId, java.time.LocalDate startDate) {
+    public Long createInstance(Long userId, Long templateId, LocalDate startDate) {
         PartyProcessTemplate template = templateMapper.selectById(templateId);
         if (template == null) throw new BusinessException("流程模板不存在");
+        if (userId == null) throw new BusinessException("学生不能为空");
+
+        PartyProcessInstance existingActive = instanceMapper.selectOne(
+                new LambdaQueryWrapper<PartyProcessInstance>()
+                        .eq(PartyProcessInstance::getUserId, userId)
+                        .eq(PartyProcessInstance::getTemplateId, templateId)
+                        .eq(PartyProcessInstance::getStatus, "active")
+                        .last("LIMIT 1")
+        );
+        if (existingActive != null) {
+            throw new BusinessException("该学生已有进行中的同类流程");
+        }
 
         PartyProcessInstance instance = new PartyProcessInstance();
         instance.setUserId(userId);
         instance.setTemplateId(templateId);
         instance.setCurrentStep(1);
-        instance.setStartDate(startDate);
+        instance.setStartDate(startDate != null ? startDate : LocalDate.now());
         instance.setStatus("active");
         instanceMapper.insert(instance);
         return instance.getId();
@@ -161,18 +228,28 @@ public class PartyService {
                         .eq(PartyProcessStep::getTemplateId, instance.getTemplateId())
                         .eq(PartyProcessStep::getStepOrder, instance.getCurrentStep())
         );
-        if (currentStep != null) {
-            PartyStepRecord record = new PartyStepRecord();
-            record.setInstanceId(instanceId);
-            record.setStepId(currentStep.getId());
-            record.setCompletedAt(LocalDateTime.now());
-            record.setRemark(remark);
-            record.setOperatorId(UserContext.getUserId());
-            stepRecordMapper.insert(record);
-        }
+        if (currentStep == null) throw new BusinessException("当前步骤不存在");
+        PartyStepRecord existingRecord = stepRecordMapper.selectOne(
+                new LambdaQueryWrapper<PartyStepRecord>()
+                        .eq(PartyStepRecord::getInstanceId, instanceId)
+                        .eq(PartyStepRecord::getStepId, currentStep.getId())
+                        .isNotNull(PartyStepRecord::getCompletedAt)
+                        .last("LIMIT 1")
+        );
+        if (existingRecord != null) throw new BusinessException("当前步骤已完成，不能重复推进");
+
+        PartyStepRecord record = new PartyStepRecord();
+        record.setInstanceId(instanceId);
+        record.setStepId(currentStep.getId());
+        record.setCompletedAt(LocalDateTime.now());
+        record.setRemark(remark);
+        record.setOperatorId(UserContext.getUserId());
+        stepRecordMapper.insert(record);
 
         // 推进到下一步或完成
         PartyProcessTemplate template = templateMapper.selectById(instance.getTemplateId());
+        if (template == null) throw new BusinessException("流程模板不存在");
+        if (template.getTotalSteps() == null || template.getTotalSteps() <= 0) throw new BusinessException("流程模板步骤数异常");
         if (instance.getCurrentStep() >= template.getTotalSteps()) {
             instance.setStatus("completed");
         } else {
@@ -184,6 +261,7 @@ public class PartyService {
     public void suspendInstance(Long instanceId, String remark) {
         PartyProcessInstance instance = instanceMapper.selectById(instanceId);
         if (instance == null) throw new BusinessException("流程实例不存在");
+        if ("completed".equals(instance.getStatus())) throw new BusinessException("流程已完成，不能暂停");
         instance.setStatus("suspended");
         instanceMapper.updateById(instance);
     }

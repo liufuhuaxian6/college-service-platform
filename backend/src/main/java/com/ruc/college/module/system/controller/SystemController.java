@@ -8,9 +8,11 @@ import com.ruc.college.module.auth.entity.SysUser;
 import com.ruc.college.module.system.entity.SysNotification;
 import com.ruc.college.module.system.entity.SysOperationLog;
 import com.ruc.college.module.system.service.SystemService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -54,6 +56,23 @@ public class SystemController {
         return Result.ok();
     }
 
+    @PostMapping("/system/user/import")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "用户管理", action = "Excel批量导入学生")
+    public Result<Map<String, Object>> importStudents(@RequestParam("file") MultipartFile file) {
+        return Result.ok(systemService.importStudents(file));
+    }
+
+    @GetMapping("/system/user/export")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "用户管理", action = "导出学生名单")
+    public void exportStudents(
+            @RequestParam(required = false) String grade,
+            @RequestParam(required = false) String major,
+            HttpServletResponse response) {
+        systemService.exportStudents(grade, major, response);
+    }
+
     @GetMapping("/system/dashboard")
     @RequireRole(minLevel = 2)
     public Result<Map<String, Object>> dashboard() {
@@ -93,6 +112,11 @@ public class SystemController {
 
     @GetMapping("/notify/unread-count")
     public Result<Map<String, Object>> unreadCount() {
+        return Result.ok(Map.of("count", systemService.getUnreadCount()));
+    }
+
+    @GetMapping("/notify/unread")
+    public Result<Map<String, Object>> unread() {
         return Result.ok(Map.of("count", systemService.getUnreadCount()));
     }
 

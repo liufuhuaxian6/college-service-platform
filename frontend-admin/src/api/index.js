@@ -30,7 +30,6 @@ export const notifyApi = {
   markRead: (id) => request.put(`/notify/${id}/read`),
   markAllRead: () => request.put('/notify/read-all'),
 }
-
 // ==================== 智能问答 ====================
 export const qaApi = {
   getKnowledgePage: (params) => request.get('/qa/knowledge/page', { params }),
@@ -38,14 +37,17 @@ export const qaApi = {
   addKnowledge: (data) => request.post('/qa/knowledge', data),
   updateKnowledge: (id, data) => request.put(`/qa/knowledge/${id}`, data),
   deleteKnowledge: (id) => request.delete(`/qa/knowledge/${id}`),
+
   getDocumentList: (params) => request.get('/qa/document/list', { params }),
   addDocument: (data) => request.post('/qa/document', data),
   deleteDocument: (id) => request.delete(`/qa/document/${id}`),
+  getDocumentDownloadUrl: (id) => `/api/qa/document/${id}/download`,
 }
 
 // ==================== 党团流程 ====================
 export const partyApi = {
   getTemplatePage: (params) => request.get('/party/template/page', { params }),
+  getTemplateDetail: (id) => request.get(`/party/template/${id}`),
   createTemplate: (data) => request.post('/party/template', data),
   updateTemplate: (id, data) => request.put(`/party/template/${id}`, data),
   getInstancePage: (params) => request.get('/party/instance/page', { params }),

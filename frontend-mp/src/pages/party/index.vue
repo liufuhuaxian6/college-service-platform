@@ -1,64 +1,116 @@
 <template>
   <view class="page">
-    <view class="empty" v-if="!list.length && !loading">暂无进行中的流程</view>
-    <view class="progress-card" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
-      <view class="card-header">
-        <text class="card-title">{{ item.templateName }}</text>
-        <text class="card-status" :class="item.status">
-          {{ { active: '进行中', completed: '已完成', suspended: '已暂停' }[item.status] }}
-        </text>
+    <view class="top-card">
+      <view class="top-main">
+        <text class="flow-name">{{ flowName }}</text>
+        <text class="flow-subtitle">党团流程进度</text>
       </view>
-      <view class="steps-bar">
-        <view
-          class="step-dot"
-          v-for="(step, i) in item.steps"
-          :key="i"
-          :class="{ done: step.completed, current: !step.completed && i === item.currentStep - 1 }"
-        />
+      <text class="flow-status" :class="flowStatus">{{ statusLabel[flowStatus] }}</text>
+    </view>
+
+    <view class="timeline">
+      <view class="tl-item" v-for="(s, idx) in steps" :key="s.id" @click="showStepTip(s)">
+        <view class="tl-rail">
+          <view class="tl-dot" :class="s.status" />
+          <view class="tl-line" v-if="idx !== steps.length - 1" :class="s.status" />
+        </view>
+        <view class="tl-content">
+          <view class="tl-header">
+            <text class="tl-name">{{ s.name }}</text>
+            <text class="tl-time" v-if="s.completedAt">{{ s.completedAt }}</text>
+          </view>
+          <text class="tl-desc">{{ s.desc }}</text>
+        </view>
       </view>
-      <text class="step-name">当前: {{ getCurrentStepName(item) }}</text>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { partyApi } from '@/api'
+import { ref } from 'vue'
 
-const loading = ref(false)
-const list = ref([])
+const flowName = ref('入党流程')
+const flowStatus = ref('active')
+const statusLabel = { finished: '已完成', active: '进行中', todo: '未开始' }
 
-onMounted(async () => {
-  loading.value = true
-  try {
-    const res = await partyApi.getMyProgress()
-    list.value = res.data || []
-  } finally { loading.value = false }
-})
+const steps = ref([
+  {
+    id: 1,
+    name: '提交入党申请书',
+    desc: '向党支部递交申请书，登记备案。',
+    status: 'finished',
+    completedAt: '2026-03-02',
+    requirement: '准备申请书与个人基本情况材料。',
+  },
+  {
+    id: 2,
+    name: '参加入党积极分子培训',
+    desc: '完成规定课程学习与考核。',
+    status: 'finished',
+    completedAt: '2026-04-12',
+    requirement: '按时签到学习，完成结业考试。',
+  },
+  {
+    id: 3,
+    name: '确定为发展对象',
+    desc: '支部讨论与公示，进入政治审查。',
+    status: 'active',
+    completedAt: '',
+    requirement: '准备思想汇报与个人自查材料。',
+  },
+  {
+    id: 4,
+    name: '接收为预备党员',
+    desc: '完成政审与谈话，召开支部大会表决。',
+    status: 'todo',
+    completedAt: '',
+    requirement: '等待通知，按要求准备证明材料。',
+  },
+])
 
-function getCurrentStepName(item) {
-  const step = item.steps?.find((s, i) => i === item.currentStep - 1)
-  return step?.name || '-'
-}
-
-function goDetail(id) {
-  uni.navigateTo({ url: `/pages/party/detail?id=${id}` })
+function showStepTip(step) {
+  uni.showToast({
+    title: step.requirement || step.desc || step.name,
+    icon: 'none',
+  })
 }
 </script>
 
 <style scoped>
-.page { padding: 20rpx; }
-.progress-card { background: #fff; border-radius: 12rpx; padding: 24rpx; margin-bottom: 20rpx; }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
-.card-title { font-size: 30rpx; font-weight: bold; }
-.card-status { font-size: 24rpx; padding: 4rpx 16rpx; border-radius: 4rpx; }
-.card-status.active { color: #409eff; background: #ecf5ff; }
-.card-status.completed { color: #67c23a; background: #f0f9eb; }
-.card-status.suspended { color: #e6a23c; background: #fdf6ec; }
-.steps-bar { display: flex; gap: 8rpx; margin-bottom: 12rpx; }
-.step-dot { width: 24rpx; height: 24rpx; border-radius: 50%; background: #ddd; flex-shrink: 0; }
-.step-dot.done { background: #67c23a; }
-.step-dot.current { background: #409eff; }
-.step-name { font-size: 24rpx; color: #666; }
-.empty { text-align: center; color: #999; padding: 80rpx; }
+.page { padding: 20rpx; background: #f0f2f5; min-height: 100vh; box-sizing: border-box; }
+
+.top-card {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 10rpx solid #1a3a5c;
+}
+.flow-name { display: block; font-size: 32rpx; font-weight: bold; color: #1a3a5c; }
+.flow-subtitle { display: block; margin-top: 6rpx; font-size: 24rpx; color: #666; }
+.flow-status { font-size: 24rpx; padding: 6rpx 18rpx; border-radius: 999rpx; }
+.flow-status.active { color: #409eff; background: #ecf5ff; }
+.flow-status.finished { color: #67c23a; background: #f0f9eb; }
+.flow-status.todo { color: #909399; background: #f4f4f5; }
+
+.timeline { background: #fff; border-radius: 12rpx; padding: 24rpx 20rpx; }
+.tl-item { display: flex; gap: 18rpx; padding: 8rpx 0 24rpx; }
+.tl-rail { width: 40rpx; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.tl-dot { width: 22rpx; height: 22rpx; border-radius: 50%; background: #c0c4cc; margin-top: 6rpx; }
+.tl-dot.finished { background: #67c23a; }
+.tl-dot.active { background: #409eff; }
+.tl-dot.todo { background: #c0c4cc; }
+.tl-line { width: 4rpx; flex: 1; background: #e5e7eb; margin-top: 8rpx; border-radius: 2rpx; }
+.tl-line.finished { background: #67c23a; opacity: 0.45; }
+.tl-line.active { background: #409eff; opacity: 0.45; }
+.tl-line.todo { background: #c0c4cc; opacity: 0.45; }
+
+.tl-content { flex: 1; }
+.tl-header { display: flex; justify-content: space-between; align-items: baseline; gap: 16rpx; }
+.tl-name { font-size: 30rpx; font-weight: bold; color: #111; }
+.tl-time { font-size: 22rpx; color: #999; flex-shrink: 0; }
+.tl-desc { display: block; margin-top: 10rpx; font-size: 24rpx; color: #666; line-height: 1.6; }
 </style>

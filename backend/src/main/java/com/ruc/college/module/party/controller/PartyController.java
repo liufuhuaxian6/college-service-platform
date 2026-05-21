@@ -50,6 +50,12 @@ public class PartyController {
         return Result.ok(partyService.getTemplatePage(page, size));
     }
 
+    @GetMapping("/template/{id}")
+    @RequireRole(minLevel = 2)
+    public Result<Map<String, Object>> templateDetail(@PathVariable Long id) {
+        return Result.ok(partyService.getTemplateDetail(id));
+    }
+
     @PostMapping("/template")
     @RequireRole(minLevel = 2)
     @OperationLog(module = "党团流程", action = "创建流程模板")
