@@ -33,6 +33,9 @@ Thumbs.db
 # Uploads
 uploads/
 
+# Docker image tars
+deploy/images/
+
 # Compiled
 *.pyc
 __pycache__/
