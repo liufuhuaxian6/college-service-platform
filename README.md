@@ -11,7 +11,8 @@
 - **学生端**：微信小程序（uni-app）
 - **管理端**：PC Web 后台（Vue3 + Element Plus）
 - **后端**：Spring Boot 3 + MyBatis-Plus
-- **数据库**：Kingbase V8（开发阶段使用 PostgreSQL 替代）
+- **数据库**：Kingbase V8（开发阶段使用 PostgreSQL + pgvector 替代）
+- **智能问答 RAG**：HuggingFace TEI + BAAI BGE-small-zh-v1.5（512 维中文向量）
 
 ---
 
@@ -23,14 +24,17 @@ college-service-platform/
 ├── frontend-admin/          # PC 管理端（Vue3 + Element Plus）
 ├── frontend-mp/             # 微信小程序端（uni-app）
 ├── deploy/
-│   ├── sql/schema.sql       # 数据库建表脚本
-│   └── nginx.conf           # Nginx 配置
+│   ├── sql/schema.sql                  # 数据库建表脚本（15 张表，含 RAG 向量表）
+│   ├── sql/rag_pgvector.sql            # RAG 切片表增量迁移脚本
+│   ├── sql/rag_migrate_384_to_512.sql  # 384 维 → 512 维向量维度迁移
+│   └── nginx.conf                      # Nginx 配置
+├── models/                  # 预下载的 BGE embedding 模型（.gitignore，按需下载）
 ├── docs/                    # 项目文档
 │   ├── TEAM-COLLABORATION.md  # 团队协作与 API 接口文档
 │   ├── FILE-REFERENCE.md     # 文件说明文档
-│   ├── ARCHITECTURE.md       # 系统架构与通信方式
-│   └── DEPLOYMENT.md         # 服务器部署文档（离线部署）
-├── docker-compose.yml       # Docker 一键部署
+│   ├── ARCHITECTURE.md       # 系统架构与通信方式（含 RAG 检索链路）
+│   └── DEPLOYMENT.md         # 服务器部署文档（含 TEI 离线部署、故障排查）
+├── docker-compose.yml       # Docker 一键部署（含 TEI embedding 服务）
 └── README.md
 ```
 
@@ -354,6 +358,77 @@ INSERT 0 5    (入团流程步骤)
 > 这一步**只需要做一次**。后续重新启动项目不需要重新建表。
 > 如果要重建数据库（清空所有数据），先执行 `psql -U postgres -c "DROP DATABASE college_service;"` 再重复上面两步。
 
+> **注意**：建表脚本中的 `qa_document_chunk` 表依赖 `pgvector` 扩展。
+> 如果你装的是普通 PostgreSQL（非 pgvector 镜像），执行前需先：
+>
+> ```bash
+> # Windows：从 https://github.com/pgvector/pgvector/releases 下载安装
+> # macOS：brew install pgvector
+> psql -U postgres -d college_service -c "CREATE EXTENSION IF NOT EXISTS vector;"
+> ```
+>
+> 或者推荐做法：用 Docker 跑带 pgvector 的 PostgreSQL（见下方"快速开始 - 方式二"）。
+
+---
+
+### 第八点五步：下载 BGE 中文 Embedding 模型 + 启动 TEI 服务
+
+智能问答模块使用 RAG 检索增强生成，需要一个 HTTP embedding 服务把中文转成 512 维向量。当前选用 **HuggingFace TEI 容器 + BAAI BGE-small-zh-v1.5 模型**。
+
+> 仅做后端 / 智能问答相关的同学需要这一步。其他同学这一步可以跳过，问答会自动降级为"未在政策文件中找到明确依据，请联系辅导员确认"。
+
+#### 1) 一次性下载 BGE 模型到本地（约 183MB）
+
+PowerShell 在项目根目录执行：
+
+```powershell
+$base = "https://hf-mirror.com/BAAI/bge-small-zh-v1.5/resolve/main"
+$xenova = "https://hf-mirror.com/Xenova/bge-small-zh-v1.5/resolve/main"
+$dest = ".\models\bge-small-zh-v1.5"
+New-Item -ItemType Directory -Path "$dest\onnx" -Force | Out-Null
+New-Item -ItemType Directory -Path "$dest\1_Pooling" -Force | Out-Null
+
+# 模型配置文件（10 个，约 600KB）
+@(
+  "config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+  "vocab.txt", "modules.json", "config_sentence_transformers.json",
+  "sentence_bert_config.json", "1_Pooling/config.json"
+) | ForEach-Object {
+  curl.exe -fSL --retry 5 -o "$dest\$_" "$base/$_"
+}
+
+# ONNX 推理权重（来自社区 Xenova 转换版，约 90MB）
+curl.exe -fSL --retry 5 -o "$dest\onnx\model.onnx" "$xenova/onnx/model.onnx"
+```
+
+下载结束后 `models/bge-small-zh-v1.5/` 目录已被 `.gitignore` 排除，不会入库。
+
+#### 2) 拉取并启动 TEI 容器
+
+```powershell
+# 拉镜像（约 700MB，国内用南京大学 GHCR 镜像，比直连 ghcr.io 稳定）
+docker compose pull embedding
+
+# 启动（首次约 30 秒加载模型）
+docker compose up -d embedding
+
+# 等待 30 秒后验证
+docker compose logs --tail 10 embedding   # 应看到 "Ready"
+```
+
+#### 3) 测试调用
+
+```powershell
+# 用文件传 UTF-8 中文（避免 PowerShell 转义问题）
+'{"input":"入党流程是什么"}' | Out-File -Encoding utf8 req.json
+curl.exe -X POST http://localhost:8081/v1/embeddings `
+  -H "Content-Type: application/json" --data-binary "@req.json"
+# 应返回 {"data":[{"embedding":[0.028, 0.067, ...]}]}，数组长度 = 512
+Remove-Item req.json
+```
+
+> **遇到问题？** TEI 1.5 有个 `HF_ENDPOINT` bug 导致它自己下载模型会失败，所以本项目改成"预下载 + 挂载本地目录"。详细的故障排查清单见 [docs/DEPLOYMENT.md § 12.6](docs/DEPLOYMENT.md)。
+
 ---
 
 ### 第九步：启动后端
@@ -442,9 +517,12 @@ npm run dev:mp-weixin
 | 5 | PostgreSQL | `psql -U postgres -c "SELECT 1;"` | 返回 `1` |
 | 6 | Redis | `redis-cli ping` 或 `"C:\Program Files\Redis\redis-cli.exe" ping` | 返回 `PONG` |
 | 7 | 数据库已建表 | `psql -U postgres -d college_service -c "SELECT count(*) FROM sys_user;"` | 返回 `1`（管理员账号） |
-| 8 | 后端能启动 | 启动后访问 http://localhost:8080/api/doc.html | 看到 Swagger 文档页 |
-| 9 | 后端登录可用 | curl 登录接口 | 返回 `{"code":200, ...}` |
-| 10 | 管理端能访问 | http://localhost:5173 | 看到登录页面 |
+| 8 | pgvector 扩展已启用 | `psql -U postgres -d college_service -c "\dx vector"` | 列表中能看到 `vector` |
+| 9 | TEI Embedding 服务（仅后端同学需要） | `docker compose ps embedding` | 状态 `running (healthy)` |
+| 10 | TEI 输出 512 维向量 | 见上方第八点五步 § 3) | 数组长度 = 512 |
+| 11 | 后端能启动 | 启动后访问 http://localhost:8080/api/doc.html | 看到 Swagger 文档页 |
+| 12 | 后端登录可用 | curl 登录接口 | 返回 `{"code":200, ...}` |
+| 13 | 管理端能访问 | http://localhost:5173 | 看到登录页面 |
 
 ---
 
@@ -452,12 +530,15 @@ npm run dev:mp-weixin
 
 | 你是谁 | 需要启动的服务 | 需要安装的额外工具 |
 |--------|--------------|-------------------|
-| **A 同学**（后端基础） | 后端 | — |
-| **B 同学**（后端业务） | 后端 | — |
+| **A 同学**（后端基础） | 后端 + TEI Embedding | Docker Desktop |
+| **B 同学**（后端业务） | 后端 + TEI Embedding | Docker Desktop |
 | **C 同学**（管理端前端） | 后端 + 管理端前端 | — |
 | **D 同学**（小程序前端） | 后端 + 小程序编译 | 微信开发者工具 |
 
+> TEI Embedding 服务只有做后端业务（智能问答 / 政策文档 / RAG）的同学必须启动；前端同学如果只是调登录、用户列表等非问答接口，不开 TEI 也能正常工作。
+
 > 所有人都需要安装：Git + JDK + Node.js + npm + PostgreSQL + Redis
+> 后端 / 智能问答相关同学还需要：Docker Desktop（用于跑 TEI Embedding 服务）
 > 前端同学也需要启动后端，否则页面请求接口会全部报错。
 
 ---
@@ -469,6 +550,9 @@ PostgreSQL 和 Redis 是系统服务，**开机自动运行**，不用管。
 每次开发只需打开终端执行：
 
 ```bash
+# 启动 TEI Embedding 容器（后端 / 智能问答同学需要，容器后台跑，启动一次即可）
+docker compose up -d embedding
+
 # 终端 1：启动后端（所有人）
 cd college-service-platform/backend
 .\mvnw.cmd spring-boot:run          # Windows
@@ -527,16 +611,16 @@ brew services start redis
 
 ## 环境要求（汇总）
 
-| 工具                    | 版本   | 说明                            |
-| ----------------------- | ------ | ------------------------------- |
-| JDK                     | 17+    | 后端运行环境                    |
-| Maven                   | 3.8+   | 后端构建工具                    |
-| Node.js                 | 18+    | 前端构建环境                    |
-| npm                     | 9+     | 随 Node.js 安装                 |
-| PostgreSQL              | 14+    | 开发阶段数据库（替代 Kingbase） |
-| Redis                   | 7+     | 缓存                            |
-| 微信开发者工具          | 最新版 | 小程序端调试（D 同学需要）      |
-| Docker + Docker Compose | 最新版 | 可选，用于一键部署              |
+| 工具                    | 版本   | 说明                                          |
+| ----------------------- | ------ | --------------------------------------------- |
+| JDK                     | 17+    | 后端运行环境                                  |
+| Maven                   | 3.8+   | 后端构建工具                                  |
+| Node.js                 | 18+    | 前端构建环境                                  |
+| npm                     | 9+     | 随 Node.js 安装                               |
+| PostgreSQL + pgvector   | 14+    | 开发阶段数据库（替代 Kingbase），需启用 vector 扩展 |
+| Redis                   | 7+     | 缓存                                          |
+| Docker + Docker Compose | 最新版 | 跑 TEI Embedding 容器；生产环境一键部署       |
+| 微信开发者工具          | 最新版 | 小程序端调试（D 同学需要）                    |
 
 ---
 
@@ -1012,6 +1096,26 @@ npm install
 ### API 文档打不开
 
 确认后端已启动，访问 http://localhost:8080/api/doc.html 。生产环境下 Swagger 默认关闭，需在 `application-prod.yml` 中设置 `knife4j.enable: true` 临时开启。
+
+### TEI Embedding 服务起不来 / 智能问答返回 `sourceType: manual`
+
+按可能性从高到低排查：
+
+1. `docker compose ps embedding` 状态是 `restarting` —— 模型文件没下载完整，重新执行第八点五步的下载命令
+2. 日志报 `relative URL without a base` —— TEI 1.5 的 HF_ENDPOINT bug，确认本地 `models/bge-small-zh-v1.5/` 目录存在且 docker-compose.yml 挂载到 `/models/...:ro`
+3. 日志报 `model.onnx does not exist` —— ONNX 权重缺失，重新下载 `Xenova/bge-small-zh-v1.5` 的 `onnx/model.onnx`
+4. 后端日志 `Embedding HTTP call failed` —— `application-dev.yml` 中 `rag.embedding.api-url` 应为 `http://localhost:8081/v1/embeddings`
+5. 数据库 `qa_document_chunk` 表是空的 —— 管理端 → 文档管理 → 对每个 PDF/DOCX 点「重新索引」让 BGE 重新向量化
+
+完整故障排查表见 [docs/DEPLOYMENT.md § 12.6](docs/DEPLOYMENT.md)。
+
+### pgvector 扩展未安装
+
+执行 `psql -U postgres -d college_service -c "CREATE EXTENSION IF NOT EXISTS vector;"` 报错 `extension "vector" is not available`，说明 PostgreSQL 没装 pgvector。三种解法：
+
+1. **推荐**：用 Docker 跑带 pgvector 的镜像（`pgvector/pgvector:pg16`），见"快速开始 - 方式二"
+2. Windows 手动装：从 https://github.com/pgvector/pgvector/releases 下载与 PG 版本对应的 dll
+3. macOS：`brew install pgvector`
 
 ---
 
