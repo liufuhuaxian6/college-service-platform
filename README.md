@@ -733,6 +733,45 @@ npm run dev:h5
 
 ---
 
+## 一键打包部署（推荐）
+
+仓库里有两个脚本封装了完整流程，避免手动跑 mvn / npm / docker save / scp / docker load 等十几步：
+
+### 本地（开发电脑）：构建并打包
+
+```powershell
+# 一行命令构建 JAR、前端 dist、5 个 Docker 镜像、BGE 模型，统一收到 deploy-package/
+pwsh scripts/build-deploy-package.ps1
+
+# 参数:
+#   -Force         强制重建所有镜像 tar 和重下模型（默认增量复用缓存）
+#   -SkipFrontend  跳过前端构建（前端没改时）
+#   -SkipBackend   跳过后端编译和镜像构建（只想刷新前端/模型时）
+```
+
+跑完后 `deploy-package/` 大约 1.5GB，内含 5 个镜像 tar、`models/`、`admin/`、4 个配置文件和服务器端的 `deploy.sh`。
+
+### 服务器：一行命令完成部署
+
+```bash
+# 先把整个 deploy-package 传上去
+scp -r deploy-package user@10.10.0.27:~/
+ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
+
+# deploy.sh 会自动判定全新部署 vs 增量更新, 完成:
+#   - docker load 5 个镜像
+#   - rsync 配置 + 静态文件 + 模型到 /opt/college-service/
+#   - docker compose up -d 启动 5 容器
+#   - 健康检查（最长等 120 秒）
+#   - 冒烟测试 embedding / login / 管理端首页 三个端点
+#
+# 后续更新只需要重跑两条命令, 脚本会自动只重建变化的部分。
+```
+
+完整流程文档见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+
+---
+
 ## Docker 部署（生产环境）
 
 > 详细的服务器部署流程（含离线环境）请参阅 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)

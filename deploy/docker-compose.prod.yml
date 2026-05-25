@@ -19,13 +19,16 @@ services:
       timeout: 5s
       retries: 5
 
-  # 中文 Embedding 服务（BGE-small-zh-v1.5，512维，离线模式需提前 docker save/load）
+  # 中文 Embedding 服务（BGE-small-zh-v1.5，512维）
+  # 离线部署: 用 ghcr.nju.edu.cn 镜像 + 挂载预下载的 ./models/bge-small-zh-v1.5/
+  # 规避 TEI 1.5 自带下载器的 HF_ENDPOINT bug
   embedding:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
-    command: --model-id BAAI/bge-small-zh-v1.5 --max-batch-tokens 16384
+    image: ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5
+    command: --model-id /models/bge-small-zh-v1.5 --max-batch-tokens 16384
     expose:
       - "80"
     volumes:
+      - ./models/bge-small-zh-v1.5:/models/bge-small-zh-v1.5:ro
       - tei-data:/data
     restart: unless-stopped
     healthcheck:
@@ -33,7 +36,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
