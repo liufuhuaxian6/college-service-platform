@@ -456,24 +456,31 @@ docker --version && docker-compose --version && git --version && node --version 
 cd ~/deploy-package
 docker load -i college-backend-1.0.0.tar
 docker load -i pgvector-pg16.tar
+docker load -i tei-cpu-1.5.tar
 docker load -i redis-7-alpine.tar
 docker load -i nginx-alpine.tar
 
 # 2. 部署到 /opt/college-service
-sudo mkdir -p /opt/college-service/{sql,admin}
+sudo mkdir -p /opt/college-service/{sql,admin,models}
 sudo cp docker-compose.yml /opt/college-service/
 sudo cp .env /opt/college-service/
 sudo cp nginx.conf /opt/college-service/
 sudo cp schema.sql /opt/college-service/sql/
 sudo cp -r admin/* /opt/college-service/admin/
+sudo cp -r models/bge-small-zh-v1.5 /opt/college-service/models/
 
-# 3. 启动
+# 3. 启动（5 个容器：postgres + redis + embedding + backend + nginx）
 cd /opt/college-service
 sudo docker-compose up -d
 
 # 4. 验证
 sudo docker-compose ps
-curl -s http://localhost:8080/api/auth/login -X POST -H "Content-Type: application/json" -d '{"studentId":"admin","password":"admin123"}' | head -c 100
+# 4.1 embedding 服务
+curl -s http://localhost:8081/v1/embeddings -X POST -H "Content-Type: application/json" \
+  --data '{"input":"测试"}' | head -c 100
+# 4.2 后端登录
+curl -s http://localhost:8080/api/auth/login -X POST -H "Content-Type: application/json" \
+  -d '{"studentId":"admin","password":"admin123"}' | head -c 100
 ```
 
 部署完成后访问：`http://10.10.0.27`
