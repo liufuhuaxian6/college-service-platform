@@ -23,24 +23,40 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { studentApi } from '@/api'
 
 const userStore = useUserStore()
+const profile = ref({})
+const honors = ref([])
 
 const userInfo = computed(() => ({
-  name: userStore.name || '同学',
-  major: userStore.major || '—',
-  className: userStore.className || '—',
+  name: profile.value.name || userStore.name || '同学',
+  major: profile.value.major || '—',
+  className: profile.value.className || '—',
 }))
 
-const mockHonors = [ // @UI_DEV_ONLY
-  { id: 1, name: '优秀学生奖学金', level: '校级', date: '2026-04-18' }, // @UI_DEV_ONLY
-  { id: 2, name: '社会实践先进个人', level: '院级', date: '2025-12-05' }, // @UI_DEV_ONLY
-  { id: 3, name: '学术创新竞赛二等奖', level: '校级', date: '2025-10-21' }, // @UI_DEV_ONLY
-] // @UI_DEV_ONLY
+onMounted(loadProfile)
 
-const honors = ref(mockHonors) // @UI_DEV_ONLY
+async function loadProfile() {
+  try {
+    const [profileRes, honorsRes] = await Promise.all([
+      studentApi.getProfile(),
+      studentApi.getHonors(),
+    ])
+    profile.value = profileRes.data || {}
+    honors.value = (honorsRes.data || []).map((item) => ({
+      id: item.id,
+      name: item.honorName,
+      level: item.honorLevel,
+      date: item.awardDate,
+    }))
+  } catch (e) {
+    profile.value = {}
+    honors.value = []
+  }
+}
 
 function handleLogout() {
   uni.showModal({

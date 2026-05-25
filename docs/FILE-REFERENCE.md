@@ -8,7 +8,7 @@
 
 | 文件 | 用途 | 状态 |
 |------|------|------|
-| `docker-compose.yml` | 一键启动整个系统（后端+数据库+Redis+Nginx），定义了 4 个容器的编排关系 | 已完成 |
+| `docker-compose.yml` | 一键启动整个系统（后端+数据库+Redis+Nginx+TEI Embedding），定义了 5 个容器的编排关系。`embedding` 服务使用 ghcr.nju.edu.cn 镜像 + 挂载本地 `models/bge-small-zh-v1.5` 目录避免 TEI 1.5 的 HF_ENDPOINT bug | 已完成 |
 | `.gitignore` | Git 忽略规则，排除 node_modules、target、IDE 配置等 | 已完成 |
 
 ---
@@ -21,7 +21,7 @@
 |------|------|------|
 | `pom.xml` | Maven 依赖清单 | 声明了 Spring Boot 3、MyBatis-Plus、JWT、Hutool、EasyExcel、Knife4j(Swagger)、MinIO、Lombok 等全部依赖。Kingbase 驱动已注释，等拿到 jar 包后取消注释即可 |
 | `Dockerfile` | 后端 Docker 镜像构建 | 两阶段构建：第一阶段用 Maven 编译打包，第二阶段用 JRE 运行，最终镜像体积小 |
-| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关 |
+| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关，**RAG 配置（512 维 BGE / TEI HTTP provider / min-score 0.3 / 查询前缀 / rerank-pool-size）** |
 | `src/main/resources/application-dev.yml` | 开发环境配置 | 连接本地 PostgreSQL（替代 Kingbase 开发），Redis localhost |
 | `src/main/resources/application-prod.yml` | 生产环境配置 | 连接 Kingbase 数据库，密码从环境变量读取，关闭 SQL 日志和 Swagger |
 
@@ -131,13 +131,18 @@
 
 | 文件 | 用途 |
 |------|------|
-| `service/QaService.java` | 核心业务逻辑。`chat()` 方法实现了完整的问答流程：1)关键词匹配知识库 → 2)命中则返回标准答案+官方链接 → 3)未命中则调 AI → 4)记录到 chat_log。还包含知识库 CRUD、文档管理、下载计数等功能 |
+| `service/QaService.java` | 核心业务逻辑。`chat()` 方法实现了完整的问答流程：1)关键词匹配知识库 → 2)未命中则做 RAG 文档检索 → 3)拼接知识库候选 + RAG 片段作为 AI 上下文 → 4)调 AI 或 RAG 抽取式回答（无 AI 时）→ 5)记录到 chat_log。还包含知识库 CRUD、文档管理、下载计数等功能 |
+| `entity/QaDocumentChunk.java` | 政策文档向量切片，对应表 `qa_document_chunk`。字段：文档ID、标题、分类、切片序号、文本内容、关键词、score（运行时打分） |
+| `mapper/QaDocumentChunkMapper.java` | 切片表 CRUD + 余弦相似度检索的原生 SQL（`embedding <=> ?::vector`） |
+| `service/rag/EmbeddingService.java` | 向量化服务。两种 provider：`local-hash`（SHA-256 hash 兜底）和 `http`（生产环境，调用 TEI / OpenAI 兼容服务）。区分 `embed()`（文档不加前缀）和 `embedQuery()`（查询加 BGE 前缀）。兼容 OpenAI/TEI 原生/嵌套数组等多种响应格式，HTTP 失败或维度不符自动回退 local-hash |
+| `service/rag/DocumentRagService.java` | RAG 主服务。`indexDocument()` 解析 PDF/DOCX/TXT、切片（优先按"第X条"边界）、批量调 embedding 写库；`retrieve()` 向量检索 + boost 重排；`buildContext()` 拼接 prompt 上下文 |
+| `service/rag/RagScoringUtil.java` | 共享评分逻辑工具类。提供词项提取/同义词扩展/受众匹配/意图结构评分等，被 QaService 和 DocumentRagService 共用，避免代码重复 |
 
 #### Controller 层
 
 | 文件 | 用途 |
 |------|------|
-| `controller/QaController.java` | 暴露接口：`POST /qa/chat` 智能问答、`GET /qa/chat/history` 问答历史、`GET/POST/PUT/DELETE /qa/knowledge/*` 知识库管理(需≤2级)、`GET/POST/DELETE /qa/document/*` 文档管理 |
+| `controller/QaController.java` | 暴露接口：`POST /qa/chat` 智能问答、`GET /qa/chat/history` 问答历史、`GET/POST/PUT/DELETE /qa/knowledge/*` 知识库管理(需≤2级)、`GET/POST/DELETE /qa/document/*` 文档管理、`POST /qa/document/{id}/index` 触发 RAG 向量入库、`GET /qa/document/chunk/search` 调试用切片相似度检索 |
 
 ---
 
@@ -262,11 +267,21 @@
 
 ---
 
+### 2.10 测试 (`backend/src/test/`)
+
+| 文件 | 用途 |
+|------|------|
+| `module/qa/service/rag/EmbeddingServiceTest.java` | 单元测试 `EmbeddingService` HTTP 响应解析。覆盖 OpenAI/TEI 原生/简单 `embedding` 字段/`embeddings[0]` 嵌套数组 4 种格式，以及维度不匹配、HTTP 错误、query 前缀只用于查询不用于文档的关键不变式。10 个测试用例 |
+
+---
+
 ## 三、数据库 (`deploy/sql/`)
 
 | 文件 | 用途 |
 |------|------|
-| `schema.sql` | 完整的建表脚本（兼容 PostgreSQL 和 Kingbase）。包含 **14 张表**、索引、中文注释、初始数据。初始数据包括：1个管理员账号(admin/admin123)、4种审批类型(在读证明等)、入党流程模板(8步)、入团流程模板(5步) |
+| `schema.sql` | 完整的建表脚本（兼容 PostgreSQL 和 Kingbase）。包含 **15 张表**（14 张业务 + 1 张 `qa_document_chunk` RAG 向量切片表，依赖 pgvector 扩展）、索引、中文注释、初始数据。初始数据包括：1个管理员账号(admin/admin123)、4种审批类型(在读证明等)、入党流程模板(8步)、入团流程模板(5步) |
+| `rag_pgvector.sql` | 已部署过旧版的库做 RAG 增量迁移脚本：创建 `vector` 扩展和 `qa_document_chunk` 表 + ivfflat 索引 |
+| `rag_migrate_384_to_512.sql` | 把已有的 384 维向量列迁移到 512 维（用于从 local-hash 切到 BGE 模型）。会 TRUNCATE 现有切片，迁移后需在管理端重新索引文档 |
 
 ---
 

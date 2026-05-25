@@ -40,6 +40,45 @@
       @current-change="loadData"
     />
   </el-card>
+
+  <el-dialog v-model="editVisible" title="编辑用户" width="520px">
+    <el-form :model="editForm" label-width="86px">
+      <el-form-item label="学号">
+        <el-input v-model="editForm.studentId" disabled />
+      </el-form-item>
+      <el-form-item label="姓名">
+        <el-input v-model="editForm.name" />
+      </el-form-item>
+      <el-form-item label="年级">
+        <el-input v-model="editForm.grade" />
+      </el-form-item>
+      <el-form-item label="专业">
+        <el-input v-model="editForm.major" />
+      </el-form-item>
+      <el-form-item label="班级">
+        <el-input v-model="editForm.className" />
+      </el-form-item>
+      <el-form-item label="手机号">
+        <el-input v-model="editForm.phone" />
+      </el-form-item>
+      <el-form-item label="导师">
+        <el-input v-model="editForm.tutor" />
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch
+          v-model="editForm.status"
+          :active-value="1"
+          :inactive-value="0"
+          active-text="启用"
+          inactive-text="禁用"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="editVisible = false">取消</el-button>
+      <el-button type="primary" :loading="saving" @click="saveUser">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -48,9 +87,22 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { systemApi } from '@/api'
 
 const loading = ref(false)
+const saving = ref(false)
+const editVisible = ref(false)
 const list = ref([])
 const total = ref(0)
 const query = reactive({ page: 1, size: 20 })
+const editForm = reactive({
+  id: null,
+  studentId: '',
+  name: '',
+  grade: '',
+  major: '',
+  className: '',
+  phone: '',
+  tutor: '',
+  status: 1,
+})
 
 async function loadData() {
   loading.value = true
@@ -61,8 +113,44 @@ async function loadData() {
   } finally { loading.value = false }
 }
 
-function editUser(row) {
-  // TODO: 编辑弹窗
+async function editUser(row) {
+  const res = await systemApi.getUserDetail(row.id)
+  Object.assign(editForm, {
+    id: res.data.id,
+    studentId: res.data.studentId || '',
+    name: res.data.name || '',
+    grade: res.data.grade || '',
+    major: res.data.major || '',
+    className: res.data.className || '',
+    phone: res.data.phone || '',
+    tutor: res.data.tutor || '',
+    status: res.data.status ?? 1,
+  })
+  editVisible.value = true
+}
+
+async function saveUser() {
+  if (!editForm.name) {
+    ElMessage.warning('姓名不能为空')
+    return
+  }
+  saving.value = true
+  try {
+    await systemApi.updateUser(editForm.id, {
+      name: editForm.name,
+      grade: editForm.grade,
+      major: editForm.major,
+      className: editForm.className,
+      phone: editForm.phone,
+      tutor: editForm.tutor,
+      status: editForm.status,
+    })
+    ElMessage.success('保存成功')
+    editVisible.value = false
+    loadData()
+  } finally {
+    saving.value = false
+  }
 }
 
 async function setRole(row) {

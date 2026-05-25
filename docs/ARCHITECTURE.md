@@ -811,6 +811,133 @@ List<SysUser> students = userMapper.selectList(
 
 ---
 
+## 九点五、智能问答 RAG 检索架构
+
+智能问答 `POST /api/qa/chat` 的回答来源分三级降级：
+
+```
+1. 知识库标准答案（qa_knowledge 关键词匹配命中）
+        ↓ 未命中
+2. RAG 检索 + AI 大模型基于政策文档片段回答
+        ↓ AI 未配置 / 检索为空
+3. 抽取式回答（直接返回政策文档原文片段，无需 AI）
+        ↓ 完全无依据
+4. manual 兜底："未在现有政策文件中找到明确依据，请联系辅导员确认。"
+```
+
+### 检索全链路
+
+```
+用户问题 "学生最长可以读多少年"
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ QaService.chat(question)                │
+│  ├─ extractTokens → 关键词匹配 qa_knowledge │ ← 命中则直接返回标准答案
+│  └─ 未命中 → DocumentRagService.retrieve │
+└─────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ EmbeddingService.embedQuery()           │
+│  ├─ 加 BGE 查询前缀                       │
+│  │   "为这个句子生成表示以用于检索相关文章："  │
+│  └─ HTTP POST → TEI :8081/v1/embeddings  │
+└─────────────────────────────────────────┘
+         │ 返回 512 维浮点数组（L2 归一化）
+         ▼
+┌─────────────────────────────────────────┐
+│ pgvector 余弦相似度检索                   │
+│  SELECT *, (1 - embedding <=> ?) AS score│
+│  FROM qa_document_chunk                  │
+│  ORDER BY embedding <=> ?                │
+│  LIMIT topK * rerank-pool-size           │
+└─────────────────────────────────────────┘
+         │ 返回 80 条候选片段
+         ▼
+┌─────────────────────────────────────────┐
+│ DocumentRagService.boostScore() 重排     │
+│  在余弦相似度基础上叠加：                  │
+│   + 0.55 × 内容关键词加权重叠               │
+│   + 0.25 × 元数据（标题/分类/keywords）重叠  │
+│   + 0.35 × 意图结构匹配（"多久"→年限词）     │
+│   + 0.45 × 受众范围匹配（"本科生"→标题）     │
+│  按总分降序取 topK 条                       │
+└─────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ QaService.buildExtractiveRagAnswer()    │
+│  ├─ 最多拼接 3 条「依据 N」                 │
+│  ├─ 次级片段需 ≥ 最佳分数的 60% 才纳入       │
+│  └─ 命中"第X条"边界时返回完整条款（不截断）   │
+└─────────────────────────────────────────┘
+         │
+         ▼
+返回 { sourceType: "rag", answer: "【依据1】《...》第十条 ..." }
+```
+
+### 文档入库流程（管理端「重新索引」按钮）
+
+```
+PDF / DOCX / TXT 文件 (≤ 30MB)
+         │
+         ▼
+DocumentRagService.indexDocument(docId)
+  ├─ extractText: PDFBox / Apache POI / 直接读 UTF-8
+  ├─ splitText: 优先按"第X条"切分；否则按段落保留语义边界
+  └─ 每个切片调 EmbeddingService.embed() 生成 512 维向量
+         │
+         ▼
+INSERT INTO qa_document_chunk (..., embedding) VALUES (..., '[0.1,0.2,...]'::vector)
+         │
+         ▼
+ivfflat 余弦索引自动维护
+```
+
+### 配置项（`application.yml` 的 `rag` 节）
+
+| 配置 | 默认值 | 含义 |
+|---|---|---|
+| `enabled` | true | RAG 总开关 |
+| `embedding-dim` | 512 | 向量维度，必须与模型匹配（BGE-small-zh=512） |
+| `chunk-size` | 700 | 长段落切片最大字符数 |
+| `chunk-overlap` | 120 | 长段落切片之间的重叠字符数 |
+| `top-k` | 4 | 最终返回的片段数 |
+| `min-score` | 0.3 | 余弦相似度阈值（local-hash 时期为 0.05） |
+| `rerank-pool-size` | 20 | 从 pgvector 召回 `topK × 此值` 条候选送入重排 |
+| `embedding.provider` | http | `local-hash` 或 `http`（生产用 http） |
+| `embedding.api-url` | http://localhost:8081/v1/embeddings | TEI 服务地址，可由 `RAG_EMBEDDING_API_URL` 环境变量覆盖 |
+| `embedding.query-prefix` | 「为这个句子生成表示以用于检索相关文章：」 | BGE 系列查询前缀，仅对查询添加，文档索引时不加 |
+
+### Embedding 模型选型
+
+当前生产配置：**BGE-small-zh-v1.5**（智源研究院 BAAI 出品，中文专项 BERT，4 层 8 头）
+
+| 模型 | 维度 | 中文质量 | 体积 | 用途 |
+|---|---|---|---|---|
+| **BGE-small-zh-v1.5** ⭐ | 512 | ★★★★ | 90MB | **当前选用**，CPU 推理 50ms/句 |
+| BGE-base-zh-v1.5 | 768 | ★★★★★ | 400MB | 服务器内存充足时升级 |
+| BGE-large-zh-v1.5 | 1024 | ★★★★★ | 1.3GB | 答辩演示效果最佳 |
+| local-hash（兜底） | 512 | ★ | 0 | TEI 不可用时回退，仅字面匹配 |
+
+切换模型时同步改 `rag.embedding-dim` 和 SQL `vector(N)` 列类型；旧向量不可复用，需 `TRUNCATE qa_document_chunk` 后重建索引。
+
+### 数据流总览
+
+```
+qa_knowledge        ── 关键词匹配 ───┐
+                                    ├──► QaService.chat()
+qa_document_chunk   ── 向量检索 ─────┤      │
+  + ivfflat 索引                    │      ▼
+                                    │   返回答案
+qa_chat_log         ◄── 写入 ───────┘
+```
+
+`qa_document_chunk` 字段：`document_id`、`title`、`category`、`chunk_index`、`content`、`keywords`（关键词自动提取）、`embedding vector(512)`。
+
+---
+
 ## 十、常见误解澄清
 
 **Q: 小程序和管理端是不是连的不同后端？**

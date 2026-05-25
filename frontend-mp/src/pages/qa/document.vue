@@ -13,9 +13,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { qaApi } from '@/api'
-
-const BASE_URL = 'http://localhost:8080/api'
+import { BASE_URL, qaApi } from '@/api'
 
 const list = ref([])
 

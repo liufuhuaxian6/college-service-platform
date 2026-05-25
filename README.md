@@ -570,7 +570,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=college_service \
   -p 5432:5432 \
-  postgres:16-alpine
+  pgvector/pgvector:pg16
 
 # 等待几秒后执行建表
 docker exec -i college-pg psql -U postgres -d college_service < deploy/sql/schema.sql

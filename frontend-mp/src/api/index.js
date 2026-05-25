@@ -1,6 +1,10 @@
-// 小程序环境没有代理，必须用完整地址
-// 开发时指向本机后端，上线后改为正式域名
-const BASE_URL = 'http://localhost:8080/api'
+// 小程序环境没有代理，必须用完整地址。
+// 可通过 VITE_API_BASE_URL 覆盖；生产构建默认指向部署服务器。
+const DEFAULT_API_BASE_URL = import.meta.env.PROD
+  ? 'http://10.10.0.27/api'
+  : 'http://localhost:8080/api'
+
+export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '')
 
 function getToken() {
   return uni.getStorageSync('token') || ''
@@ -65,6 +69,7 @@ export const approvalApi = {
   getMyDetail: (id) => request({ url: `/approval/my/${id}` }),
   withdraw: (id) => request({ url: `/approval/my/${id}/withdraw`, method: 'PUT' }),
   download: (id) => request({ url: `/approval/my/${id}/download` }),
+  downloadFileUrl: (id) => `${BASE_URL}/approval/my/${id}/download-file`,
 }
 
 // ==================== 学生 ====================

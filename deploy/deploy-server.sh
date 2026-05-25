@@ -9,7 +9,7 @@ echo "=== 创建部署目录 ==="
 mkdir -p $DEPLOY_DIR/{sql,admin}
 
 echo "=== 加载 Docker 镜像 ==="
-docker load -i /tmp/college-images/postgres-16-alpine.tar
+docker load -i /tmp/college-images/pgvector-pg16.tar
 docker load -i /tmp/college-images/redis-7-alpine.tar
 docker load -i /tmp/college-images/nginx-alpine.tar
 docker load -i /tmp/college-images/college-backend-1.0.0.tar

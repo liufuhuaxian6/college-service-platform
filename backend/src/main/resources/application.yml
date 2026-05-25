@@ -40,6 +40,27 @@ ai:
   api-url: ""
   timeout-ms: 5000
 
+# RAG / 向量检索配置
+# 已切换至 BGE-small-zh-v1.5（中文专项，512维）通过 TEI HTTP 服务调用
+rag:
+  enabled: true
+  embedding-dim: 512
+  chunk-size: 700
+  chunk-overlap: 120
+  top-k: 4
+  min-score: 0.3        # 真实余弦相似度阈值（local-hash 时期为 0.05）
+  rerank-pool-size: 20  # 从向量库召回多少候选送入重排（topK 的倍数，原硬编码 max(100, topK*20)）
+  embedding:
+    provider: http      # local-hash / http
+    # TEI（HuggingFace Text Embeddings Inference）OpenAI 兼容端点
+    # 本机开发: http://localhost:8081/v1/embeddings
+    # 容器内调用: http://embedding:80/v1/embeddings
+    api-url: "${RAG_EMBEDDING_API_URL:http://localhost:8081/v1/embeddings}"
+    api-key: ""
+    timeout-ms: 8000
+    # BGE 系列模型推荐对 query 加前缀以提升检索召回率
+    query-prefix: "为这个句子生成表示以用于检索相关文章："
+
 # 文件上传
 file:
   upload-path: ./uploads

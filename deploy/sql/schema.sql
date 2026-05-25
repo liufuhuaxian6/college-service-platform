@@ -3,6 +3,9 @@
 -- 兼容 PostgreSQL / Kingbase V8
 -- ============================================================
 
+-- 向量检索扩展：PostgreSQL 部署请使用 pgvector 镜像；Kingbase 环境如不支持可跳过 RAG 表。
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- ==================== 系统管理 ====================
 
 -- 用户表
@@ -123,6 +126,24 @@ COMMENT ON TABLE qa_chat_log IS '用户问答记录（用于优化知识库）';
 COMMENT ON COLUMN qa_chat_log.source_type IS '回答来源: knowledge=标准答案, ai=AI生成, manual=人工';
 CREATE INDEX idx_chat_user ON qa_chat_log(user_id);
 CREATE INDEX idx_chat_matched ON qa_chat_log(matched);
+
+-- 政策文档向量切片表（RAG）
+CREATE TABLE qa_document_chunk (
+    id             BIGSERIAL PRIMARY KEY,
+    document_id    BIGINT NOT NULL REFERENCES qa_document(id) ON DELETE CASCADE,
+    title          VARCHAR(200),
+    category       VARCHAR(50),
+    chunk_index    INT NOT NULL,
+    content        TEXT NOT NULL,
+    keywords       VARCHAR(500),
+    embedding      vector(512) NOT NULL,
+    created_at     TIMESTAMP DEFAULT NOW()
+);
+
+COMMENT ON TABLE qa_document_chunk IS '政策文档文本切片与向量索引（RAG检索）';
+CREATE INDEX idx_chunk_document ON qa_document_chunk(document_id);
+CREATE INDEX idx_chunk_category ON qa_document_chunk(category);
+CREATE INDEX idx_chunk_embedding ON qa_document_chunk USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 -- ==================== 党团事务流程 (P0) ====================
 

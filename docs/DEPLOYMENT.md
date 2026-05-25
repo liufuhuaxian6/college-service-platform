@@ -27,10 +27,12 @@
 | 文件 | 来源 | 用途 |
 |------|------|------|
 | `college-backend-1.0.0.tar` | `docker save` | 后端应用镜像（含 JRE + JAR） |
-| `postgres-16-alpine.tar` | `docker save` | PostgreSQL 镜像 |
+| `pgvector-pg16.tar` | `docker save` | PostgreSQL + pgvector 镜像（用于 RAG 向量检索） |
+| `tei-cpu-1.5.tar` | `docker save` | HuggingFace TEI Embedding 推理服务镜像 |
 | `redis-7-alpine.tar` | `docker save` | Redis 镜像 |
 | `nginx-alpine.tar` | `docker save` | Nginx 镜像 |
 | `frontend-admin/dist/` | `npm run build` | 管理端静态文件 |
+| `models/bge-small-zh-v1.5/` | 从 hf-mirror 下载 | BGE 中文 embedding 模型（含 ONNX 权重） |
 | `docker-compose.prod.yml` | `deploy/` 目录 | 生产编排配置（使用 image 引用） |
 | `deploy/nginx.conf` | 项目目录 | Nginx 配置 |
 | `deploy/sql/schema.sql` | 项目目录 | 数据库建表脚本 |
@@ -65,13 +67,13 @@ cd college-service-platform/backend
 docker build -t college-backend:1.0.0 -f Dockerfile.prod .
 
 # 拉取基础设施镜像
-docker pull postgres:16-alpine
+docker pull pgvector/pgvector:pg16
 docker pull redis:7-alpine
 docker pull nginx:alpine
 
 # 导出为 tar 文件
 docker save college-backend:1.0.0 -o deploy/images/college-backend-1.0.0.tar
-docker save postgres:16-alpine -o deploy/images/postgres-16-alpine.tar
+docker save pgvector/pgvector:pg16 -o deploy/images/pgvector-pg16.tar
 docker save redis:7-alpine -o deploy/images/redis-7-alpine.tar
 docker save nginx:alpine -o deploy/images/nginx-alpine.tar
 ```
@@ -191,7 +193,7 @@ cd ~/deploy-package
 
 # 加载镜像
 docker load -i college-backend-1.0.0.tar
-docker load -i postgres-16-alpine.tar
+docker load -i pgvector-pg16.tar
 docker load -i redis-7-alpine.tar
 docker load -i nginx-alpine.tar
 
@@ -453,7 +455,7 @@ docker --version && docker-compose --version && git --version && node --version 
 # 1. 加载 Docker 镜像
 cd ~/deploy-package
 docker load -i college-backend-1.0.0.tar
-docker load -i postgres-16-alpine.tar
+docker load -i pgvector-pg16.tar
 docker load -i redis-7-alpine.tar
 docker load -i nginx-alpine.tar
 
@@ -475,3 +477,118 @@ curl -s http://localhost:8080/api/auth/login -X POST -H "Content-Type: applicati
 ```
 
 部署完成后访问：`http://10.10.0.27`
+
+---
+
+## 十二、RAG / Embedding 服务部署（BGE-small-zh-v1.5 + TEI）
+
+智能问答模块使用 RAG 检索增强生成，依赖一个 HTTP embedding 服务把中文文本转成 512 维向量。当前选用 **HuggingFace Text Embeddings Inference (TEI)** 容器 + **BAAI BGE-small-zh-v1.5** 模型。
+
+### 12.1 国内网络注意事项
+
+| 资源 | 国内访问问题 | 解决方案 |
+|---|---|---|
+| `ghcr.io/huggingface/text-embeddings-inference` | 经常 timeout / EOF | 改用 `ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5`（南京大学镜像） |
+| `huggingface.co` 模型权重 | 直连失败 | 走 `hf-mirror.com` 国内镜像 |
+| TEI 1.5 的 `HF_ENDPOINT` 环境变量 | hf-hub 0.3.2 Rust 库存在 bug，下载 `config.json` 时 URL 拼接失败 | **预下载模型挂载到容器**（推荐） |
+| TEI CPU 镜像 | 仅支持 ONNX 推理，不支持 safetensors | 使用 `Xenova/bge-small-zh-v1.5` 的 ONNX 转换版 |
+
+### 12.2 预下载 BGE 模型（开发电脑执行）
+
+```powershell
+# 在项目根目录执行
+$base = "https://hf-mirror.com/BAAI/bge-small-zh-v1.5/resolve/main"
+$xenova = "https://hf-mirror.com/Xenova/bge-small-zh-v1.5/resolve/main"
+$dest = ".\models\bge-small-zh-v1.5"
+New-Item -ItemType Directory -Path "$dest\onnx" -Force | Out-Null
+New-Item -ItemType Directory -Path "$dest\1_Pooling" -Force | Out-Null
+
+# 主模型文件（10 个，约 95MB）
+@(
+  "config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+  "vocab.txt", "modules.json", "config_sentence_transformers.json",
+  "sentence_bert_config.json", "1_Pooling/config.json"
+) | ForEach-Object {
+  curl.exe -fSL --retry 5 -o "$dest\$_" "$base/$_"
+}
+
+# ONNX 权重（90MB，来自社区 Xenova 转换版）
+curl.exe -fSL --retry 5 -o "$dest\onnx\model.onnx" "$xenova/onnx/model.onnx"
+```
+
+下载完毕后 `models/bge-small-zh-v1.5/` 目录约 183MB（已在 `.gitignore`，不会入 Git）。
+
+### 12.3 启动 TEI 服务（开发环境）
+
+`docker-compose.yml` 已配置好 `embedding` 服务，挂载本地模型目录：
+
+```yaml
+embedding:
+  image: ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5
+  command: --model-id /models/bge-small-zh-v1.5 --max-batch-tokens 16384
+  ports:
+    - "8081:80"
+  volumes:
+    - ./models/bge-small-zh-v1.5:/models/bge-small-zh-v1.5:ro
+    - tei-data:/data
+```
+
+启动并验证：
+
+```powershell
+docker compose up -d embedding
+docker compose logs --tail 20 embedding   # 看到 "Ready" 即可
+
+# 测试调用（用文件传 UTF-8 中文，避免 shell 转义问题）
+echo '{"input":"入党流程是什么"}' > req.json
+curl -X POST http://localhost:8081/v1/embeddings -H "Content-Type: application/json" --data-binary @req.json
+# 应返回 {"data":[{"embedding":[0.028, 0.067, ...]}]}，数组长度=512
+```
+
+### 12.4 离线部署服务器
+
+服务器无外网时，本地一次性导出 TEI 镜像 + 传输模型目录：
+
+```bash
+# 本地有网电脑
+docker pull ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5
+docker save ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5 -o deploy/images/tei-cpu-1.5.tar
+# models/ 目录已经下载好（约 183MB）
+
+# 传到服务器
+scp deploy/images/tei-cpu-1.5.tar user@10.10.0.27:/tmp/
+scp -r models/ user@10.10.0.27:/opt/college-service/
+
+# 服务器上
+docker load -i /tmp/tei-cpu-1.5.tar
+cd /opt/college-service && sudo docker-compose up -d embedding
+```
+
+`deploy/docker-compose.prod.yml` 已经包含 `embedding` 服务，backend 通过 `RAG_EMBEDDING_API_URL=http://embedding:80/v1/embeddings` 容器网络调用，无需额外配置。
+
+### 12.5 数据库迁移（如从 384 维 local-hash 切到 512 维 BGE）
+
+老库里的 384 维 hash 伪向量不可与 512 维 BGE 真实向量混用，必须清空重建：
+
+```bash
+psql -U postgres -h localhost -p 5432 -d college_service \
+  -f deploy/sql/rag_migrate_384_to_512.sql
+```
+
+该脚本会：
+1. 删除旧 ivfflat 索引
+2. `TRUNCATE qa_document_chunk RESTART IDENTITY`（清空所有切片）
+3. `ALTER COLUMN embedding TYPE vector(512)`
+4. 重建 ivfflat 索引
+
+迁移完成后，**管理端 → 文档管理 → 对每个 PDF/DOCX 点「重新索引」** 让 BGE 重新向量化。
+
+### 12.6 故障排查
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| `Error: Could not download model artifacts` + `relative URL without a base` | TEI 1.5 hf-hub 库的 `HF_ENDPOINT` bug | 预下载模型挂载本地目录（见 12.2） |
+| `File "/models/.../onnx/model.onnx" does not exist` | CPU 镜像需要 ONNX 而非 safetensors | 下载 Xenova 转换版的 `onnx/model.onnx` |
+| backend 日志 `Embedding HTTP call failed` | TEI 容器未就绪或网络不通 | `docker compose logs embedding`；确认 `RAG_EMBEDDING_API_URL` 指向正确 |
+| backend 日志 `Embedding dimension mismatch: expected 512 but got X` | 模型维度与配置不符 | 校对 `rag.embedding-dim` 与模型实际输出维度 |
+| 问答返回 `sourceType: manual`（无 RAG） | 数据库无切片或检索 score 都 < min-score | 先索引文档；或临时下调 `rag.min-score` 调试 |

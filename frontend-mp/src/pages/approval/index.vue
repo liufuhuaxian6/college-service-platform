@@ -23,7 +23,6 @@
     <view class="empty" v-if="!applicationList.length">暂无申请记录</view>
 
     <button class="btn-apply" @click="goApply">提交新申请</button>
-    <text class="dev-mock-btn" @click="loadMockData">加载测试数据</text><!-- // @UI_DEV_ONLY -->
   </view>
 </template>
 
@@ -39,35 +38,31 @@ const statusMap = {
 }
 const statusLabel = (s) => statusMap[s] || s
 
-onMounted(async () => {
-  if (applicationList.value.length) return
+onMounted(loadApplications)
+
+async function loadApplications() {
   try {
     const res = await approvalApi.getMyPage({ page: 1, size: 50 })
     applicationList.value = res.data?.records || []
   } catch (e) {
     applicationList.value = []
   }
-})
-
-function formatDate(offsetDays) {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
-function loadMockData() { // @UI_DEV_ONLY
-  applicationList.value = [ // @UI_DEV_ONLY
-    { id: 1, appNo: '在读证明', status: 'pending', createdAt: formatDate(0) }, // @UI_DEV_ONLY
-    { id: 2, appNo: '成绩证明', status: 'approved', createdAt: formatDate(-1) }, // @UI_DEV_ONLY
-    { id: 3, appNo: '离校证明', status: 'rejected', rejectReason: '材料不全', createdAt: formatDate(-2) }, // @UI_DEV_ONLY
-  ] // @UI_DEV_ONLY
-} // @UI_DEV_ONLY
-
-function viewDetail(id) {
-  // TODO: 详情页
+async function viewDetail(id) {
+  try {
+    const res = await approvalApi.getMyDetail(id)
+    const app = res.data?.application || res.data
+    const records = res.data?.records || []
+    const latestRecord = records.length ? records[records.length - 1] : null
+    const lines = [
+      `编号：${app.appNo || '-'}`,
+      `状态：${statusLabel(app.status)}`,
+      `提交时间：${app.createdAt || '-'}`,
+      latestRecord?.comment ? `审批意见：${latestRecord.comment}` : '',
+    ].filter(Boolean)
+    uni.showModal({ title: '申请详情', content: lines.join('\n'), showCancel: false })
+  } catch (e) { /* handled */ }
 }
 
 async function handleDownload(id) {
@@ -79,9 +74,33 @@ async function handleDownload(id) {
     content: '下载后申请将归档锁定，不可再撤回或修改，确定吗？',
     success: (res) => {
       if (!res.confirm) return
-      target.status = 'downloaded'
-      target.downloadedAt = formatDate(0)
-      uni.showToast({ title: '已归档锁定', icon: 'success' })
+      downloadFile(id)
+    },
+  })
+}
+
+function downloadFile(id) {
+  const token = uni.getStorageSync('token') || ''
+  uni.showLoading({ title: '下载中' })
+  uni.downloadFile({
+    url: approvalApi.downloadFileUrl(id),
+    header: token ? { Authorization: `Bearer ${token}` } : {},
+    success: (res) => {
+      if (res.statusCode !== 200) {
+        uni.showToast({ title: '下载失败', icon: 'none' })
+        return
+      }
+      uni.openDocument({
+        filePath: res.tempFilePath,
+        showMenu: true,
+        complete: loadApplications,
+      })
+    },
+    fail: () => {
+      uni.showToast({ title: '下载失败', icon: 'none' })
+    },
+    complete: () => {
+      uni.hideLoading()
     },
   })
 }
@@ -93,10 +112,13 @@ async function handleWithdraw(id) {
   uni.showModal({
     title: '确认撤回',
     content: '确定撤回该申请？',
-    success: (res) => {
+    success: async (res) => {
       if (!res.confirm) return
-      target.status = 'withdrawn'
-      uni.showToast({ title: '已撤回' })
+      try {
+        await approvalApi.withdraw(id)
+        uni.showToast({ title: '已撤回' })
+        loadApplications()
+      } catch (e) { /* handled */ }
     },
   })
 }
@@ -128,11 +150,4 @@ function goApply() {
 .locked-tag { margin-top: 12rpx; font-size: 22rpx; color: #909399; }
 .empty { text-align: center; color: #999; padding: 80rpx; }
 .btn-apply { background: #1a3a5c; color: #fff; border: none; border-radius: 8rpx; margin-top: 20rpx; font-size: 30rpx; }
-.dev-mock-btn { /* // @UI_DEV_ONLY */
-  display: block; /* // @UI_DEV_ONLY */
-  text-align: center; /* // @UI_DEV_ONLY */
-  font-size: 20rpx; /* // @UI_DEV_ONLY */
-  color: #c0c4cc; /* // @UI_DEV_ONLY */
-  margin-top: 10rpx; /* // @UI_DEV_ONLY */
-} /* // @UI_DEV_ONLY */
 </style>

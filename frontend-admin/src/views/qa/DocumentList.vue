@@ -13,7 +13,7 @@
           v-model="query.category"
           clearable
           placeholder="全部"
-          style="width: 140px"
+          style="width: 160px"
           @change="handleSearch"
         >
           <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
@@ -35,9 +35,10 @@
       </el-table-column>
       <el-table-column prop="downloadCount" label="下载次数" width="120" />
       <el-table-column prop="createdAt" label="上传时间" width="180" />
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="230" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="download(row)">下载</el-button>
+          <el-button link type="success" :loading="indexingId === row.id" @click="indexDocument(row)">向量入库</el-button>
           <el-popconfirm title="确定删除该文档吗？" @confirm="handleDelete(row.id)">
             <template #reference>
               <el-button link type="danger">删除</el-button>
@@ -97,12 +98,13 @@ import router from '@/router'
 
 const loading = ref(false)
 const uploading = ref(false)
+const indexingId = ref(null)
 const dialogVisible = ref(false)
 const list = ref([])
 const fileList = ref([])
 const uploadFile = ref(null)
 
-const categories = ['入党', '入团', '奖学金', '日常事务', '其他']
+const categories = ['党团流程', '学籍管理', '纪律处分', '校历安排', '入党', '入团', '奖学金', '日常事务', '其他']
 
 const query = reactive({
   category: '',
@@ -261,6 +263,16 @@ async function handleDelete(id) {
   await qaApi.deleteDocument(id)
   ElMessage.success('删除成功')
   loadData()
+}
+
+async function indexDocument(row) {
+  indexingId.value = row.id
+  try {
+    const res = await qaApi.indexDocument(row.id)
+    ElMessage.success(`向量入库完成，共 ${res.data?.chunks || 0} 个片段`)
+  } finally {
+    indexingId.value = null
+  }
 }
 
 function formatSize(bytes) {

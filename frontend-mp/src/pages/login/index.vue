@@ -8,7 +8,6 @@
       <input class="input" v-model="form.studentId" placeholder="请输入学号" />
       <input class="input" v-model="form.password" type="password" placeholder="请输入密码" />
       <button class="btn-login" :loading="loading" @click="handleLogin">登 录</button>
-      <text class="dev-link" @click="goDevHome">开发者入口：跳至首页</text><!-- // @UI_DEV_ONLY -->
     </view>
   </view>
 </template>
@@ -37,16 +36,6 @@ async function handleLogin() {
   finally { loading.value = false }
 }
 
-function goDevHome() { // @UI_DEV_ONLY
-  userStore.setLoginInfo({ // @UI_DEV_ONLY
-    token: 'dev-token-123', // @UI_DEV_ONLY
-    userId: '', // @UI_DEV_ONLY
-    name: '开发者同学', // @UI_DEV_ONLY
-    roleLevel: 1, // @UI_DEV_ONLY
-    studentId: '', // @UI_DEV_ONLY
-  }) // @UI_DEV_ONLY
-  uni.switchTab({ url: '/pages/index/index' }) // @UI_DEV_ONLY
-} // @UI_DEV_ONLY
 </script>
 
 <style scoped>
@@ -57,10 +46,4 @@ function goDevHome() { // @UI_DEV_ONLY
 .form { background: #fff; border-radius: 16rpx; padding: 40rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,.1); }
 .input { border: 1rpx solid #ddd; border-radius: 8rpx; padding: 20rpx 24rpx; margin-bottom: 24rpx; font-size: 28rpx; }
 .btn-login { background: #1a3a5c; color: #fff; border: none; border-radius: 8rpx; padding: 20rpx; font-size: 30rpx; margin-top: 12rpx; }
-.dev-link { display: block; /* // @UI_DEV_ONLY */
-  text-align: center; /* // @UI_DEV_ONLY */
-  margin-top: 18rpx; /* // @UI_DEV_ONLY */
-  font-size: 24rpx; /* // @UI_DEV_ONLY */
-  color: #8a8f98; /* // @UI_DEV_ONLY */
-} /* // @UI_DEV_ONLY */
 </style>
