@@ -8,6 +8,149 @@
 
 ---
 
+## 零、推荐方式：脚本化一键部署（首次 + 后续更新都用它）
+
+仓库里 `scripts/` 目录下有两个脚本封装了完整的离线部署流程。**第一次部署和后续每次更新的步骤完全一样**，只要重新跑这两条命令即可：
+
+```
+┌──────── 本地开发电脑 (有外网) ─────────┐    ┌──── 服务器 10.10.0.27 (内网) ────┐
+│                                       │    │                                  │
+│  pwsh scripts/build-deploy-package.ps1│    │  cd ~/deploy-package             │
+│        │                              │    │  bash deploy.sh                  │
+│        ▼ 产出 deploy-package/          │    │        │                         │
+│        │  ├─ images/*.tar (5 个)      │    │        ▼ 自动:                   │
+│        │  ├─ models/bge-small-zh.../  │SCP │        │  - docker load 5 镜像    │
+│        │  ├─ admin/ (前端 dist)       │───►│        │  - rsync 配置/模型/前端  │
+│        │  ├─ docker-compose.yml       │    │        │  - docker compose up -d  │
+│        │  ├─ .env / nginx.conf / sql  │    │        │  - 120s 健康检查         │
+│        │  └─ deploy.sh                │    │        │  - 冒烟测试 3 个端点      │
+│                                       │    │                                  │
+└───────────────────────────────────────┘    └──────────────────────────────────┘
+```
+
+### 0.1 本地：构建并打包
+
+```powershell
+# 仓库根目录执行（Windows + Docker Desktop + curl.exe）
+pwsh scripts/build-deploy-package.ps1
+```
+
+脚本会**幂等地**完成 7 步：
+
+| 步骤 | 做什么 | 增量逻辑 |
+|---|---|---|
+| 0/7 | 检查 docker / curl.exe 可用 | — |
+| 1/7 | `mvnw package -DskipTests` 编译后端 JAR | 总是执行（Maven 自己增量） |
+| 2/7 | docker build + save 后端镜像 | 如果 tar 已存在则跳过 |
+| 3/7 | docker pull + save 4 个基础镜像 | 同上，每个独立判断 |
+| 4/7 | 从 hf-mirror 下载 BGE 模型 10 个文件 | 文件已存在 + 体积 > 50 字节就跳过 |
+| 5/7 | `npm run build` 管理端前端 | — |
+| 6/7 | 装配 `deploy-package/` 目录 | 每次清空重组（除 images 缓存） |
+| 7/7 | 打印体积清单和下一步命令 | — |
+
+**常用参数：**
+
+```powershell
+pwsh scripts/build-deploy-package.ps1                  # 默认增量
+pwsh scripts/build-deploy-package.ps1 -SkipFrontend    # 只改了后端时
+pwsh scripts/build-deploy-package.ps1 -SkipBackend     # 只改了前端/模型时
+pwsh scripts/build-deploy-package.ps1 -Force           # 强制重建所有镜像 tar 和重下模型
+```
+
+产出位置：`deploy-package/`（已在 `.gitignore`，不会入库），大约 1.5GB。
+
+### 0.2 传输 + 服务器部署
+
+```bash
+# 整包传一次（之后只需要传变化的子目录，见下方"增量更新"）
+scp -r deploy-package user@10.10.0.27:~/
+
+# SSH 上去执行 deploy.sh
+ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
+```
+
+`deploy.sh` 会**自动判定**部署模式：
+
+| 模式 | 触发条件 | 行为 |
+|---|---|---|
+| **fresh** | `/opt/college-service/` 不存在或为空 | docker load + 全量 cp + `docker compose up -d` |
+| **增量** | 目标目录已有部署 | docker load（已加载的镜像 noop）+ rsync 同步变化 + `docker compose up -d --remove-orphans`（变化的容器会被重建） |
+| **--fresh** | 命令行强制 | 先 `docker compose down -v` 清空数据卷（**会丢数据库数据**，需确认）再走 fresh 流程 |
+| **--restart-only** | 命令行强制 | 不动镜像和文件，只 `docker compose restart` |
+
+随后做 6 步操作：
+
+```
+0/6 校验部署包结构完整
+1/6 判定 fresh / 增量 / restart 模式
+2/6 docker load 所有镜像 tar
+3/6 同步配置 + admin/ + models/ 到 /opt/college-service
+4/6 docker compose up -d (5 个容器)
+5/6 健康检查 (最长等 120 秒, 所有容器需 healthy)
+6/6 冒烟测试 embedding / 后端登录 / 管理端首页
+```
+
+成功输出例：
+
+```
+==================================================================
+  部署完成: http://10.10.0.27
+  默认登录: admin / admin123  (生产环境请立即修改)
+  日志:    docker compose -f /opt/college-service/docker-compose.yml logs -f
+==================================================================
+```
+
+### 0.3 后续更新（这才是日常用的）
+
+代码改完后，本地：
+
+```powershell
+pwsh scripts/build-deploy-package.ps1   # 增量构建, 没改的部分秒跳过
+```
+
+只传变化的子目录省带宽：
+
+```bash
+# 只改了后端
+scp deploy-package/images/college-backend-1.0.0.tar user@10.10.0.27:~/deploy-package/images/
+
+# 只改了前端
+scp -r deploy-package/admin user@10.10.0.27:~/deploy-package/
+
+# 然后服务器上重跑
+ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
+```
+
+`deploy.sh` 在增量模式下会做 `docker compose up -d --remove-orphans`：
+
+- 镜像 tag 没变但 sha 变了的容器（如重建后的 `college-backend:1.0.0`）会被重建并启动
+- 没变化的容器（postgres / redis / embedding / nginx）保持运行不动
+- 数据卷（db-data, redis-data, upload-data, tei-data）始终保留
+
+### 0.4 如果出错怎么办
+
+`deploy.sh` 任何一步失败都会以非零退出码停下并打印彩色 `[FAIL]` 行。最常见排查：
+
+```bash
+# 看哪个容器没起来
+cd /opt/college-service
+docker compose ps
+
+# 看具体容器日志
+docker compose logs --tail 50 embedding   # TEI 起不来最常见
+docker compose logs --tail 50 backend     # 后端起不来次之
+docker compose logs --tail 50 postgres    # 数据库异常少见
+
+# 完整故障排查清单见 §九（基础设施）和 §12.6（embedding 专项）
+```
+
+---
+
+> 下面的 §一 ~ §十二 是**手动分步流程**，相当于上面脚本背后做的事的展开说明。
+> 不需要照着敲，**对脚本行为有疑问时回来查具体细节**用。
+
+---
+
 ## 一、部署架构概述
 
 由于服务器无法访问外网，采用**本地构建 + 离线传输**方案：
