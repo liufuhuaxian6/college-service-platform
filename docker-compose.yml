@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL 数据库（生产环境如有 Kingbase 可替换镜像）
   postgres:

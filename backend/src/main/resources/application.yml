@@ -48,7 +48,9 @@ rag:
   chunk-size: 700
   chunk-overlap: 120
   top-k: 4
-  min-score: 0.3        # 真实余弦相似度阈值（local-hash 时期为 0.05）
+  min-score: 0.5        # 原始余弦阈值（不含加权）, BGE-small 中文模型上 0.5 大致区分"相关 vs 不相关"
+  extractive-confidence: 55   # 抽取式回答最低置信度（=vector*100 + 关键词/意图/受众加权和）; 低于则回兜底
+
   rerank-pool-size: 20  # 从向量库召回多少候选送入重排（topK 的倍数，原硬编码 max(100, topK*20)）
   embedding:
     provider: http      # local-hash / http

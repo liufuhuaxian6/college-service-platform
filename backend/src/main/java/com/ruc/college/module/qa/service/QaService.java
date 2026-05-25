@@ -42,6 +42,13 @@ public class QaService {
     @Value("${file.upload-path:./uploads}")
     private String uploadPath;
 
+    /**
+     * 抽取式回答最低置信度。低于此分数则视为"语义不相关"，返回兜底语而非伪造依据。
+     * 计算口径见 {@link #extractiveScore(String, QaDocumentChunk)}: vector_score*100 + 关键词/意图/受众加权
+     */
+    @Value("${rag.extractive-confidence:60}")
+    private int extractiveConfidence;
+
     private static final long MAX_DOC_SIZE = 30L * 1024 * 1024;
     private static final Pattern TOKEN_PATTERN = Pattern.compile("[\\p{IsHan}]{2,}|[A-Za-z0-9]{2,}");
     private static final Pattern ARTICLE_PATTERN = Pattern.compile("第[一二三四五六七八九十百千万零〇0-9]+条");
@@ -339,7 +346,7 @@ public class QaService {
     private static final int MAX_EXTRACTIVE_CHUNKS = 3;
     private static final int MIN_SECONDARY_SCORE_RATIO = 60; // 次级 chunk 至少要达到最佳分数 60% 才纳入
 
-    private static String buildExtractiveRagAnswer(String question, List<QaDocumentChunk> chunks) {
+    private String buildExtractiveRagAnswer(String question, List<QaDocumentChunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return "未在现有政策文件中找到明确依据，请联系辅导员确认。";
         }
@@ -348,6 +355,11 @@ public class QaService {
                 .sorted((a, b) -> Integer.compare(extractiveScore(q, b), extractiveScore(q, a)))
                 .toList();
         int bestScore = extractiveScore(q, ranked.get(0));
+
+        // 置信度门槛: 即使有候选, 最佳分数不达标也视为不相关, 避免给无关问题伪造依据
+        if (bestScore < extractiveConfidence) {
+            return "未在现有政策文件中找到明确依据，请联系辅导员确认。";
+        }
         int threshold = Math.max(1, bestScore * MIN_SECONDARY_SCORE_RATIO / 100);
 
         StringBuilder sb = new StringBuilder();

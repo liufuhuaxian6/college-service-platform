@@ -109,8 +109,10 @@ public class DocumentRagService {
             int poolSize = Math.max(topK, topK * Math.max(1, rerankPoolSize));
             return chunkMapper.searchSimilar(embedding, StringUtils.hasText(category) ? category : "", poolSize)
                     .stream()
+                    // 第一道闸: 用原始余弦相似度过滤明显不相关的片段, 关键词加权不能"救活"语义不相关
+                    .filter(c -> RagScoringUtil.nullToZero(c.getScore()) >= minScore)
+                    // 第二道: 重排基础上叠加关键词/意图/受众加权
                     .peek(c -> c.setScore(boostScore(question, c)))
-                    .filter(c -> c.getScore() == null || c.getScore() >= minScore)
                     .sorted((a, b) -> Double.compare(RagScoringUtil.nullToZero(b.getScore()), RagScoringUtil.nullToZero(a.getScore())))
                     .limit(Math.max(1, topK))
                     .toList();
