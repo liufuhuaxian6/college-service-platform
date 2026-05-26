@@ -166,7 +166,7 @@ rm /tmp/seed-docs.tar /tmp/seed-docs.sql
 echo '--- backend 容器 uploads/ 目录 ---'
 sudo docker exec $ServerBackendContainer ls -R /app/uploads
 "@
-& ssh $Server $remoteCmd
+& ssh -t $Server $remoteCmd
 if ($LASTEXITCODE -ne 0) { throw 'ssh 远程执行失败' }
 
 Step '完成'
