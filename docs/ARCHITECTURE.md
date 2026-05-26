@@ -440,7 +440,7 @@ docker-compose up -d
 
 ### 8.1 总览
 
-系统共 14 张表，分为 4 个业务域 + 1 个系统域：
+系统共 16 张表，分为 4 个业务域 + 1 个系统域：
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -448,14 +448,16 @@ docker-compose up -d
 │                        数据库: college_service                    │
 │                                                                  │
 │  ┌─ 系统域 ─────────────────────────────────────────────────┐   │
-│  │  sys_user             用户表 (全部角色的账号)              │   │
-│  │  sys_operation_log    操作日志 (管理员行为审计)            │   │
-│  │  sys_notification     通知消息 (含模拟短信)               │   │
+│  │  sys_user                    用户表 (含 email/phone)       │   │
+│  │  sys_operation_log           操作日志                      │   │
+│  │  sys_notification            通知消息 (站内/邮件模拟/短信) │   │
+│  │  sys_notification_broadcast  群发记录 (24h 撤回窗口)       │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 │  ┌─ 智能问答域 ────────────────────────────────────────────┐    │
 │  │  qa_knowledge         知识库标准问答                      │    │
-│  │  qa_document          政策文档 (≤30MB)                   │    │
+│  │  qa_document          政策文档/办公模板 (doc_type 区分)   │    │
+│  │  qa_document_chunk    RAG 向量切片 (vector(512))          │    │
 │  │  qa_chat_log          用户问答记录                        │    │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -526,7 +528,8 @@ approval_type (审批类型)
 | grade | VARCHAR(10) | 年级 |
 | major | VARCHAR(50) | 专业 |
 | class_name | VARCHAR(50) | 班级 |
-| phone | VARCHAR(20) | 手机号 |
+| phone | VARCHAR(20) | 手机号（学生端可自助修改） |
+| email | VARCHAR(100) | 邮箱（为空时派生 `学号@ruc.edu.cn`，学生端可自助修改） |
 | id_card_enc | VARCHAR(255) | 身份证号（**AES 加密存储**） |
 | origin_enc | VARCHAR(255) | 生源地（**AES 加密存储**） |
 | hukou_enc | VARCHAR(255) | 户籍地（**AES 加密存储**） |
@@ -556,8 +559,28 @@ approval_type (审批类型)
 | user_id | BIGINT | 接收人 |
 | title | VARCHAR(200) | 标题 |
 | content | TEXT | 内容 |
-| type | VARCHAR(20) | sms_sim=模拟短信 system=系统通知 reminder=流程提醒 |
+| type | VARCHAR(20) | sms_sim=模拟短信  system=系统通知  reminder=流程提醒  email_sim=邮件降级 |
+| tags | VARCHAR(200) | 标签（逗号分隔，用于学生端 tag 筛选） |
+| source | VARCHAR(50) | 来源（学院/就业办/...） |
+| source_url | VARCHAR(500) | 公众号原文链接 |
+| broadcast_id | BIGINT | 关联的群发记录（撤回时按此过滤） |
 | is_read | BOOLEAN | 是否已读 |
+
+**sys_notification_broadcast** — 群发记录
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGSERIAL PK | |
+| title / content | — | 群发原文 |
+| tags / source / source_url | — | 同 sys_notification |
+| target_filter | TEXT | 目标筛选 JSON：`{roleLevel, grades, majors, classNames}` |
+| channels | VARCHAR(50) | 已选渠道列表，如 `system,email` |
+| target_count / sent_count / email_sent | INT | 命中人数 / 站内已写入 / 邮件已发送 |
+| operator_id | BIGINT | 群发操作人 |
+| withdrawn | BOOLEAN | 是否已撤回 |
+| withdrawn_at | TIMESTAMP | 撤回时间 |
+
+> 24h 内可撤回；撤回时仅删除目标用户中**未读**的关联通知，已读保留留痕。
 
 #### 智能问答域
 
@@ -575,13 +598,15 @@ approval_type (审批类型)
 
 > 学生提问时，后端先用关键词匹配这张表。命中则返回标准答案（可信），未命中才调 AI（需标注"仅供参考"）。
 
-**qa_document** — 政策文档
+**qa_document** — 政策文档 / 办公模板
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | BIGSERIAL PK | |
 | title | VARCHAR(200) | 文档标题 |
 | category | VARCHAR(50) | 分类 |
+| doc_type | VARCHAR(20) | `policy`=政策文件，`template`=办公模板（请假条/活动预算表/简报…） |
+| description | TEXT | 适用范围 / 填写说明（主要用于模板） |
 | file_path | VARCHAR(500) | 服务器上的存储路径 |
 | file_size | BIGINT | 文件大小（字节，≤30MB） |
 | download_count | INT | 下载次数（每次下载 +1） |
@@ -922,6 +947,57 @@ ivfflat 余弦索引自动维护
 | local-hash（兜底） | 512 | ★ | 0 | TEI 不可用时回退，仅字面匹配 |
 
 切换模型时同步改 `rag.embedding-dim` 和 SQL `vector(N)` 列类型；旧向量不可复用，需 `TRUNCATE qa_document_chunk` 后重建索引。
+
+---
+
+## 九点六、信息精准推送 / 邮件投递架构
+
+模块三「信息精准推送」由管理员发起群发，覆盖**站内通知 + 真实邮件 + 短信模拟**三条通道，所有发送都通过 `NotificationBroadcastService.broadcast()` 在一个事务中完成：
+
+```
+管理员提交群发请求 (admin 端)
+     │  POST /api/notify/broadcast
+     │  { title, content, tags[], channels[], filter }
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ NotificationBroadcastService.broadcast()                         │
+│  1) 按 filter 查询 sys_user → targets (≤ notify.broadcast.max)   │
+│  2) INSERT sys_notification_broadcast                            │
+│  3) 站内通道: 批量 INSERT sys_notification (type=system)         │
+│  4) email 通道:                                                  │
+│     ├─ EmailService.isAvailable() = false                        │
+│     │    → 写 sys_notification (type=email_sim) 降级             │
+│     └─ true → 逐人 sendOne() 同步发送, 统计 emailSent             │
+│  5) sms_sim 通道: 批量 INSERT sys_notification (type=sms_sim)    │
+│  6) UPDATE broadcast SET sent_count, email_sent                  │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+EmailService.sendOne()  ──SMTP─→  smtp.qq.com:465 / smtp.ym.163.com:994
+     │
+     ▼  (失败时 warn 日志 + 返回 false, 不抛异常)
+真实邮件投递到目标邮箱 (派生规则: sys_user.email || 学号@ruc.edu.cn)
+```
+
+**关键设计点：**
+
+- **授权码隔离**：`MAIL_AUTH_CODE` 仅通过环境变量传入 JVM，不入库、不入 yml、不进日志
+- **邮件降级**：`JavaMailSender` bean 缺失或鉴权失败时，broadcast 不报错，自动改写 `email_sim` 类型通知，前端展示为「邮件(模拟)」前缀
+- **24h 撤回**：`sys_notification` 表的 `broadcast_id` 把站内通知与群发关联起来，撤回时按 `(broadcast_id, is_read=false)` 删除
+- **节流**：`EmailService.sendBatch()` 每发 `notify.email.batch-size` 封 sleep 100ms，避免 SMTP 限流
+
+配置项（`application.yml`）：
+
+| 配置 | 默认 | 说明 |
+|---|---|---|
+| `spring.mail.host` | `smtp.qq.com` | SMTP 服务器（可通过 `MAIL_HOST` 覆盖） |
+| `spring.mail.port` | `465` | SSL 端口（`MAIL_PORT` 覆盖） |
+| `spring.mail.username` | `3523698178@qq.com` | 发件人（`MAIL_USERNAME` 覆盖） |
+| `spring.mail.password` | (空) | 客户端授权码（`MAIL_AUTH_CODE` 必传，否则降级） |
+| `notify.email.default-domain` | `ruc.edu.cn` | 邮箱派生域 |
+| `notify.email.batch-size` | 50 | 每 N 封小睡 100ms |
+| `notify.broadcast.withdraw-window-hours` | 24 | 撤回窗口 |
+| `notify.broadcast.max-targets` | 5000 | 单次群发最大目标人数 |
 
 ### 数据流总览
 

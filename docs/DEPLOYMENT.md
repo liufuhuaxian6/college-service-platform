@@ -179,7 +179,7 @@ docker compose logs --tail 50 postgres    # 数据库异常少见
 | `docker-compose.prod.yml` | `deploy/` 目录 | 生产编排配置（使用 image 引用） |
 | `deploy/nginx.conf` | 项目目录 | Nginx 配置 |
 | `deploy/sql/schema.sql` | 项目目录 | 数据库建表脚本 |
-| `.env.prod` | `deploy/` 目录 | 环境变量配置 |
+| `.env.prod` | `deploy/` 目录 | 环境变量配置（含 DB / Redis / **`MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_AUTH_CODE`** 邮件相关） |
 
 ---
 
@@ -806,3 +806,32 @@ psql -U postgres -h localhost -p 5432 -d college_service \
 | backend 日志 `Embedding HTTP call failed` | TEI 容器未就绪或网络不通 | `docker compose logs embedding`；确认 `RAG_EMBEDDING_API_URL` 指向正确 |
 | backend 日志 `Embedding dimension mismatch: expected 512 but got X` | 模型维度与配置不符 | 校对 `rag.embedding-dim` 与模型实际输出维度 |
 | 问答返回 `sourceType: manual`（无 RAG） | 数据库无切片或检索 score 都 < min-score | 先索引文档；或临时下调 `rag.min-score` 调试 |
+
+---
+
+## 十三、邮件 SMTP 配置（信息精准推送）
+
+模块三「信息精准推送」需要 SMTP 才能发真实邮件。**授权码不入代码不入库**，仅通过环境变量传入：
+
+```bash
+# .env / 或 docker-compose 的 environment 段
+MAIL_HOST=smtp.qq.com           # 默认值，可改 smtp.ym.163.com / smtp.qiye.163.com
+MAIL_PORT=465                   # SSL 端口；网易企业邮多用 994
+MAIL_USERNAME=3523698178@qq.com # 发件人邮箱（必须与授权码同源）
+MAIL_AUTH_CODE=xxxxxxxxxxxxxxxx # 客户端授权码 (QQ 16 位 / 网易 自定义)
+```
+
+**关键约束：**
+
+1. `MAIL_HOST` / `MAIL_PORT` 必须与 `MAIL_USERNAME` 邮箱服务商匹配。QQ 个人邮箱 `smtp.qq.com:465`，QQ 企业邮 `smtp.exmail.qq.com:465`，网易企业邮 `smtp.ym.163.com:994` 或 `smtp.qiye.163.com:465`。
+2. `MAIL_AUTH_CODE` 是邮箱后台**生成的客户端专用密码**，不是登录密码。换服务商必须重新生成。
+3. 缺失 / 鉴权失败时，`EmailService.isAvailable()` 返回 false，群发自动降级为只写 `email_sim` 类型站内通知，**不阻塞业务**。
+
+**故障排查（后端日志关键字 `发送邮件失败`）：**
+
+| `err=...` 内容 | 原因 | 解决 |
+|---|---|---|
+| `Authentication failed` | 授权码错 / 没读到 / 与发件人不匹配 | 验证 `echo $env:MAIL_AUTH_CODE` 长度；用邮箱后台重新生成 |
+| `Couldn't connect to host, port: xxx; timeout -1` | host/port 不匹配服务商 | 对照上表；注意 yml 里 `socketFactory.port` 也必须用 `${MAIL_PORT}` |
+| `Connection reset` | 服务商封了 SMTP 或 IP | 换服务商；或临时切到 STARTTLS 587 端口 |
+| 无 warn 日志但 `emailSent=0` | `EmailService.isAvailable()=false` | 检查 `MAIL_USERNAME` 是否传入 |
