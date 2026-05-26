@@ -65,6 +65,11 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET}
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      AI_API_URL: ${AI_API_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
       RAG_EMBEDDING_API_URL: http://embedding:80/v1/embeddings
       # 邮件 SMTP (模块三): 通过 .env 注入授权码, 缺失则自动降级为 email_sim
       # 默认 RUC 学校邮箱 (网易企业邮杭州节点, 已实测), 详见 deploy/.env.prod

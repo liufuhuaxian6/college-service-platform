@@ -21,7 +21,7 @@
 |------|------|------|
 | `pom.xml` | Maven 依赖清单 | 声明了 Spring Boot 3、MyBatis-Plus、JWT、Hutool、EasyExcel、Knife4j(Swagger)、MinIO、Lombok 等全部依赖。Kingbase 驱动已注释，等拿到 jar 包后取消注释即可 |
 | `Dockerfile` | 后端 Docker 镜像构建 | 两阶段构建：第一阶段用 Maven 编译打包，第二阶段用 JRE 运行，最终镜像体积小 |
-| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关，**RAG 配置**（512 维 BGE / TEI HTTP provider / min-score 0.5 / extractive-confidence 55 / 查询前缀 / rerank-pool-size），**邮件 SMTP 配置**（`spring.mail.*` 默认 smtp.qq.com:465，授权码由 `MAIL_AUTH_CODE` 环境变量注入），**通知群发参数**（`notify.broadcast.*` 24h 撤回窗口 / 5000 上限） |
+| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（`AI_PROVIDER / AI_API_URL / AI_API_KEY / AI_MODEL`），MyBatis-Plus 配置，Knife4j 文档开关，**RAG 配置**（512 维 BGE / TEI HTTP provider / min-score 0.5 / extractive-confidence 55 / 查询前缀 / rerank-pool-size），**邮件 SMTP 配置**（`spring.mail.*` 默认 smtp.qq.com:465，授权码由 `MAIL_AUTH_CODE` 环境变量注入），**通知群发参数**（`notify.broadcast.*` 24h 撤回窗口 / 5000 上限） |
 | `src/main/resources/application-dev.yml` | 开发环境配置 | 连接本地 PostgreSQL（替代 Kingbase 开发），Redis localhost |
 | `src/main/resources/application-prod.yml` | 生产环境配置 | 连接 Kingbase 数据库，密码从环境变量读取，关闭 SQL 日志和 Swagger |
 
@@ -124,8 +124,10 @@
 | `service/ai/AiProvider.java` | AI 大模型的统一接口（Strategy 策略模式）。定义三个方法：`chat(question, context)` 对话、`getName()` 提供者名称、`isAvailable()` 是否可用 |
 | `service/ai/AiProviderFactory.java` | AI 工厂类。读取 `application.yml` 中 `ai.provider` 的值（如 wenxin/qianfan/openai），从 Spring 容器中找到对应实现返回；找不到则回退到 NoopAiProvider |
 | `service/ai/impl/NoopAiProvider.java` | 空实现（默认）。当没有配置任何 AI 模型时使用，直接返回"建议联系辅导员"，是人工兜底路径 |
+| `service/ai/impl/HttpAiProvider.java` | 自定义 HTTP 大模型网关。请求体为 `{ question, context }`，响应支持 `answer/result/data.answer/choices[0].message.content` |
+| `service/ai/impl/OpenAiCompatibleProvider.java` | OpenAI Chat Completions 兼容 Provider。用于 OpenAI、DeepSeek、通义千问兼容模式等 `/v1/chat/completions` 接口 |
 
-**后续需要补充**：实现具体的 AI 提供者，如 `WenxinAiProvider`（百度文心一言）或 `QianfanAiProvider`（千帆），只需 implements AiProvider 并注册为 Spring Bean。
+**后续需要补充**：如果要接入非 OpenAI 兼容协议的厂商原生 API，可新增专用 Provider，只需 implements AiProvider 并注册为 Spring Bean。
 
 #### Service 层
 
@@ -397,7 +399,7 @@
 |------|------|
 | `deploy/nginx.conf` | Nginx 反向代理：`/` → 管理端 dist，`/api/` → 后端 :8080，client_max_body_size 30m，静态资源 7 天缓存 |
 | `deploy/docker-compose.prod.yml` | 生产 5 容器编排（backend + postgres-pgvector + redis + embedding + nginx），全部 `image:` 引用预构建镜像 |
-| `deploy/sql/*.sql` | 见上方第三节 |
+| `deploy/sql/*.sql` | 见上方第三节；`schema.sql` fresh 部署会创建 `admin` 和 `20240001` 两个演示账号 |
 | `scripts/build-deploy-package.ps1` | 本地一键打包：mvnw package → docker build/save 5 个镜像 → npm build 前端 → 下载 BGE 模型 → 装配 `deploy-package/`，全程**幂等增量** |
 | `scripts/deploy.sh` | 服务器一键部署：自动判定 fresh / 增量 / restart-only 模式 → docker load → rsync 配置/前端/模型 → docker compose up → 120s 健康检查 + 3 端点冒烟 |
 | `scripts/import-templates.ps1` / `import-party-docs.ps1` | 批量灌入办公模板 / 党团政策文档的辅助脚本 |

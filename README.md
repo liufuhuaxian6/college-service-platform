@@ -206,6 +206,7 @@ ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
 | 学号 | 密码 | 角色 |
 |---|---|---|
 | admin | admin123 | 院领导（1 级） |
+| 20240001 | admin123 | 普通学生（4 级） |
 
 可在管理端「用户管理」添加更多账号，或直接 INSERT：
 
@@ -215,6 +216,22 @@ VALUES ('2024001', '李同学',
         '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi',  -- admin123
         4, '2024', '计算机科学', '2024级1班', 1);
 ```
+
+---
+
+## 大模型 API 配置（可选）
+
+RAG 向量检索不依赖外部大模型；不配置大模型时，系统会基于检索片段做抽取式回答。需要接入大模型时，在 `deploy-package/.env` 中填写：
+
+```bash
+AI_PROVIDER=openai
+AI_API_URL=https://你的模型服务/v1/chat/completions
+AI_API_KEY=你的APIKey
+AI_MODEL=你的模型名
+AI_TIMEOUT_MS=15000
+```
+
+`AI_PROVIDER=openai` 适用于 OpenAI Chat Completions 兼容接口，例如 OpenAI、DeepSeek、通义千问兼容模式等。保留 `AI_PROVIDER=none` 则不调用外部大模型。
 
 ---
 

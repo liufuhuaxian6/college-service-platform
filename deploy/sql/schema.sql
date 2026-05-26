@@ -329,9 +329,13 @@ CREATE INDEX idx_honor_user ON student_honor(user_id);
 
 -- ==================== 初始数据 ====================
 
--- 默认管理员账号 (密码: admin123, BCrypt 哈希)
-INSERT INTO sys_user (student_id, name, password, role_level, status)
-VALUES ('admin', '系统管理员', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 1, 1);
+-- 默认初始账号 (密码均为: admin123, BCrypt 哈希)
+-- 邮箱和手机号为演示用虚构信息, 部署后请在管理端修改密码
+INSERT INTO sys_user (student_id, name, password, role_level, grade, major, class_name, phone, email, status)
+VALUES
+('admin', '系统管理员', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 1, NULL, NULL, NULL, '13800000001', 'admin.demo@example.edu', 1),
+('20240001', '测试学生', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 4, '2024', '计算机科学与技术', '2024级1班', '13800000002', 'student.demo@example.edu', 1)
+ON CONFLICT (student_id) DO NOTHING;
 
 -- 默认审批类型
 INSERT INTO approval_type (name, description, approval_chain) VALUES
