@@ -33,6 +33,12 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $BackendDir  = Join-Path $ProjectRoot 'backend'
 
+# Windows PowerShell 5.1 默认按 GBK 抓 docker exec 的 stdout, 中文路径会乱码.
+# 把 console 输入输出都强制为 UTF-8, 才能正确读 PG 返回的 file_path.
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding  = [System.Text.UTF8Encoding]::new($false)
+
 function Step($t) { Write-Host ""; Write-Host "=== $t ===" -ForegroundColor Cyan }
 function Ok($t)   { Write-Host "  [OK] $t"   -ForegroundColor Green }
 function Skip($t) { Write-Host "  [SKIP] $t" -ForegroundColor DarkGray }
