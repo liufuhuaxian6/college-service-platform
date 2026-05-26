@@ -13,6 +13,25 @@ spring:
     multipart:
       max-file-size: 30MB
       max-request-size: 30MB
+  # SMTP 邮件发送 (默认走个人 QQ 邮箱 smtp.qq.com:465 SSL; 学校的 ruc.edu.cn 网易邮箱可通过 env 覆盖)
+  # 授权码不入库, 通过环境变量 MAIL_AUTH_CODE 传入; 缺失时 EmailService 自动降级为只写"email_sim"通知
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:3523698178@qq.com}
+    password: ${MAIL_AUTH_CODE:}
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          socketFactory:
+            class: javax.net.ssl.SSLSocketFactory
+            fallback: false
+            port: ${MAIL_PORT:465}
 
 # MyBatis-Plus
 mybatis-plus:
@@ -39,6 +58,38 @@ ai:
   api-key: ""
   api-url: ""
   timeout-ms: 5000
+
+# RAG / 向量检索配置
+# 已切换至 BGE-small-zh-v1.5（中文专项，512维）通过 TEI HTTP 服务调用
+rag:
+  enabled: true
+  embedding-dim: 512
+  chunk-size: 700
+  chunk-overlap: 120
+  top-k: 4
+  min-score: 0.5        # 原始余弦阈值（不含加权）, BGE-small 中文模型上 0.5 大致区分"相关 vs 不相关"
+  extractive-confidence: 55   # 抽取式回答最低置信度（=vector*100 + 关键词/意图/受众加权和）; 低于则回兜底
+
+  rerank-pool-size: 20  # 从向量库召回多少候选送入重排（topK 的倍数，原硬编码 max(100, topK*20)）
+  embedding:
+    provider: http      # local-hash / http
+    # TEI（HuggingFace Text Embeddings Inference）OpenAI 兼容端点
+    # 本机开发: http://localhost:8081/v1/embeddings
+    # 容器内调用: http://embedding:80/v1/embeddings
+    api-url: "${RAG_EMBEDDING_API_URL:http://localhost:8081/v1/embeddings}"
+    api-key: ""
+    timeout-ms: 8000
+    # BGE 系列模型推荐对 query 加前缀以提升检索召回率
+    query-prefix: "为这个句子生成表示以用于检索相关文章："
+
+# 通知群发
+notify:
+  email:
+    default-domain: ruc.edu.cn   # 邮箱派生规则: 学号@ruc.edu.cn
+    batch-size: 50               # 邮件分批节流, 每 N 封小睡 100ms 防 SMTP 限流
+  broadcast:
+    withdraw-window-hours: 24    # 群发后多少小时内允许撤回(只删未读)
+    max-targets: 5000            # 单次群发最大目标人数
 
 # 文件上传
 file:

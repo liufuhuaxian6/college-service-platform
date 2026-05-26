@@ -1,25 +1,60 @@
 <template>
   <view class="page">
-    <view class="top-card">
-      <view class="top-main">
-        <text class="flow-name">{{ flowName }}</text>
-        <text class="flow-subtitle">党团流程进度</text>
+    <view class="hero">
+      <view>
+        <text class="eyebrow">党团事务</text>
+        <text class="title">我的党团流程</text>
+        <text class="subtitle">查看个人进度，也可查阅官方流程模板</text>
       </view>
-      <text class="flow-status" :class="flowStatus">{{ statusLabel[flowStatus] }}</text>
     </view>
 
-    <view class="timeline">
-      <view class="tl-item" v-for="(s, idx) in steps" :key="s.id" @click="showStepTip(s)">
-        <view class="tl-rail">
-          <view class="tl-dot" :class="s.status" />
-          <view class="tl-line" v-if="idx !== steps.length - 1" :class="s.status" />
-        </view>
-        <view class="tl-content">
-          <view class="tl-header">
-            <text class="tl-name">{{ s.name }}</text>
-            <text class="tl-time" v-if="s.completedAt">{{ s.completedAt }}</text>
+    <view class="section-head">
+      <text class="section-title">我的流程</text>
+      <text class="section-extra">{{ progressList.length }} 项</text>
+    </view>
+
+    <view class="panel">
+      <view v-if="progressList.length" class="progress-list">
+        <view
+          class="progress-card"
+          v-for="item in progressList"
+          :key="item.id"
+          @click="openProgress(item)"
+        >
+          <view class="card-main">
+            <text class="card-title">{{ item.templateName || '党团流程' }}</text>
+            <text class="card-desc">当前第 {{ item.currentStep || 1 }} 步，共 {{ item.steps?.length || '-' }} 步</text>
+            <view class="progress-bar">
+              <view class="progress-fill" :style="{ width: progressPercent(item) + '%' }" />
+            </view>
           </view>
-          <text class="tl-desc">{{ s.desc }}</text>
+          <StatusPill :status="item.status" />
+        </view>
+      </view>
+      <EmptyState
+        v-else
+        title="暂无个人流程"
+        description="管理员可在 PC 管理端为学生创建流程实例；此处仍可查看官方模板。"
+      />
+    </view>
+
+    <view class="section-head">
+      <text class="section-title">流程模板</text>
+      <text class="section-extra">官方流程</text>
+    </view>
+
+    <view class="template-grid">
+      <view
+        class="template-card"
+        v-for="template in templateCards"
+        :key="template.id"
+        @click="openTemplate(template)"
+      >
+        <view class="template-icon">{{ template.icon }}</view>
+        <view class="template-body">
+          <text class="template-name">{{ template.name }}</text>
+          <text class="template-desc">{{ template.description || template.localDescription }}</text>
+          <text class="template-count">共 {{ template.totalSteps || template.localSteps }} 个节点</text>
         </view>
       </view>
     </view>
@@ -27,90 +62,234 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { partyApi } from '@/api'
+import EmptyState from '@/components/EmptyState.vue'
+import StatusPill from '@/components/StatusPill.vue'
 
-const flowName = ref('入党流程')
-const flowStatus = ref('active')
-const statusLabel = { finished: '已完成', active: '进行中', todo: '未开始' }
+const progressList = ref([])
+const templates = ref([])
 
-const steps = ref([
-  {
-    id: 1,
-    name: '提交入党申请书',
-    desc: '向党支部递交申请书，登记备案。',
-    status: 'finished',
-    completedAt: '2026-03-02',
-    requirement: '准备申请书与个人基本情况材料。',
-  },
-  {
-    id: 2,
-    name: '参加入党积极分子培训',
-    desc: '完成规定课程学习与考核。',
-    status: 'finished',
-    completedAt: '2026-04-12',
-    requirement: '按时签到学习，完成结业考试。',
-  },
-  {
-    id: 3,
-    name: '确定为发展对象',
-    desc: '支部讨论与公示，进入政治审查。',
-    status: 'active',
-    completedAt: '',
-    requirement: '准备思想汇报与个人自查材料。',
-  },
-  {
-    id: 4,
-    name: '接收为预备党员',
-    desc: '完成政审与谈话，召开支部大会表决。',
-    status: 'todo',
-    completedAt: '',
-    requirement: '等待通知，按要求准备证明材料。',
-  },
-])
+const localTemplateMeta = {
+  1: { icon: '党', localDescription: '发展党员工作程序', localSteps: 29 },
+  2: { icon: '团', localDescription: '标准入团流程', localSteps: 5 },
+}
 
-function showStepTip(step) {
-  uni.showToast({
-    title: step.requirement || step.desc || step.name,
-    icon: 'none',
+const templateCards = computed(() => {
+  const list = templates.value.length
+    ? templates.value
+    : [
+        { id: 1, name: '入党流程', description: '发展党员工作程序', totalSteps: 29 },
+        { id: 2, name: '入团流程', description: '标准入团流程', totalSteps: 5 },
+      ]
+
+  return list.map((item) => {
+    const meta = localTemplateMeta[item.id] || {}
+    return {
+      ...item,
+      icon: meta.icon || (item.name?.includes('团') ? '团' : '党'),
+      localDescription: meta.localDescription || '党团事务流程模板',
+      localSteps: meta.localSteps || item.totalSteps || 0,
+    }
+  })
+})
+
+function progressPercent(item) {
+  const total = item.steps?.length || 0
+  if (!total) return 0
+  const current = Math.min(item.currentStep || 1, total)
+  return Math.round((current / total) * 100)
+}
+
+function openProgress(item) {
+  uni.navigateTo({ url: `/pages/party/detail?mode=progress&id=${item.id}` })
+}
+
+function openTemplate(template) {
+  uni.navigateTo({
+    url: `/pages/party/detail?mode=template&id=${template.id}&name=${encodeURIComponent(template.name || '')}`,
   })
 }
+
+onMounted(async () => {
+  try {
+    const [progressRes, templateRes] = await Promise.all([
+      partyApi.getMyProgress(),
+      partyApi.getTemplates(),
+    ])
+    progressList.value = progressRes.data || []
+    templates.value = templateRes.data || []
+  } catch (e) {
+    uni.showToast({ title: '流程数据加载失败', icon: 'none' })
+  }
+})
 </script>
 
 <style scoped>
-.page { padding: 20rpx; background: #f0f2f5; min-height: 100vh; box-sizing: border-box; }
-
-.top-card {
-  background: #fff;
-  border-radius: 12rpx;
+.page {
+  min-height: 100vh;
   padding: 24rpx;
-  margin-bottom: 20rpx;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-left: 10rpx solid #1a3a5c;
+  background: var(--mp-bg);
+  box-sizing: border-box;
 }
-.flow-name { display: block; font-size: 32rpx; font-weight: bold; color: #1a3a5c; }
-.flow-subtitle { display: block; margin-top: 6rpx; font-size: 24rpx; color: #666; }
-.flow-status { font-size: 24rpx; padding: 6rpx 18rpx; border-radius: 999rpx; }
-.flow-status.active { color: #409eff; background: #ecf5ff; }
-.flow-status.finished { color: #67c23a; background: #f0f9eb; }
-.flow-status.todo { color: #909399; background: #f4f4f5; }
 
-.timeline { background: #fff; border-radius: 12rpx; padding: 24rpx 20rpx; }
-.tl-item { display: flex; gap: 18rpx; padding: 8rpx 0 24rpx; }
-.tl-rail { width: 40rpx; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-.tl-dot { width: 22rpx; height: 22rpx; border-radius: 50%; background: #c0c4cc; margin-top: 6rpx; }
-.tl-dot.finished { background: #67c23a; }
-.tl-dot.active { background: #409eff; }
-.tl-dot.todo { background: #c0c4cc; }
-.tl-line { width: 4rpx; flex: 1; background: #e5e7eb; margin-top: 8rpx; border-radius: 2rpx; }
-.tl-line.finished { background: #67c23a; opacity: 0.45; }
-.tl-line.active { background: #409eff; opacity: 0.45; }
-.tl-line.todo { background: #c0c4cc; opacity: 0.45; }
+.hero {
+  margin-bottom: 28rpx;
+  padding: 32rpx;
+  color: #fff;
+  border-radius: 26rpx;
+  background: linear-gradient(135deg, #9B2C36 0%, #7E2430 100%);
+  box-shadow: 0 18rpx 42rpx rgba(155, 44, 54, .18);
+}
 
-.tl-content { flex: 1; }
-.tl-header { display: flex; justify-content: space-between; align-items: baseline; gap: 16rpx; }
-.tl-name { font-size: 30rpx; font-weight: bold; color: #111; }
-.tl-time { font-size: 22rpx; color: #999; flex-shrink: 0; }
-.tl-desc { display: block; margin-top: 10rpx; font-size: 24rpx; color: #666; line-height: 1.6; }
+.eyebrow {
+  display: inline-flex;
+  margin-bottom: 18rpx;
+  padding: 6rpx 14rpx;
+  color: rgba(255, 255, 255, .86);
+  font-size: 22rpx;
+  background: rgba(255, 255, 255, .14);
+  border-radius: 999rpx;
+}
+
+.title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 800;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 10rpx;
+  color: rgba(255, 255, 255, .76);
+  font-size: 24rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 30rpx 2rpx 16rpx;
+}
+
+.section-title {
+  color: var(--mp-text-main);
+  font-size: 31rpx;
+  font-weight: 750;
+}
+
+.section-extra {
+  color: var(--mp-text-sub);
+  font-size: 23rpx;
+}
+
+.panel,
+.template-card {
+  background: var(--mp-card);
+  border: 1rpx solid var(--mp-border);
+  border-radius: 24rpx;
+  box-shadow: 0 10rpx 28rpx rgba(31, 35, 41, .04);
+}
+
+.progress-list {
+  padding: 10rpx;
+}
+
+.progress-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 24rpx;
+  border-radius: 18rpx;
+}
+
+.progress-card + .progress-card {
+  border-top: 1rpx solid var(--mp-border);
+}
+
+.card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  display: block;
+  color: var(--mp-text-main);
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.card-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--mp-text-sub);
+  font-size: 24rpx;
+}
+
+.progress-bar {
+  height: 10rpx;
+  margin-top: 18rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #F0F2F5;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mp-primary);
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16rpx;
+}
+
+.template-card {
+  display: flex;
+  gap: 20rpx;
+  padding: 26rpx;
+}
+
+.template-icon {
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--mp-primary);
+  font-size: 28rpx;
+  font-weight: 800;
+  border-radius: 22rpx;
+  background: var(--mp-primary-light);
+}
+
+.template-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-name {
+  display: block;
+  color: var(--mp-text-main);
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.template-desc,
+.template-count {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--mp-text-sub);
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.template-count {
+  color: var(--mp-primary);
+  font-weight: 650;
+}
 </style>

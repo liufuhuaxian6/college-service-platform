@@ -8,7 +8,7 @@
 
 | 文件 | 用途 | 状态 |
 |------|------|------|
-| `docker-compose.yml` | 一键启动整个系统（后端+数据库+Redis+Nginx），定义了 4 个容器的编排关系 | 已完成 |
+| `docker-compose.yml` | 一键启动整个系统（后端+数据库+Redis+Nginx+TEI Embedding），定义了 5 个容器的编排关系。`embedding` 服务使用 ghcr.nju.edu.cn 镜像 + 挂载本地 `models/bge-small-zh-v1.5` 目录避免 TEI 1.5 的 HF_ENDPOINT bug | 已完成 |
 | `.gitignore` | Git 忽略规则，排除 node_modules、target、IDE 配置等 | 已完成 |
 
 ---
@@ -21,7 +21,7 @@
 |------|------|------|
 | `pom.xml` | Maven 依赖清单 | 声明了 Spring Boot 3、MyBatis-Plus、JWT、Hutool、EasyExcel、Knife4j(Swagger)、MinIO、Lombok 等全部依赖。Kingbase 驱动已注释，等拿到 jar 包后取消注释即可 |
 | `Dockerfile` | 后端 Docker 镜像构建 | 两阶段构建：第一阶段用 Maven 编译打包，第二阶段用 JRE 运行，最终镜像体积小 |
-| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关 |
+| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关，**RAG 配置**（512 维 BGE / TEI HTTP provider / min-score 0.3 / 查询前缀 / rerank-pool-size），**邮件 SMTP 配置**（`spring.mail.*` 默认 smtp.qq.com:465，授权码由 `MAIL_AUTH_CODE` 环境变量注入），**通知群发参数**（`notify.broadcast.*` 24h 撤回窗口 / 5000 上限） |
 | `src/main/resources/application-dev.yml` | 开发环境配置 | 连接本地 PostgreSQL（替代 Kingbase 开发），Redis localhost |
 | `src/main/resources/application-prod.yml` | 生产环境配置 | 连接 Kingbase 数据库，密码从环境变量读取，关闭 SQL 日志和 Swagger |
 
@@ -29,7 +29,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `CollegeApplication.java` | Spring Boot 启动入口。`@EnableScheduling` 开启了定时任务能力，后续用于党团流程到期自动提醒 |
+| `CollegeApplication.java` | Spring Boot 启动入口。`@EnableScheduling` 开启了定时任务能力（后续用于党团流程到期自动提醒）；`@EnableAsync` 开启异步执行（邮件批量发送走 `@Async`） |
 
 ### 2.3 通用模块 (`common/`)
 
@@ -92,10 +92,10 @@
 
 | 文件 | 层级 | 用途 |
 |------|------|------|
-| `entity/SysUser.java` | Entity | 映射 `sys_user` 表。字段包括：id、学号、姓名、密码(BCrypt)、角色等级、年级、专业、班级、手机号、身份证号(加密)、生源地(加密)、状态 |
-| `mapper/SysUserMapper.java` | Mapper | 继承 MyBatis-Plus 的 `BaseMapper<SysUser>`，自动拥有 CRUD、分页、条件查询等方法，无需手写 SQL |
-| `service/AuthService.java` | Service | 两个核心方法：`login()` 查学号→BCrypt 验密码→生成 JWT Token→返回用户信息；`register()` 查重→哈希密码→默认角色4(学生)→入库 |
-| `controller/AuthController.java` | Controller | 暴露两个接口：`POST /auth/login` 和 `POST /auth/register`，都不需要 Token |
+| `entity/SysUser.java` | Entity | 映射 `sys_user` 表。字段：id、学号、姓名、密码(BCrypt)、角色等级、年级、专业、班级、**手机号、邮箱**、身份证号(加密)、生源地(加密)、户籍地(加密)、状态 |
+| `mapper/SysUserMapper.java` | Mapper | 继承 MyBatis-Plus 的 `BaseMapper<SysUser>` |
+| `service/AuthService.java` | Service | `login()` 学号+BCrypt 验密+签发 JWT；`register()` 查重+哈希+默认 4 级学生；`updateMyProfile(email, phone)` 用 `LambdaUpdateWrapper` 显式 SET 修改邮箱/手机（**含正则校验**；传空串清空回落默认派生）|
+| `controller/AuthController.java` | Controller | `POST /auth/login`、`POST /auth/register`、`GET /auth/profile`（含派生邮箱）、`PUT /auth/profile`（自助改邮箱/手机） |
 
 ---
 
@@ -131,13 +131,18 @@
 
 | 文件 | 用途 |
 |------|------|
-| `service/QaService.java` | 核心业务逻辑。`chat()` 方法实现了完整的问答流程：1)关键词匹配知识库 → 2)命中则返回标准答案+官方链接 → 3)未命中则调 AI → 4)记录到 chat_log。还包含知识库 CRUD、文档管理、下载计数等功能 |
+| `service/QaService.java` | 核心业务逻辑。`chat()` 方法实现了完整的问答流程：1)关键词匹配知识库 → 2)未命中则做 RAG 文档检索 → 3)拼接知识库候选 + RAG 片段作为 AI 上下文 → 4)调 AI 或 RAG 抽取式回答（无 AI 时）→ 5)记录到 chat_log。还包含知识库 CRUD、文档管理、下载计数等功能 |
+| `entity/QaDocumentChunk.java` | 政策文档向量切片，对应表 `qa_document_chunk`。字段：文档ID、标题、分类、切片序号、文本内容、关键词、score（运行时打分） |
+| `mapper/QaDocumentChunkMapper.java` | 切片表 CRUD + 余弦相似度检索的原生 SQL（`embedding <=> ?::vector`） |
+| `service/rag/EmbeddingService.java` | 向量化服务。两种 provider：`local-hash`（SHA-256 hash 兜底）和 `http`（生产环境，调用 TEI / OpenAI 兼容服务）。区分 `embed()`（文档不加前缀）和 `embedQuery()`（查询加 BGE 前缀）。兼容 OpenAI/TEI 原生/嵌套数组等多种响应格式，HTTP 失败或维度不符自动回退 local-hash |
+| `service/rag/DocumentRagService.java` | RAG 主服务。`indexDocument()` 解析 PDF/DOCX/TXT、切片（优先按"第X条"边界）、批量调 embedding 写库；`retrieve()` 向量检索 + boost 重排；`buildContext()` 拼接 prompt 上下文 |
+| `service/rag/RagScoringUtil.java` | 共享评分逻辑工具类。提供词项提取/同义词扩展/受众匹配/意图结构评分等，被 QaService 和 DocumentRagService 共用，避免代码重复 |
 
 #### Controller 层
 
 | 文件 | 用途 |
 |------|------|
-| `controller/QaController.java` | 暴露接口：`POST /qa/chat` 智能问答、`GET /qa/chat/history` 问答历史、`GET/POST/PUT/DELETE /qa/knowledge/*` 知识库管理(需≤2级)、`GET/POST/DELETE /qa/document/*` 文档管理 |
+| `controller/QaController.java` | 暴露接口：`POST /qa/chat` 智能问答、`GET /qa/chat/history` 问答历史、`GET/POST/PUT/DELETE /qa/knowledge/*` 知识库管理(需≤2级)、`GET/POST/DELETE /qa/document/*` 文档管理、`POST /qa/document/{id}/index` 触发 RAG 向量入库、`GET /qa/document/chunk/search` 调试用切片相似度检索 |
 
 ---
 
@@ -241,24 +246,35 @@
 
 | 文件 | 用途 |
 |------|------|
-| `entity/SysNotification.java` | 通知消息。字段：用户ID、标题、内容、类型(sms_sim 模拟短信/system 系统通知/reminder 流程提醒)、是否已读 |
+| `entity/SysNotification.java` | 通知消息。字段：用户ID、标题、内容、类型(`sms_sim`/`system`/`reminder`/`email_sim`)、**tags / source / source_url / broadcast_id**（群发关联）、是否已读 |
+| `entity/SysNotificationBroadcast.java` | 群发记录。字段：标题/正文/标签/来源、`target_filter`(JSON)、`channels`、`target_count / sent_count / email_sent`、`operator_id`、`withdrawn / withdrawn_at` |
 | `entity/SysOperationLog.java` | 操作日志。字段：操作人ID、模块、操作描述、变更详情(JSON)、IP、时间 |
 | `mapper/SysNotificationMapper.java` | 通知数据访问 |
+| `mapper/SysNotificationBroadcastMapper.java` | 群发记录数据访问 |
 | `mapper/SysOperationLogMapper.java` | 日志数据访问 |
 
 #### Service 层
 
 | 文件 | 用途 |
 |------|------|
-| `service/SystemService.java` | 综合 Service，包含：用户管理(分页/详情/修改/设置角色/改密码)、数据概览(Dashboard 统计)、操作日志查询(按模块/时间筛选)、通知消息(列表/未读数/标记已读/全部已读)、**sendNotification()** 方法供其他模块调用发通知 |
-
-**后续需要补充**：Excel 批量导入学生名单（使用 EasyExcel 解析 xlsx，逐行创建用户）、数据导出。
+| `service/SystemService.java` | 综合 Service：用户管理(分页/详情/修改/设置角色/改密码)、Dashboard 统计、操作日志查询、通知消息(列表 / 未读数 / 标签聚合 / 标记已读 / 全部已读)、`sendNotification()` 供其他模块调用 |
+| `service/EmailService.java` | 邮件发送服务。`resolveEmail(user)` 派生邮箱（user.email ?? 学号@ruc.edu.cn）；`isAvailable()` 判断 SMTP 是否可用（mailSender bean + fromAddress）；`sendBatch()` `@Async` 批量发送（节流 100ms/N 封）；`sendOne()` 同步单封用于精确统计 emailSent。**鉴权失败仅 warn，不抛异常，由 broadcast 决定降级** |
+| `service/NotificationBroadcastService.java` | 模块三核心。`broadcast()` 一个事务内完成：筛选目标 → 写 broadcast 记录 → 批量写站内通知 → 真实发邮件（或降级 email_sim）→ 回写 emailSent；`previewTargetCount()` 预览人数；`withdraw()` 24h 内撤回（按 broadcast_id 删除未读通知）；`distinctTags()` 标签聚合 |
 
 #### Controller 层
 
 | 文件 | 用途 |
 |------|------|
-| `controller/SystemController.java` | 聚合了多个路径前缀的接口。`/system/user/*` 用户管理(≤2级)、`/system/dashboard` 数据概览(≤2级)、`/auth/password` 改密码(全部)、`/log/page` 日志查询(≤1级,院领导专属)、`/notify/*` 通知消息(全部) |
+| `controller/SystemController.java` | `/system/user/*`（≤2级）、`/system/dashboard`（≤2级）、`/auth/password`（全部）、`/log/page`（≤1级）、`/notify/*` 通知列表 / 未读数 / 标签 / 群发预览 / 群发 / 群发历史 / 撤回 |
+| `controller/FileController.java` | `POST /file/upload` 通用文件上传（≤30MB，限定到配置的 upload-path）、`GET /file/download/{fileId}` 文件下载 |
+
+---
+
+### 2.10 测试 (`backend/src/test/`)
+
+| 文件 | 用途 |
+|------|------|
+| `module/qa/service/rag/EmbeddingServiceTest.java` | 单元测试 `EmbeddingService` HTTP 响应解析。覆盖 OpenAI/TEI 原生/简单 `embedding` 字段/`embeddings[0]` 嵌套数组 4 种格式，以及维度不匹配、HTTP 错误、query 前缀只用于查询不用于文档的关键不变式。10 个测试用例 |
 
 ---
 
@@ -266,7 +282,11 @@
 
 | 文件 | 用途 |
 |------|------|
-| `schema.sql` | 完整的建表脚本（兼容 PostgreSQL 和 Kingbase）。包含 **14 张表**、索引、中文注释、初始数据。初始数据包括：1个管理员账号(admin/admin123)、4种审批类型(在读证明等)、入党流程模板(8步)、入团流程模板(5步) |
+| `schema.sql` | 完整的建表脚本（兼容 PostgreSQL 和 Kingbase）。**16 张表**：14 张业务 + `qa_document_chunk`（RAG 向量切片，依赖 pgvector）+ `sys_notification_broadcast`（群发记录）。包含索引、中文注释、初始数据（admin/admin123 + 4 种审批类型 + 入党/入团流程模板） |
+| `rag_pgvector.sql` | RAG 增量迁移：创建 `vector` 扩展和 `qa_document_chunk` 表 + ivfflat 索引 |
+| `rag_migrate_384_to_512.sql` | 384 → 512 维向量迁移（从 local-hash 切到 BGE）。TRUNCATE 现有切片 + 改列类型 + 重建索引，迁移后需在管理端「重新索引」所有文档 |
+| `qa_template_migrate.sql` | qa_document 增量迁移：增加 `doc_type` 与 `description` 字段，已有数据回填为 `policy` |
+| `notify_broadcast_migrate.sql` | 信息精准推送增量迁移：sys_user 加 `email`、sys_notification 加 `tags/source/source_url/broadcast_id`、新建 `sys_notification_broadcast` 表 |
 
 ---
 
@@ -319,15 +339,17 @@
 |------|------|------|
 | `views/login/index.vue` | 登录页 | 学号+密码表单，蓝色渐变背景，白色卡片，调 authApi.login 后存 Store 跳转 |
 | `views/dashboard/index.vue` | 数据概览 | 四个统计卡片（在校学生/总用户/待审批/进行中流程），调 systemApi.getDashboard |
-| `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表(分类/问题/答案/关键词)、新增/编辑弹窗、删除确认 |
-| `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表(标题/分类/大小/下载次数)、上传按钮(限30MB)、下载/删除 |
+| `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表、新增/编辑弹窗、删除确认 |
+| `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表、上传(限30MB)、下载、删除、「重新索引」触发 RAG 入库 |
+| `views/qa/TemplateList.vue` | 办公模板管理 | 与文档管理同构，但仅显示/操作 `doc_type=template` 的记录（请假条/活动预算表/简报等） |
 | `views/party/TemplateList.vue` | 流程模板管理 | 模板列表(名称/步骤数/描述)、编辑按钮。**后续需要补充**：模板编辑弹窗（动态增删步骤） |
 | `views/party/InstanceList.vue` | 学生流程管理 | 按模板/状态筛选、表格列表、推进(弹窗填备注)/暂停操作 |
 | `views/approval/PendingList.vue` | 待审批列表 | 申请编号/申请人/类型/时间、通过(填意见)/驳回(必填原因)/查看详情 |
 | `views/approval/AllList.vue` | 全部申请 | 按状态筛选(6种)、状态标签颜色区分、管理员撤回(仅 approved 且未下载)、已锁定显示标签 |
 | `views/student/StudentList.vue` | 学生信息 | 年级/专业/班级筛选、表格列表(学号/姓名/年级/专业/班级/手机)、查看详情。**后续需要补充**：详情弹窗（画像+荣誉+流程+申请汇总） |
-| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色)、Excel 导入按钮、编辑/设置角色(1-4输入) |
+| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色)、Excel 导入按钮、编辑/设置角色(1-4) |
 | `views/system/LogList.vue` | 操作日志 | 按模块/时间范围筛选、表格列表(操作人/模块/操作/IP/时间) |
+| `views/system/NotificationBroadcast.vue` | 通知群发 | 双 tab：**群发新通知**（标题/正文/标签/来源/链接 + 角色/年级/专业/班级筛选 + 渠道勾选 + 预览目标人数）；**广播历史**（命中/已读/邮件数 + 状态徽标 + 24h 内撤回按钮） |
 
 ---
 
@@ -363,39 +385,29 @@
 | `pages/party/detail.vue` | 流程详情 | 纵向时间线：每个步骤圆点+名称+描述+完成时间/预计天数 |
 | `pages/approval/index.vue` | 我的申请(TabBar) | 申请列表(编号+状态标签)。approved 状态显示"下载证明"按钮(**弹窗警告"下载后锁定不可撤回"**)、pending 状态显示"撤回"按钮、downloaded 状态显示"已锁定归档"、底部"提交新申请"按钮 |
 | `pages/approval/apply.vue` | 提交申请 | 选择证明类型(卡片选中高亮)→填写表单(用途/份数/备注)→提交 |
-| `pages/profile/index.vue` | 个人中心(TabBar) | 个人信息卡片(姓名首字头像+学号+专业+年级+班级)、我的荣誉列表(名称+级别+日期)、退出登录按钮 |
-| `pages/notify/index.vue` | 消息中心 | 通知列表(标题/内容/时间)、未读条目左侧蓝色边框、点击标记已读、"全部标记已读"按钮 |
+| `pages/profile/index.vue` | 个人中心(TabBar) | 头像+姓名+学号；**联系方式卡片**（邮箱/手机，点击 `uni.showModal` 编辑，含正则校验，清空回落默认派生）；荣誉列表；退出登录 |
+| `pages/notify/index.vue` | 消息中心 | 通知列表 + **横向标签筛选条**（调 `/notify/tags`）+ 来源徽章 + 标签 chips。未读左侧深红色边框、点击标记已读、「全部标记已读」按钮 |
 
 ---
 
-## 六、部署配置 (`deploy/`)
+## 六、部署配置 (`deploy/` 与 `scripts/`)
 
 | 文件 | 用途 |
 |------|------|
-| `deploy/nginx.conf` | Nginx 反向代理配置。`/` 指向管理端前端静态文件，`/api/` 代理到后端 8080，client_max_body_size 30m 支持大文件上传，静态资源 7 天缓存 |
-| `deploy/sql/schema.sql` | 数据库初始化脚本（见上方详述） |
+| `deploy/nginx.conf` | Nginx 反向代理：`/` → 管理端 dist，`/api/` → 后端 :8080，client_max_body_size 30m，静态资源 7 天缓存 |
+| `deploy/docker-compose.prod.yml` | 生产 5 容器编排（backend + postgres-pgvector + redis + embedding + nginx），全部 `image:` 引用预构建镜像 |
+| `deploy/sql/*.sql` | 见上方第三节 |
+| `scripts/build-deploy-package.ps1` | 本地一键打包：mvnw package → docker build/save 5 个镜像 → npm build 前端 → 下载 BGE 模型 → 装配 `deploy-package/`，全程**幂等增量** |
+| `scripts/deploy.sh` | 服务器一键部署：自动判定 fresh / 增量 / restart-only 模式 → docker load → rsync 配置/前端/模型 → docker compose up → 120s 健康检查 + 3 端点冒烟 |
+| `scripts/import-templates.ps1` / `import-party-docs.ps1` | 批量灌入办公模板 / 党团政策文档的辅助脚本 |
 
 ---
 
-## 七、团队协作文档
+## 七、项目文档
 
 | 文件 | 用途 |
 |------|------|
-| `docs/TEAM-COLLABORATION.md` | 团队分工方案(4人)、全部 API 接口清单(含请求/响应示例)、审批状态机流转图、权限隔离规则、Git 分支策略、开发环境搭建指南、4 轮迭代计划、常见问题 FAQ |
-
----
-
-## 八、各模块后续需要补充的功能清单
-
-| 模块 | 待补充内容 | 负责人 |
-|------|-----------|--------|
-| 认证 | 微信小程序 openid 绑定登录 | A |
-| 用户管理 | EasyExcel 批量导入学生名单、数据导出 | A |
-| 文件服务 | 通用上传/下载 Controller（MinIO 或本地存储） | A |
-| 智能问答 | 接入真实 AI 模型（实现 WenxinAiProvider 等） | B |
-| 党团流程 | 定时任务扫描到期步骤，自动发送提醒通知 | B |
-| 审批流程 | PDF 证明生成（模板填充）、审批结果通知 | B |
-| 学生画像 | 画像详情页（汇总荣誉+流程+申请） | B/C |
-| 管理端 | 流程模板编辑弹窗、学生详情弹窗、Dashboard 图表(ECharts) | C |
-| 小程序端 | TabBar 图标资源、申请详情页、下载文件流处理 | D |
-| 部署 | Kingbase Docker 镜像替换、HTTPS 证书、生产环境变量 | A |
+| `docs/TEAM-COLLABORATION.md` | 分工、全部 API 接口清单、审批状态机、权限隔离规则、常见问题 |
+| `docs/ARCHITECTURE.md` | 系统全景、通信链路、JWT、数据库 ER、RAG 检索架构、邮件/广播架构 |
+| `docs/DEPLOYMENT.md` | 离线服务器部署手册、TEI/BGE 部署、故障排查 |
+| `docs/TODO.md` | 各模块完成度、迭代回顾、已知问题、待办 |

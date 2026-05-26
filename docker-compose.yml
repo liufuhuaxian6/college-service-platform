@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   # PostgreSQL 数据库（生产环境如有 Kingbase 可替换镜像）
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     ports:
       - "5432:5432"
     environment:
@@ -19,6 +17,30 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # 中文 Embedding 服务（HuggingFace TEI + BGE-small-zh-v1.5，512 维）
+  # 国内访问注意：
+  #   1. 镜像使用 ghcr.nju.edu.cn (南京大学 GHCR 镜像)，比 ghcr.io 稳定
+  #   2. HF_ENDPOINT 指向 hf-mirror.com，让模型从 HF 国内镜像下载
+  #   3. 首次启动需要 1-3 分钟下载模型（约 95MB），后续启动直接用缓存
+  #   4. 离线场景请提前 docker save / load
+  embedding:
+    image: ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5
+    # 使用本地预下载的 BGE-small-zh-v1.5 模型（绕过 TEI 1.5 的 HF_ENDPOINT bug）
+    # 模型在 ./models/bge-small-zh-v1.5 -> 容器 /models/bge-small-zh-v1.5
+    command: --model-id /models/bge-small-zh-v1.5 --max-batch-tokens 16384
+    ports:
+      - "8081:80"
+    volumes:
+      - ./models/bge-small-zh-v1.5:/models/bge-small-zh-v1.5:ro
+      - tei-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # Redis 缓存
   redis:
@@ -53,10 +75,13 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET:-DefaultDevSecretKeyMustBeAtLeast32Bytes!!}
+      RAG_EMBEDDING_API_URL: http://embedding:80/v1/embeddings
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      embedding:
         condition: service_healthy
     volumes:
       - upload-data:/app/uploads
@@ -86,3 +111,4 @@ volumes:
   db-data:
   redis-data:
   upload-data:
+  tei-data:

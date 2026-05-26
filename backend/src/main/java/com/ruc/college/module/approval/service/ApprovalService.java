@@ -192,10 +192,11 @@ public class ApprovalService {
     // ==================== 管理端 ====================
 
     public Page<ApprovalApplication> getPendingPage(int page, int size, Long typeId) {
+        int roleLevel = UserContext.getRoleLevel();
         LambdaQueryWrapper<ApprovalApplication> wrapper = new LambdaQueryWrapper<ApprovalApplication>()
                 .eq(ApprovalApplication::getStatus, ApprovalStatus.PENDING.getCode())
                 .eq(typeId != null, ApprovalApplication::getTypeId, typeId)
-                .eq(ApprovalApplication::getCurrentApproverLevel, UserContext.getRoleLevel())
+                .eq(roleLevel != 1, ApprovalApplication::getCurrentApproverLevel, roleLevel)
                 .orderByAsc(ApprovalApplication::getCreatedAt);
         return applicationMapper.selectPage(new Page<>(page, size), wrapper);
     }
@@ -321,7 +322,7 @@ public class ApprovalService {
     private void assertApproverPermission(ApprovalApplication app) {
         if (app.getCurrentApproverLevel() == null) throw new BusinessException("当前审批层级为空");
         int roleLevel = UserContext.getRoleLevel();
-        if (roleLevel != app.getCurrentApproverLevel()) {
+        if (roleLevel != 1 && roleLevel != app.getCurrentApproverLevel()) {
             throw new BusinessException(403, "无权审批该申请");
         }
     }

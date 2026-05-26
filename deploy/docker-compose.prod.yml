@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     ports:
       - "5432:5432"
     environment:
@@ -18,6 +16,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # 中文 Embedding 服务（BGE-small-zh-v1.5，512维）
+  # 离线部署: 用 ghcr.nju.edu.cn 镜像 + 挂载预下载的 ./models/bge-small-zh-v1.5/
+  # 规避 TEI 1.5 自带下载器的 HF_ENDPOINT bug
+  embedding:
+    image: ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.5
+    command: --model-id /models/bge-small-zh-v1.5 --max-batch-tokens 16384
+    expose:
+      - "80"
+    volumes:
+      - ./models/bge-small-zh-v1.5:/models/bge-small-zh-v1.5:ro
+      - tei-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
@@ -48,10 +65,13 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET}
+      RAG_EMBEDDING_API_URL: http://embedding:80/v1/embeddings
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      embedding:
         condition: service_healthy
     volumes:
       - upload-data:/app/uploads
@@ -78,3 +98,4 @@ volumes:
   db-data:
   redis-data:
   upload-data:
+  tei-data:
