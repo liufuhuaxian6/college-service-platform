@@ -3,6 +3,7 @@ package com.ruc.college.module.qa.service.ai.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruc.college.module.qa.service.ai.AiProvider;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
@@ -23,6 +24,7 @@ import java.util.Map;
  * <p>可直接对接 OpenAI、通义千问 DashScope 兼容模式、DeepSeek 等兼容
  * /v1/chat/completions 协议的服务。</p>
  */
+@Slf4j
 @Component
 public class OpenAiCompatibleProvider implements AiProvider {
 
@@ -53,9 +55,11 @@ public class OpenAiCompatibleProvider implements AiProvider {
     @Override
     public String chat(String question, String context) {
         if (!isAvailable()) {
+            log.warn("AI provider 'openai' 未配置完整 (api-url/api-key/model 至少一项空), 走 fallback");
             return fallback();
         }
 
+        long t0 = System.currentTimeMillis();
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -78,16 +82,32 @@ public class OpenAiCompatibleProvider implements AiProvider {
                     )
             );
 
+            log.info("AI chat -> {} model={} qLen={} ctxLen={}",
+                    apiUrl, model, question == null ? 0 : question.length(),
+                    context == null ? 0 : context.length());
+
             ResponseEntity<String> response = restTemplate.postForEntity(
                     apiUrl,
                     new HttpEntity<>(body, headers),
                     String.class
             );
 
+            long cost = System.currentTimeMillis() - t0;
             JsonNode root = objectMapper.readTree(response.getBody());
             String answer = root.path("choices").path(0).path("message").path("content").asText(null);
-            return StringUtils.hasText(answer) ? answer.trim() : fallback();
-        } catch (Exception ignored) {
+            if (StringUtils.hasText(answer)) {
+                log.info("AI chat OK cost={}ms answerLen={}", cost, answer.length());
+                return answer.trim();
+            }
+            log.warn("AI chat 返回空 content, cost={}ms raw[0..200]={}",
+                    cost,
+                    response.getBody() == null ? "null" :
+                            response.getBody().substring(0, Math.min(200, response.getBody().length())));
+            return fallback();
+        } catch (Exception e) {
+            long cost = System.currentTimeMillis() - t0;
+            log.error("AI chat 调用失败 url={} model={} cost={}ms err={}",
+                    apiUrl, model, cost, e.toString(), e);
             return fallback();
         }
     }
