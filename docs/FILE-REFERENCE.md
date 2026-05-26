@@ -342,7 +342,7 @@
 | `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表、新增/编辑弹窗、删除确认 |
 | `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表、上传(限30MB)、下载、删除、「重新索引」触发 RAG 入库 |
 | `views/qa/TemplateList.vue` | 办公模板管理 | 与文档管理同构，但仅显示/操作 `doc_type=template` 的记录（请假条/活动预算表/简报等） |
-| `views/party/TemplateList.vue` | 流程模板管理 | 模板列表(名称/步骤数/描述)、编辑按钮。**后续需要补充**：模板编辑弹窗（动态增删步骤） |
+| `views/party/TemplateList.vue` | 流程模板管理 | 模板列表(名称/步骤数/描述/状态) + 新建/编辑弹窗（含步骤名称/描述/预计天数/所需材料的动态增删 + 前端校验），编辑时通过 `getTemplateDetail` 回填现有步骤 |
 | `views/party/InstanceList.vue` | 学生流程管理 | 按模板/状态筛选、表格列表、推进(弹窗填备注)/暂停操作 |
 | `views/approval/PendingList.vue` | 待审批列表 | 申请编号/申请人/类型/时间、通过(填意见)/驳回(必填原因)/查看详情 |
 | `views/approval/AllList.vue` | 全部申请 | 按状态筛选(6种)、状态标签颜色区分、管理员撤回(仅 approved 且未下载)、已锁定显示标签 |

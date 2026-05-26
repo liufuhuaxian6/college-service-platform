@@ -21,9 +21,9 @@
 | 政策文档管理 + 重新索引触发 | ✅ 已完成 | B |
 | 办公模板模块（`doc_type=template`） | ✅ 已完成 | B/C |
 | 党团流程（模板 CRUD / 实例推进 / 暂停） | 🟡 到期提醒定时任务待补 | B |
-| 审批流程（状态机 / 多级链 / 下载即锁定） | 🟡 PDF 证明模板填充待完善 | B |
-| 学生画像（个人信息 / 荣誉 / 数据隔离） | 🟡 管理端详情弹窗待补 | B/C |
-| PC 管理端 | 🟡 流程模板编辑弹窗、Dashboard ECharts 图表待补 | C |
+| 审批流程（状态机 / 多级链 / 下载即锁定） | 🟡 PDF 证明字节流已可生成, 但用 ASCII 编码, 中文显示为 ? | B |
+| 学生画像（个人信息 / 荣誉 / 数据隔离） | ✅ 已完成（管理端 el-drawer 含 4 块汇总） | B/C |
+| PC 管理端 | 🟡 Dashboard ECharts 图表、学生详情弹窗待补 | C |
 | 小程序端 | ✅ 全页面 UI 完成；TabBar 图标资源已替换 | D |
 | 离线部署（5 容器 + 一键脚本对） | ✅ 已完成 | A |
 
@@ -78,10 +78,10 @@
 
 ### P0 — 演示/答辩必须
 
-- [ ] 管理端：流程模板编辑弹窗（动态增删步骤）
-- [ ] 管理端：Dashboard ECharts 图表
-- [ ] 管理端：学生详情弹窗（荣誉 + 流程 + 申请汇总）
-- [ ] 审批：PDF 证明模板填充（已通过 → 学生下载真实 PDF）
+- [x] ~~管理端：流程模板编辑弹窗（动态增删步骤）~~ —— 已实现, 见 [TemplateList.vue](../frontend-admin/src/views/party/TemplateList.vue) 第 36-74 行
+- [x] ~~管理端：学生详情弹窗（荣誉 + 流程 + 申请汇总）~~ —— 已实现 el-drawer, 见 [StudentList.vue](../frontend-admin/src/views/student/StudentList.vue) 第 49-99 行
+- [ ] **管理端：Dashboard 数字统计 + ECharts 图表** —— 目前 4 个 MetricCard 显示 "-", 待办区是占位 EmptyState
+- [ ] **审批：PDF 证明中文支持** —— 字节流已可生成 ([ApprovalService.java:330-403](../backend/src/main/java/com/ruc/college/module/approval/service/ApprovalService.java#L330-403)), 但用 `US_ASCII` 编码 + Helvetica 字体, 学号/编号显示正常, 中文姓名/标题显示 `?`. 需切换 PDFBox 或 iText + 内嵌中文字体
 - [ ] 答辩 PPT + 演示脚本
 
 ### P1 — 完整性
