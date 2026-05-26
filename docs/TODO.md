@@ -11,7 +11,7 @@
 |---|---|---|
 | 通用框架（Result、异常、JWT、@RequireRole、@OperationLog、AES 工具） | ✅ 已完成 | A |
 | 认证（登录/注册/个人资料读写/改密码） | ✅ 已完成 | A |
-| 用户管理（CRUD、设置角色、Dashboard 统计） | 🟡 EasyExcel 批量导入 / 导出待补 | A |
+| 用户管理（CRUD、设置角色、Dashboard 统计） | ✅ 已完成（含 EasyExcel 导入 / 导出 / 前端模板下载） | A |
 | 操作日志（@OperationLog AOP + 查询接口） | ✅ 已完成 | A |
 | 文件服务（通用上传 30MB / 下载） | ✅ 已完成 | A |
 | 通知消息（站内 / 未读数 / tag 筛选 / 标记已读） | ✅ 已完成 | A |
@@ -20,7 +20,7 @@
 | RAG（BGE-small-zh-v1.5 / TEI / pgvector 512 维 / 重排） | ✅ 已完成 | B |
 | 政策文档管理 + 重新索引触发 | ✅ 已完成 | B |
 | 办公模板模块（`doc_type=template`） | ✅ 已完成 | B/C |
-| 党团流程（模板 CRUD / 实例推进 / 暂停） | 🟡 到期提醒定时任务待补 | B |
+| 党团流程（模板 CRUD / 实例推进 / 暂停 / 到期提醒定时任务） | ✅ 已完成 | B |
 | 审批流程（状态机 / 多级链 / 下载即锁定） | 🟡 PDF 证明字节流已可生成, 但用 ASCII 编码, 中文显示为 ? | B |
 | 学生画像（个人信息 / 荣誉 / 数据隔离） | ✅ 已完成（管理端 el-drawer 含 4 块汇总） | B/C |
 | PC 管理端 | 🟡 Dashboard ECharts 图表、学生详情弹窗待补 | C |
@@ -86,10 +86,10 @@
 
 ### P1 — 完整性
 
-- [ ] EasyExcel 批量导入学生名单 + 导出
-- [ ] 党团流程到期提醒定时任务（@Scheduled 扫描 → 调用 sendNotification）
+- [x] ~~EasyExcel 批量导入学生名单 + 导出~~ —— 已完成 (UserList 前端含下载模板/导入结果明细/筛选导出)
+- [x] ~~党团流程到期提醒定时任务~~ —— PartyReminderJob, 每天 09:00 cron, 含 24h 防重 + `POST /party/reminder/run` 手动触发接口
 - [ ] 接入真实 AI 模型（实现 `WenxinAiProvider` 或 `QianfanAiProvider`）
-- [ ] 审批通过/驳回后给学生发通知（站内 + 邮件可选）
+- [ ] 审批通过/驳回后给学生发**邮件**通知（站内通知已在了）
 
 ### P2 — 可选优化
 

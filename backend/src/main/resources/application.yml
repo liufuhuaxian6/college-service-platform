@@ -83,6 +83,12 @@ rag:
     # BGE 系列模型推荐对 query 加前缀以提升检索召回率
     query-prefix: "为这个句子生成表示以用于检索相关文章："
 
+# 党团流程到期提醒 (定时任务 PartyReminderJob)
+party:
+  reminder:
+    cron: "0 0 9 * * ?"         # Quartz cron, 每天 09:00 触发; 演示时可改 "0 */5 * * * ?" 每 5 分钟
+    before-days: 7              # 距当前步骤预期完成日 N 天内开始提醒
+
 # 通知群发
 notify:
   email:
