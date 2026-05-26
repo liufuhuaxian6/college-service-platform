@@ -39,6 +39,18 @@ public class AuthController {
         return Result.ok(authService.getProfile());
     }
 
+    @PutMapping("/profile")
+    public Result<Void> updateProfile(@RequestBody UpdateProfileRequest request) {
+        authService.updateMyProfile(request.getEmail(), request.getPhone());
+        return Result.ok();
+    }
+
+    @Data
+    public static class UpdateProfileRequest {
+        private String email;
+        private String phone;
+    }
+
     @Data
     public static class LoginRequest {
         @NotBlank(message = "学号不能为空")

@@ -232,12 +232,19 @@ public class SystemService {
 
     // ==================== 通知消息 ====================
 
-    public Page<SysNotification> getNotifications(int page, int size, String type) {
+    public Page<SysNotification> getNotifications(int page, int size, String type, String tag) {
         LambdaQueryWrapper<SysNotification> wrapper = new LambdaQueryWrapper<SysNotification>()
                 .eq(SysNotification::getUserId, UserContext.getUserId())
-                .eq(type != null, SysNotification::getType, type)
+                .eq(org.springframework.util.StringUtils.hasText(type), SysNotification::getType, type)
+                // tag 用模糊匹配, 兼容 "就业,实习" 这种逗号分隔的存储格式
+                .like(org.springframework.util.StringUtils.hasText(tag), SysNotification::getTags, tag)
                 .orderByDesc(SysNotification::getCreatedAt);
         return notificationMapper.selectPage(new Page<>(page, size), wrapper);
+    }
+
+    /** 兼容旧调用 */
+    public Page<SysNotification> getNotifications(int page, int size, String type) {
+        return getNotifications(page, size, type, null);
     }
 
     public long getUnreadCount() {

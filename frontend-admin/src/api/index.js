@@ -29,6 +29,13 @@ export const notifyApi = {
   getUnreadCount: () => request.get('/notify/unread-count'),
   markRead: (id) => request.put(`/notify/${id}/read`),
   markAllRead: () => request.put('/notify/read-all'),
+  getTags: () => request.get('/notify/tags'),
+  // ---- 群发管理 ----
+  previewTargets: (filter) => request.post('/notify/broadcast/preview', filter || {}),
+  broadcast: (data) => request.post('/notify/broadcast', data),
+  getBroadcastPage: (params) => request.get('/notify/broadcast/page', { params }),
+  getBroadcastDetail: (id) => request.get(`/notify/broadcast/${id}`),
+  withdrawBroadcast: (id) => request.delete(`/notify/broadcast/${id}`),
 }
 // ==================== 智能问答 ====================
 export const qaApi = {

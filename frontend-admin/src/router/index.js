@@ -73,6 +73,12 @@ const routes = [
       },
       // 系统管理
       {
+        path: 'system/notify',
+        name: 'SystemNotifyBroadcast',
+        component: () => import('@/views/system/NotificationBroadcast.vue'),
+        meta: { title: '通知群发', icon: 'BellFilled', minRole: 2 },
+      },
+      {
         path: 'system/user',
         name: 'SystemUser',
         component: () => import('@/views/system/UserList.vue'),

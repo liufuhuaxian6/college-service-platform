@@ -125,6 +125,7 @@ const menuItems = [
   {
     path: '/system', title: '系统管理', icon: 'Setting',
     children: [
+      { path: '/system/notify', title: '通知群发', minRole: 2 },
       { path: '/system/user', title: '用户管理', minRole: 2 },
       { path: '/system/log', title: '操作日志', minRole: 1 },
     ],

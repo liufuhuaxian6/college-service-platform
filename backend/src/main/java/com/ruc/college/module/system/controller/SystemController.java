@@ -6,7 +6,9 @@ import com.ruc.college.common.result.Result;
 import com.ruc.college.common.security.RequireRole;
 import com.ruc.college.module.auth.entity.SysUser;
 import com.ruc.college.module.system.entity.SysNotification;
+import com.ruc.college.module.system.entity.SysNotificationBroadcast;
 import com.ruc.college.module.system.entity.SysOperationLog;
+import com.ruc.college.module.system.service.NotificationBroadcastService;
 import com.ruc.college.module.system.service.SystemService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Data;
@@ -21,6 +23,7 @@ import java.util.Map;
 public class SystemController {
 
     private final SystemService systemService;
+    private final NotificationBroadcastService broadcastService;
 
     // ==================== 用户管理 /system ====================
 
@@ -106,8 +109,53 @@ public class SystemController {
     public Result<Page<SysNotification>> notifyPage(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String type) {
-        return Result.ok(systemService.getNotifications(page, size, type));
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String tag) {
+        return Result.ok(systemService.getNotifications(page, size, type, tag));
+    }
+
+    @GetMapping("/notify/tags")
+    public Result<java.util.List<String>> tags() {
+        return Result.ok(broadcastService.distinctTags());
+    }
+
+    // ==================== 通知群发 (管理员) ====================
+
+    @PostMapping("/notify/broadcast/preview")
+    @RequireRole(minLevel = 2)
+    public Result<Map<String, Object>> previewTargets(
+            @RequestBody(required = false) NotificationBroadcastService.BroadcastFilter filter) {
+        int count = broadcastService.previewTargetCount(filter);
+        return Result.ok(Map.of("targetCount", count));
+    }
+
+    @PostMapping("/notify/broadcast")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "通知管理", action = "群发通知")
+    public Result<NotificationBroadcastService.BroadcastResult> broadcast(
+            @RequestBody NotificationBroadcastService.BroadcastRequest request) {
+        return Result.ok(broadcastService.broadcast(request));
+    }
+
+    @GetMapping("/notify/broadcast/page")
+    @RequireRole(minLevel = 2)
+    public Result<Page<SysNotificationBroadcast>> broadcastPage(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.ok(broadcastService.getBroadcastPage(page, size));
+    }
+
+    @GetMapping("/notify/broadcast/{id}")
+    @RequireRole(minLevel = 2)
+    public Result<SysNotificationBroadcast> broadcastDetail(@PathVariable Long id) {
+        return Result.ok(broadcastService.getBroadcastDetail(id));
+    }
+
+    @DeleteMapping("/notify/broadcast/{id}")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "通知管理", action = "撤回群发")
+    public Result<NotificationBroadcastService.WithdrawResult> withdrawBroadcast(@PathVariable Long id) {
+        return Result.ok(broadcastService.withdraw(id));
     }
 
     @GetMapping("/notify/unread-count")

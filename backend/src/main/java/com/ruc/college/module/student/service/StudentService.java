@@ -17,8 +17,10 @@ import com.ruc.college.module.party.mapper.PartyProcessInstanceMapper;
 import com.ruc.college.module.party.mapper.PartyProcessTemplateMapper;
 import com.ruc.college.module.student.entity.StudentHonor;
 import com.ruc.college.module.student.mapper.StudentHonorMapper;
+import com.ruc.college.module.system.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +40,7 @@ public class StudentService {
     private final PartyProcessTemplateMapper partyTemplateMapper;
     private final ApprovalApplicationMapper approvalApplicationMapper;
     private final ApprovalTypeMapper approvalTypeMapper;
+    private final EmailService emailService;
 
     // ==================== 学生端 ====================
 
@@ -202,6 +205,8 @@ public class StudentService {
         profile.put("major", user.getMajor());
         profile.put("className", user.getClassName());
         profile.put("phone", user.getPhone());
+        profile.put("email", emailService.resolveEmail(user));
+        profile.put("emailCustom", StringUtils.hasText(user.getEmail()));
         profile.put("roleLevel", user.getRoleLevel());
 
         if (showSensitive && user.getIdCardEnc() != null) {

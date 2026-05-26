@@ -45,6 +45,8 @@ export function request(options) {
 // ==================== 认证 ====================
 export const authApi = {
   login: (data) => request({ url: '/auth/login', method: 'POST', data }),
+  getProfile: () => request({ url: '/auth/profile' }),
+  updateProfile: (data) => request({ url: '/auth/profile', method: 'PUT', data }),
 }
 
 // ==================== 问答 ====================
@@ -83,6 +85,7 @@ export const studentApi = {
 export const notifyApi = {
   getPage: (params) => request({ url: '/notify/page', data: params }),
   getUnreadCount: () => request({ url: '/notify/unread-count' }),
+  getTags: () => request({ url: '/notify/tags' }),
   markRead: (id) => request({ url: `/notify/${id}/read`, method: 'PUT' }),
   markAllRead: () => request({ url: '/notify/read-all', method: 'PUT' }),
 }

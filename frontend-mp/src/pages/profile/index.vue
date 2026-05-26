@@ -40,6 +40,27 @@
 
     <view class="section">
       <view class="section-head">
+        <text class="section-title">联系方式</text>
+      </view>
+      <view class="contact-row" @click="editEmail">
+        <view class="contact-info">
+          <text class="contact-label">邮箱</text>
+          <text class="contact-value">{{ profile.email || '-' }}</text>
+          <text v-if="!profile.emailCustom" class="contact-hint">默认: 学号@ruc.edu.cn, 可修改</text>
+        </view>
+        <text class="contact-action">修改 ›</text>
+      </view>
+      <view class="contact-row" @click="editPhone">
+        <view class="contact-info">
+          <text class="contact-label">手机</text>
+          <text class="contact-value">{{ profile.phone || '未填写' }}</text>
+        </view>
+        <text class="contact-action">修改 ›</text>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-head">
         <text class="section-title">我的荣誉</text>
         <text class="section-count">{{ honors.length }} 项</text>
       </view>
@@ -69,7 +90,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { studentApi } from '@/api'
+import { studentApi, authApi } from '@/api'
 import EmptyState from '@/components/EmptyState.vue'
 
 const userStore = useUserStore()
@@ -111,6 +132,50 @@ function navigateTo(url) {
 
 function switchTab(url) {
   uni.switchTab({ url })
+}
+
+function editEmail() {
+  uni.showModal({
+    title: '修改邮箱',
+    editable: true,
+    placeholderText: profile.value.email || '学号@ruc.edu.cn',
+    content: profile.value.emailCustom ? (profile.value.email || '') : '',
+    success: async (res) => {
+      if (!res.confirm) return
+      const v = (res.content || '').trim()
+      if (v && !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(v)) {
+        uni.showToast({ title: '邮箱格式不合法', icon: 'none' })
+        return
+      }
+      try {
+        await authApi.updateProfile({ email: v })
+        uni.showToast({ title: v ? '已更新' : '已恢复默认' })
+        loadProfile()
+      } catch (_) { /* api 层已 toast */ }
+    },
+  })
+}
+
+function editPhone() {
+  uni.showModal({
+    title: '修改手机号',
+    editable: true,
+    placeholderText: profile.value.phone || '请输入手机号',
+    content: profile.value.phone || '',
+    success: async (res) => {
+      if (!res.confirm) return
+      const v = (res.content || '').trim()
+      if (v && !/^\d{6,20}$/.test(v)) {
+        uni.showToast({ title: '手机号格式不合法', icon: 'none' })
+        return
+      }
+      try {
+        await authApi.updateProfile({ phone: v })
+        uni.showToast({ title: '已更新' })
+        loadProfile()
+      } catch (_) { /* api 层已 toast */ }
+    },
+  })
 }
 
 function handleLogout() {
@@ -349,5 +414,49 @@ function handleLogout() {
 
 .action-text {
   color: inherit;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid var(--mp-border);
+  gap: 16rpx;
+}
+
+.contact-row:last-child {
+  border-bottom: none;
+}
+
+.contact-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-label {
+  color: var(--mp-text-sub);
+  font-size: 22rpx;
+}
+
+.contact-value {
+  margin-top: 4rpx;
+  color: var(--mp-text-main);
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.contact-hint {
+  margin-top: 4rpx;
+  color: var(--mp-text-muted);
+  font-size: 20rpx;
+}
+
+.contact-action {
+  flex-shrink: 0;
+  color: var(--mp-primary);
+  font-size: 24rpx;
 }
 </style>

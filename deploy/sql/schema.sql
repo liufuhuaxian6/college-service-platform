@@ -19,6 +19,7 @@ CREATE TABLE sys_user (
     major        VARCHAR(50),
     class_name   VARCHAR(50),
     phone        VARCHAR(20),
+    email        VARCHAR(100),
     id_card_enc  VARCHAR(255),
     origin_enc   VARCHAR(255),
     hukou_enc    VARCHAR(255),
@@ -30,6 +31,7 @@ CREATE TABLE sys_user (
 
 COMMENT ON TABLE sys_user IS '用户表';
 COMMENT ON COLUMN sys_user.student_id IS '学号（登录凭证，唯一）';
+COMMENT ON COLUMN sys_user.email IS '邮箱（可选，未填时默认为 学号@ruc.edu.cn）';
 COMMENT ON COLUMN sys_user.role_level IS '角色等级: 1=院领导, 2=管理老师/辅导员, 3=班团骨干, 4=普通学生';
 COMMENT ON COLUMN sys_user.id_card_enc IS '身份证号（AES加密存储）';
 COMMENT ON COLUMN sys_user.origin_enc IS '生源地（AES加密存储）';
@@ -56,20 +58,56 @@ COMMENT ON TABLE sys_operation_log IS '管理员操作日志（审计溯源）';
 CREATE INDEX idx_log_user ON sys_operation_log(user_id);
 CREATE INDEX idx_log_time ON sys_operation_log(created_at);
 
--- 消息通知表（含模拟短信）
+-- 消息通知表（含模拟短信、群发标签、来源信息）
 CREATE TABLE sys_notification (
-    id           BIGSERIAL PRIMARY KEY,
-    user_id      BIGINT NOT NULL,
-    title        VARCHAR(200),
-    content      TEXT,
-    type         VARCHAR(20) NOT NULL DEFAULT 'system',
-    is_read      BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at   TIMESTAMP DEFAULT NOW()
+    id            BIGSERIAL PRIMARY KEY,
+    user_id       BIGINT NOT NULL,
+    title         VARCHAR(200),
+    content       TEXT,
+    type          VARCHAR(20) NOT NULL DEFAULT 'system',
+    is_read       BOOLEAN NOT NULL DEFAULT FALSE,
+    tags          VARCHAR(200),
+    source        VARCHAR(50),
+    source_url    VARCHAR(500),
+    broadcast_id  BIGINT,
+    created_at    TIMESTAMP DEFAULT NOW()
 );
 
 COMMENT ON TABLE sys_notification IS '系统通知与模拟短信';
-COMMENT ON COLUMN sys_notification.type IS '类型: sms_sim=模拟短信, system=系统通知, reminder=流程提醒';
+COMMENT ON COLUMN sys_notification.type IS '类型: sms_sim=模拟短信, system=系统通知, reminder=流程提醒, email_sim=已发邮件(模拟)';
+COMMENT ON COLUMN sys_notification.tags IS '标签（逗号分隔，如 "就业,实习,计算机类"）';
+COMMENT ON COLUMN sys_notification.source IS '来源（如 后勤处 / 保卫处 / 就业办 / 学院）';
+COMMENT ON COLUMN sys_notification.source_url IS '来源原文链接（公众号文章地址等）';
+COMMENT ON COLUMN sys_notification.broadcast_id IS '所属广播任务ID（NULL=单条直发）';
 CREATE INDEX idx_notify_user ON sys_notification(user_id, is_read);
+CREATE INDEX idx_notify_broadcast ON sys_notification(broadcast_id);
+CREATE INDEX idx_notify_tags ON sys_notification(tags);
+
+-- 群发任务表
+CREATE TABLE sys_notification_broadcast (
+    id            BIGSERIAL PRIMARY KEY,
+    title         VARCHAR(200) NOT NULL,
+    content       TEXT NOT NULL,
+    tags          VARCHAR(200),
+    source        VARCHAR(50),
+    source_url    VARCHAR(500),
+    target_filter TEXT,
+    channels      VARCHAR(100) NOT NULL DEFAULT 'system',
+    target_count  INT NOT NULL DEFAULT 0,
+    sent_count    INT NOT NULL DEFAULT 0,
+    email_sent    INT NOT NULL DEFAULT 0,
+    operator_id   BIGINT,
+    withdrawn     BOOLEAN NOT NULL DEFAULT FALSE,
+    withdrawn_at  TIMESTAMP,
+    created_at    TIMESTAMP DEFAULT NOW()
+);
+
+COMMENT ON TABLE sys_notification_broadcast IS '管理员群发任务，支持 24h 内撤回';
+COMMENT ON COLUMN sys_notification_broadcast.target_filter IS '群发筛选条件 JSON（grade/major/class/role 等）';
+COMMENT ON COLUMN sys_notification_broadcast.channels IS '发送渠道，逗号分隔: system/email/sms_sim';
+COMMENT ON COLUMN sys_notification_broadcast.email_sent IS '实际成功发送邮件的数量';
+CREATE INDEX idx_broadcast_operator ON sys_notification_broadcast(operator_id);
+CREATE INDEX idx_broadcast_created ON sys_notification_broadcast(created_at);
 
 -- ==================== 智能问答与知识库 (P0) ====================
 
