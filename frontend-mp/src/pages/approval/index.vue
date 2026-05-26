@@ -158,10 +158,14 @@ async function viewDetail(id) {
     const app = res.data?.application || res.data
     const records = res.data?.records || []
     const latestRecord = records.length ? records[records.length - 1] : null
+    const formText = formatFormData(app.formData)
     const lines = [
       `编号：${app.appNo || '-'}`,
+      `类型：${app.typeName || '证明申请'}`,
       `状态：${statusLabel(normalizedStatus(app))}`,
+      app.currentApproverLevel ? `当前审批：L${app.currentApproverLevel}` : '',
       `提交时间：${app.createdAt || '-'}`,
+      formText ? `表单：${formText}` : '',
       isLocked(app) ? '该申请已下载并锁定归档，不能撤回或重新审批。' : '',
       latestRecord?.comment ? `审批意见：${latestRecord.comment}` : '',
     ].filter(Boolean)
@@ -169,6 +173,19 @@ async function viewDetail(id) {
   } catch (e) {
     // request helper already shows the error toast
   }
+}
+
+function formatFormData(formData) {
+  if (!formData) return ''
+  let obj = formData
+  if (typeof formData === 'string') {
+    try { obj = JSON.parse(formData) } catch (_) { return formData }
+  }
+  if (typeof obj !== 'object') return String(obj)
+  return Object.entries(obj)
+    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ')
 }
 
 async function handleDownload(id) {

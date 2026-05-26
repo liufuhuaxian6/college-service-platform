@@ -30,4 +30,15 @@ public class ApprovalApplication {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    // ====== 以下字段非数据库列, 仅用于响应返回时回填关联信息 ======
+    /** 审批类型名称, 来自 approval_type.name */
+    @TableField(exist = false)
+    private String typeName;
+    /** 申请人姓名, 来自 sys_user.name */
+    @TableField(exist = false)
+    private String userName;
+    /** 申请人学号, 来自 sys_user.student_id */
+    @TableField(exist = false)
+    private String studentId;
 }

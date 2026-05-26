@@ -16,6 +16,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.fontbox.ttf.TrueTypeCollection;
+import org.apache.fontbox.ttf.TrueTypeFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
@@ -39,8 +41,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -100,7 +108,9 @@ public class ApprovalService {
                 .eq(ApprovalApplication::getUserId, UserContext.getUserId())
                 .eq(status != null, ApprovalApplication::getStatus, status)
                 .orderByDesc(ApprovalApplication::getCreatedAt);
-        return applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        Page<ApprovalApplication> result = applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        enrichApplicationList(result.getRecords());
+        return result;
     }
 
     public ApprovalApplication getApplicationDetail(Long id) {
@@ -110,7 +120,38 @@ public class ApprovalService {
         if (UserContext.getRoleLevel() == 4 && !app.getUserId().equals(UserContext.getUserId())) {
             throw new BusinessException(403, "无权查看他人申请");
         }
+        enrichApplicationList(List.of(app));
         return app;
+    }
+
+    /**
+     * 批量回填 typeName / userName / studentId 关联字段, 避免前端只看到裸的外键 ID.
+     * 一次性 selectBatchIds 类型表和用户表, 避免 N+1.
+     */
+    private void enrichApplicationList(List<ApprovalApplication> apps) {
+        if (apps == null || apps.isEmpty()) return;
+
+        Set<Long> typeIds = apps.stream().map(ApprovalApplication::getTypeId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> userIds = apps.stream().map(ApprovalApplication::getUserId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Map<Long, ApprovalType> typeMap = typeIds.isEmpty() ? Map.of()
+                : typeMapper.selectBatchIds(typeIds).stream()
+                        .collect(Collectors.toMap(ApprovalType::getId, Function.identity(), (a, b) -> a));
+        Map<Long, SysUser> userMap = userIds.isEmpty() ? Map.of()
+                : userMapper.selectBatchIds(userIds).stream()
+                        .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+
+        for (ApprovalApplication a : apps) {
+            ApprovalType t = typeMap.get(a.getTypeId());
+            if (t != null) a.setTypeName(t.getName());
+            SysUser u = userMap.get(a.getUserId());
+            if (u != null) {
+                a.setUserName(u.getName());
+                a.setStudentId(u.getStudentId());
+            }
+        }
     }
 
     public List<ApprovalRecord> getApprovalRecords(Long applicationId) {
@@ -207,7 +248,9 @@ public class ApprovalService {
                 .eq(typeId != null, ApprovalApplication::getTypeId, typeId)
                 .eq(roleLevel != 1, ApprovalApplication::getCurrentApproverLevel, roleLevel)
                 .orderByAsc(ApprovalApplication::getCreatedAt);
-        return applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        Page<ApprovalApplication> result = applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        enrichApplicationList(result.getRecords());
+        return result;
     }
 
     public Page<ApprovalApplication> getAllPage(int page, int size, String status, Long userId) {
@@ -215,7 +258,9 @@ public class ApprovalService {
                 .eq(status != null, ApprovalApplication::getStatus, status)
                 .eq(userId != null, ApprovalApplication::getUserId, userId)
                 .orderByDesc(ApprovalApplication::getCreatedAt);
-        return applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        Page<ApprovalApplication> result = applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        enrichApplicationList(result.getRecords());
+        return result;
     }
 
     @Transactional
@@ -431,12 +476,13 @@ public class ApprovalService {
             if (cjkFile != null) {
                 try {
                     // embedSubset=true: 仅嵌入用到的字形, 输出小且不侵权
-                    PDFont cjk = PDType0Font.load(doc, cjkFile);
+                    PDFont cjk = loadCjkFont(doc, cjkFile);
                     titleFont = cjk;
                     bodyFont = cjk;
                     usingCjk = true;
                 } catch (Exception ex) {
-                    log.warn("加载中文字体失败, 退化为 Helvetica: {}", ex.getMessage());
+                    log.warn("加载中文字体失败 ({}), 退化为 Helvetica: {}",
+                            cjkFile.getName(), ex.toString());
                     titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
                     bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
                 }
@@ -479,6 +525,32 @@ public class ApprovalService {
             log.error("PDFBox 生成证明 PDF 失败", e);
             return new byte[0];
         }
+    }
+
+    /**
+     * 加载 TTF / OTF / TTC 中文字体. TTC 是字体集合, PDType0Font.load(File) 无法直接处理,
+     * 需要先通过 TrueTypeCollection 取出第一份单字体再 load.
+     */
+    private static PDFont loadCjkFont(PDDocument doc, File file) throws Exception {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".ttc")) {
+            try (TrueTypeCollection ttc = new TrueTypeCollection(file)) {
+                final PDFont[] result = new PDFont[1];
+                final Exception[] err = new Exception[1];
+                ttc.processAllFonts(ttf -> {
+                    if (result[0] != null) return;
+                    try {
+                        result[0] = PDType0Font.load(doc, ttf, true);
+                    } catch (Exception ex) {
+                        err[0] = ex;
+                    }
+                });
+                if (result[0] != null) return result[0];
+                throw err[0] != null ? err[0] : new RuntimeException("TTC 内无可用字体");
+            }
+        }
+        // 单字体 (.ttf / .otf)
+        return PDType0Font.load(doc, file);
     }
 
     /** 没有 CJK 字体时把非 ASCII 字符替换成 ?, 防止 Helvetica 抛 IllegalArgumentException. */
