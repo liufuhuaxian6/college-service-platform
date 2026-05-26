@@ -127,7 +127,27 @@ ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
 - 没变化的容器（postgres / redis / embedding / nginx）保持运行不动
 - 数据卷（db-data, redis-data, upload-data, tei-data）始终保留
 
-### 0.4 如果出错怎么办
+### 0.4 清空旧部署, 从零再部一次
+
+由于 postgres 的 `docker-entrypoint-initdb.d/schema.sql` 仅在**数据卷为空**时执行，
+旧库残留旧 schema 时新加的字段（如 `sys_user.email`、`sys_notification.tags`、
+`qa_document.doc_type`、入党流程 29 步）不会自动出现。最稳的办法是清空整个部署
+重来一次（**会丢所有数据库数据**，仅在演示前/不重要数据时使用）：
+
+```bash
+ssh user@10.10.0.27
+cd /opt/college-service 2>/dev/null && sudo docker compose down -v   # 删容器 + 4 个 volume
+sudo rm -rf /opt/college-service
+rm -rf ~/deploy-package
+docker image prune -af            # (可选) 释放磁盘
+exit
+```
+
+然后在本地重新跑打包 + scp + `bash deploy.sh`，会自动进入 `fresh` 模式：
+schema.sql 跑一次 → 16 张表 + 默认 admin/admin123 + 入党 29 步 + 入团 5 步 +
+4 种审批类型 全到位。
+
+### 0.5 如果出错怎么办
 
 `deploy.sh` 任何一步失败都会以非零退出码停下并打印彩色 `[FAIL]` 行。最常见排查：
 
@@ -811,15 +831,17 @@ psql -U postgres -h localhost -p 5432 -d college_service \
 
 ## 十三、邮件 SMTP 配置（信息精准推送）
 
-模块三「信息精准推送」需要 SMTP 才能发真实邮件。**授权码不入代码不入库**，仅通过环境变量传入：
+模块三「信息精准推送」需要 SMTP 才能发真实邮件。**授权码不入代码不入库**，仅通过环境变量传入。`deploy/.env.prod` 与 `deploy/docker-compose.prod.yml` 的 `backend.environment` 段已经接通这 4 个变量到容器，无需额外手工配置：
 
 ```bash
-# .env / 或 docker-compose 的 environment 段
+# deploy/.env.prod (随部署包一起 scp 到服务器, 部署前在 deploy-package/.env 里改)
 MAIL_HOST=smtp.qq.com           # 默认值，可改 smtp.ym.163.com / smtp.qiye.163.com
 MAIL_PORT=465                   # SSL 端口；网易企业邮多用 994
 MAIL_USERNAME=3523698178@qq.com # 发件人邮箱（必须与授权码同源）
-MAIL_AUTH_CODE=xxxxxxxxxxxxxxxx # 客户端授权码 (QQ 16 位 / 网易 自定义)
+MAIL_AUTH_CODE=                 # 客户端授权码 - 部署前手动填入, 留空则邮件渠道降级为 email_sim
 ```
+
+> 在 `deploy-package/.env` 里把 `MAIL_AUTH_CODE=` 一行填上邮箱后台生成的授权码即可。留空也能部署，仅邮件渠道降级。
 
 **关键约束：**
 

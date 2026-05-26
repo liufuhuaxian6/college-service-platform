@@ -150,6 +150,8 @@ npm run dev:mp-weixin   # 持续运行，文件改动会自动重新编译到 di
 pwsh scripts/build-deploy-package.ps1
 ```
 
+部署前编辑 `deploy-package/.env`，把 `MAIL_AUTH_CODE=` 填上你的邮箱授权码（留空则邮件渠道自动降级，**不阻塞部署**）。
+
 一行命令服务器部署：
 
 ```bash
@@ -157,20 +159,29 @@ scp -r deploy-package user@10.10.0.27:~/
 ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
 ```
 
-完整流程、首次/增量逻辑、故障排查见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+> **如果服务器有旧部署需要清空重来**（schema 升级后新字段不会自动迁移）：
+> ```bash
+> ssh user@10.10.0.27 'cd /opt/college-service && sudo docker compose down -v && sudo rm -rf /opt/college-service'
+> ```
+> 然后重跑上面的 scp + deploy.sh，自动进入 fresh 模式 → schema.sql 一刀切建好 16 张表 + 默认数据。
+
+完整流程、清空步骤、故障排查见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
 ---
 
 ## 邮件配置（可选）
 
-「信息精准推送」模块依赖 SMTP 发送真实邮件。授权码**不入库**、通过环境变量传入：
+「信息精准推送」模块依赖 SMTP 发送真实邮件。授权码**不入库**、通过环境变量传入。`deploy/.env.prod` 和 `deploy/docker-compose.prod.yml` 已经把以下 4 个变量接通到 backend 容器：
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `MAIL_HOST` | `smtp.qq.com` | SMTP 服务器地址 |
-| `MAIL_PORT` | `465` | SMTP 端口（SSL） |
-| `MAIL_USERNAME` | `3523698178@qq.com` | 发件人邮箱 |
-| `MAIL_AUTH_CODE` | (空) | 客户端授权码 |
+| `MAIL_HOST` | `smtp.qq.com` | SMTP 服务器地址（网易企业邮改 `smtp.ym.163.com`） |
+| `MAIL_PORT` | `465` | SSL 端口（网易企业邮多用 `994`） |
+| `MAIL_USERNAME` | `3523698178@qq.com` | 发件人邮箱（必须与授权码同源） |
+| `MAIL_AUTH_CODE` | (空) | 客户端授权码（在邮箱后台单独生成，**不是登录密码**） |
+
+- 本地开发：在启动后端的 PowerShell 同会话内 `$env:MAIL_AUTH_CODE = "你的授权码"; .\mvnw.cmd spring-boot:run`
+- 生产部署：在 `deploy-package/.env` 里编辑 `MAIL_AUTH_CODE=`
 
 授权码缺失或鉴权失败时，邮件渠道自动降级为站内 `email_sim` 通知，不影响其他功能。
 
