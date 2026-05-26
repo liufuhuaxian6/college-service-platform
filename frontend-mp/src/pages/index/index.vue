@@ -7,23 +7,29 @@
         <text class="school">学生服务、党团事务与证明审批统一入口</text>
       </view>
       <view class="notify" @click="goNotify">
-        <text class="notify-bell">铃</text>
-        <text v-if="unreadCount > 0" class="notify-dot">{{ unreadCount }}</text>
+        <view class="bell-icon">
+          <view class="bell-body" />
+          <view class="bell-rim" />
+          <view class="bell-clapper" />
+        </view>
+        <view v-if="unreadCount > 0" class="notify-dot" />
       </view>
     </view>
 
     <view class="quick-panel">
       <view class="quick-item" @click="navigateTo('/pages/qa/index')">
-        <text class="quick-value">问</text>
         <text class="quick-label">政策咨询</text>
+        <text class="quick-sub">智能问答</text>
       </view>
+      <view class="quick-divider" />
       <view class="quick-item" @click="navigateTo('/pages/approval/index')">
-        <text class="quick-value">审</text>
         <text class="quick-label">审批进度</text>
+        <text class="quick-sub">我的申请</text>
       </view>
+      <view class="quick-divider" />
       <view class="quick-item" @click="navigateTo('/pages/party/index')">
-        <text class="quick-value">团</text>
         <text class="quick-label">党团流程</text>
+        <text class="quick-sub">个人节点</text>
       </view>
     </view>
 
@@ -213,32 +219,60 @@ onMounted(async () => {
   color: #fff;
 }
 
-.notify-bell {
-  font-size: 24rpx;
-  font-weight: 700;
+.bell-icon {
+  position: relative;
+  width: 36rpx;
+  height: 36rpx;
+}
+
+.bell-body {
+  position: absolute;
+  top: 4rpx;
+  left: 6rpx;
+  right: 6rpx;
+  bottom: 10rpx;
+  background: #fff;
+  border-radius: 12rpx 12rpx 4rpx 4rpx;
+}
+
+.bell-rim {
+  position: absolute;
+  left: 2rpx;
+  right: 2rpx;
+  bottom: 7rpx;
+  height: 4rpx;
+  background: #fff;
+  border-radius: 2rpx;
+}
+
+.bell-clapper {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #fff;
 }
 
 .notify-dot {
   position: absolute;
-  top: -8rpx;
-  right: -8rpx;
-  min-width: 32rpx;
-  height: 32rpx;
-  line-height: 32rpx;
-  text-align: center;
-  border-radius: 999rpx;
+  top: 6rpx;
+  right: 6rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
   background: #F0B35A;
-  color: #3D2024;
-  font-size: 20rpx;
-  font-weight: 700;
+  border: 2rpx solid #9B2C36;
+  box-sizing: content-box;
 }
 
 .quick-panel {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
+  display: flex;
+  align-items: stretch;
   margin: -42rpx 18rpx 28rpx;
-  padding: 18rpx;
+  padding: 8rpx 12rpx;
   border-radius: 22rpx;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--mp-shadow);
@@ -246,29 +280,35 @@ onMounted(async () => {
   z-index: 2;
 }
 
+.quick-panel .quick-item {
+  flex: 1;
+}
+
 .quick-item {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
-  padding: 14rpx 4rpx;
-}
-
-.quick-value {
-  width: 52rpx;
-  height: 52rpx;
-  line-height: 52rpx;
-  text-align: center;
-  border-radius: 16rpx;
-  background: var(--mp-primary-light);
-  color: var(--mp-primary);
-  font-size: 24rpx;
-  font-weight: 800;
+  gap: 8rpx;
+  padding: 18rpx 4rpx;
 }
 
 .quick-label {
-  margin-top: 10rpx;
-  color: var(--mp-text-regular);
-  font-size: 22rpx;
+  color: var(--mp-text-main);
+  font-size: 27rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.quick-sub {
+  color: var(--mp-text-sub);
+  font-size: 20rpx;
+}
+
+.quick-divider {
+  width: 1rpx;
+  margin: 18rpx 0;
+  background: rgba(31, 35, 41, 0.08);
 }
 
 .service-grid {

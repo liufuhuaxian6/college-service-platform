@@ -50,12 +50,12 @@
         :key="template.id"
         @click="openTemplate(template)"
       >
-        <view class="template-icon">{{ template.icon }}</view>
         <view class="template-body">
           <text class="template-name">{{ template.name }}</text>
           <text class="template-desc">{{ template.description || template.localDescription }}</text>
           <text class="template-count">共 {{ template.totalSteps || template.localSteps }} 个节点</text>
         </view>
+        <text class="template-arrow">›</text>
       </view>
     </view>
   </view>
@@ -248,28 +248,34 @@ onMounted(async () => {
 }
 
 .template-card {
-  display: flex;
-  gap: 20rpx;
-  padding: 26rpx;
-}
-
-.template-icon {
-  width: 72rpx;
-  height: 72rpx;
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--mp-primary);
-  font-size: 28rpx;
-  font-weight: 800;
-  border-radius: 22rpx;
-  background: var(--mp-primary-light);
+  gap: 20rpx;
+  padding: 26rpx 26rpx 26rpx 32rpx;
+}
+
+.template-card::before {
+  content: '';
+  position: absolute;
+  left: 18rpx;
+  top: 30rpx;
+  bottom: 30rpx;
+  width: 6rpx;
+  border-radius: 4rpx;
+  background: var(--mp-primary);
 }
 
 .template-body {
   flex: 1;
   min-width: 0;
+}
+
+.template-arrow {
+  flex-shrink: 0;
+  color: var(--mp-text-muted);
+  font-size: 36rpx;
+  line-height: 1;
 }
 
 .template-name {

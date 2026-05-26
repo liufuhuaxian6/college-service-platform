@@ -240,7 +240,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 {
   "code": 200,
   "data": {
-    "answer": "入党流程共8个步骤，首先需要递交入党申请书...",
+    "answer": "入党流程共29个步骤（按《发展党员工作程序》），从教育引导、入党积极分子确定开始...",
     "sourceType": "knowledge",   // knowledge | ai | manual
     "sourceUrl": "https://...",  // 官方链接(如有)
     "aiGenerated": false         // true 时前端需标注"AI生成,仅供参考"
