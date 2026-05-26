@@ -66,6 +66,12 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET}
       RAG_EMBEDDING_API_URL: http://embedding:80/v1/embeddings
+      # 邮件 SMTP (模块三): 通过 .env 注入授权码, 缺失则自动降级为 email_sim
+      # 默认 RUC 学校邮箱 (网易企业邮杭州节点, 已实测), 详见 deploy/.env.prod
+      MAIL_HOST: ${MAIL_HOST:-smtphz.qiye.163.com}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-2024201564@ruc.edu.cn}
+      MAIL_AUTH_CODE: ${MAIL_AUTH_CODE:-}
     depends_on:
       postgres:
         condition: service_healthy

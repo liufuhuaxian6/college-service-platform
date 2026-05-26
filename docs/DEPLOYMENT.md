@@ -127,7 +127,27 @@ ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
 - 没变化的容器（postgres / redis / embedding / nginx）保持运行不动
 - 数据卷（db-data, redis-data, upload-data, tei-data）始终保留
 
-### 0.4 如果出错怎么办
+### 0.4 清空旧部署, 从零再部一次
+
+由于 postgres 的 `docker-entrypoint-initdb.d/schema.sql` 仅在**数据卷为空**时执行，
+旧库残留旧 schema 时新加的字段（如 `sys_user.email`、`sys_notification.tags`、
+`qa_document.doc_type`、入党流程 29 步）不会自动出现。最稳的办法是清空整个部署
+重来一次（**会丢所有数据库数据**，仅在演示前/不重要数据时使用）：
+
+```bash
+ssh user@10.10.0.27
+cd /opt/college-service 2>/dev/null && sudo docker compose down -v   # 删容器 + 4 个 volume
+sudo rm -rf /opt/college-service
+rm -rf ~/deploy-package
+docker image prune -af            # (可选) 释放磁盘
+exit
+```
+
+然后在本地重新跑打包 + scp + `bash deploy.sh`，会自动进入 `fresh` 模式：
+schema.sql 跑一次 → 16 张表 + 默认 admin/admin123 + 入党 29 步 + 入团 5 步 +
+4 种审批类型 全到位。
+
+### 0.5 如果出错怎么办
 
 `deploy.sh` 任何一步失败都会以非零退出码停下并打印彩色 `[FAIL]` 行。最常见排查：
 
@@ -811,19 +831,28 @@ psql -U postgres -h localhost -p 5432 -d college_service \
 
 ## 十三、邮件 SMTP 配置（信息精准推送）
 
-模块三「信息精准推送」需要 SMTP 才能发真实邮件。**授权码不入代码不入库**，仅通过环境变量传入：
+模块三「信息精准推送」需要 SMTP 才能发真实邮件。**授权码不入代码不入库**，仅通过环境变量传入。`deploy/.env.prod` 与 `deploy/docker-compose.prod.yml` 的 `backend.environment` 段已经接通这 4 个变量到容器，无需额外手工配置：
 
 ```bash
-# .env / 或 docker-compose 的 environment 段
-MAIL_HOST=smtp.qq.com           # 默认值，可改 smtp.ym.163.com / smtp.qiye.163.com
-MAIL_PORT=465                   # SSL 端口；网易企业邮多用 994
-MAIL_USERNAME=3523698178@qq.com # 发件人邮箱（必须与授权码同源）
-MAIL_AUTH_CODE=xxxxxxxxxxxxxxxx # 客户端授权码 (QQ 16 位 / 网易 自定义)
+# deploy/.env.prod (随部署包一起 scp 到服务器, 部署前在 deploy-package/.env 里改)
+# 默认走 RUC 学校邮箱 (托管在网易企业邮杭州节点), 已实测可投递
+MAIL_HOST=smtphz.qiye.163.com   # RUC 邮箱; 切 QQ 个人邮箱用 smtp.qq.com
+MAIL_PORT=465                   # SSL 端口. 注意: smtphz 系列里 994=IMAP, 995=POP3, 465=SMTP
+MAIL_USERNAME=2024201564@ruc.edu.cn  # 发件人邮箱 (必须与授权码同源)
+MAIL_AUTH_CODE=                 # 客户端授权码 - 部署前手动填入, 留空则邮件渠道降级为 email_sim
 ```
+
+> 在 `deploy-package/.env` 里把 `MAIL_AUTH_CODE=` 一行填上邮箱后台生成的授权码即可。留空也能部署，仅邮件渠道降级。
 
 **关键约束：**
 
-1. `MAIL_HOST` / `MAIL_PORT` 必须与 `MAIL_USERNAME` 邮箱服务商匹配。QQ 个人邮箱 `smtp.qq.com:465`，QQ 企业邮 `smtp.exmail.qq.com:465`，网易企业邮 `smtp.ym.163.com:994` 或 `smtp.qiye.163.com:465`。
+1. `MAIL_HOST` / `MAIL_PORT` 必须与 `MAIL_USERNAME` 邮箱服务商匹配：
+   - **RUC 学校邮箱 (`@ruc.edu.cn`)**：`smtphz.qiye.163.com:465`（网易企业邮杭州节点，**已实测**）
+   - QQ 个人邮箱：`smtp.qq.com:465`
+   - QQ 企业邮箱：`smtp.exmail.qq.com:465`
+   - 网易企业邮（通用）：`smtp.qiye.163.com:465`
+
+   > ⚠️ smtphz 系列的端口对照：**465 = SMTP**、993 = IMAP、995 = POP3、994 不属于这套系统。把 SMTP 写成 994 会直接 `Authentication failed`（实际连到了 IMAP 端口）。
 2. `MAIL_AUTH_CODE` 是邮箱后台**生成的客户端专用密码**，不是登录密码。换服务商必须重新生成。
 3. 缺失 / 鉴权失败时，`EmailService.isAvailable()` 返回 false，群发自动降级为只写 `email_sim` 类型站内通知，**不阻塞业务**。
 
