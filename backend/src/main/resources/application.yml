@@ -13,12 +13,13 @@ spring:
     multipart:
       max-file-size: 30MB
       max-request-size: 30MB
-  # SMTP 邮件发送 (默认走个人 QQ 邮箱 smtp.qq.com:465 SSL; 学校的 ruc.edu.cn 网易邮箱可通过 env 覆盖)
+  # SMTP 邮件发送 (默认走 RUC 学校邮箱 smtphz.qiye.163.com:465 SSL, 网易企业邮杭州节点)
   # 授权码不入库, 通过环境变量 MAIL_AUTH_CODE 传入; 缺失时 EmailService 自动降级为只写"email_sim"通知
+  # 切换其他邮箱: 同时设置 MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_AUTH_CODE 4 个环境变量
   mail:
-    host: ${MAIL_HOST:smtp.qq.com}
+    host: ${MAIL_HOST:smtphz.qiye.163.com}
     port: ${MAIL_PORT:465}
-    username: ${MAIL_USERNAME:3523698178@qq.com}
+    username: ${MAIL_USERNAME:2024201564@ruc.edu.cn}
     password: ${MAIL_AUTH_CODE:}
     protocol: smtp
     default-encoding: UTF-8

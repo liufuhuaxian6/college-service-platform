@@ -973,7 +973,7 @@ ivfflat 余弦索引自动维护
 └─────────────────────────────────────────────────────────────────┘
      │
      ▼
-EmailService.sendOne()  ──SMTP─→  smtp.qq.com:465 / smtp.ym.163.com:994
+EmailService.sendOne()  ──SMTP─→  smtphz.qiye.163.com:465 (RUC) / smtp.qq.com:465 (QQ)
      │
      ▼  (失败时 warn 日志 + 返回 false, 不抛异常)
 真实邮件投递到目标邮箱 (派生规则: sys_user.email || 学号@ruc.edu.cn)
@@ -990,7 +990,7 @@ EmailService.sendOne()  ──SMTP─→  smtp.qq.com:465 / smtp.ym.163.com:994
 
 | 配置 | 默认 | 说明 |
 |---|---|---|
-| `spring.mail.host` | `smtp.qq.com` | SMTP 服务器（可通过 `MAIL_HOST` 覆盖） |
+| `spring.mail.host` | `smtphz.qiye.163.com` | SMTP 服务器（默认 RUC 网易企业邮杭州节点, 可通过 `MAIL_HOST` 覆盖） |
 | `spring.mail.port` | `465` | SSL 端口（`MAIL_PORT` 覆盖） |
 | `spring.mail.username` | `3523698178@qq.com` | 发件人（`MAIL_USERNAME` 覆盖） |
 | `spring.mail.password` | (空) | 客户端授权码（`MAIL_AUTH_CODE` 必传，否则降级） |

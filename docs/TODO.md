@@ -54,6 +54,13 @@
 4. **学校邮箱不是腾讯而是网易托管** —— `ruc.edu.cn` 的 SMTP 地址需在 https://exmail.163.com/ 后台确认，常见为 `smtp.ym.163.com:994` 或 `smtp.qiye.163.com:465`；最终 demo 用学生本人的 QQ 个人邮箱作发件人，向 RUC 邮箱投递成功。
 5. **MyBatis-Plus `updateById` 默认忽略 null 字段** —— 邮箱清空（setEmail(null)）写不进库。改用 `LambdaUpdateWrapper.set(getEmail, null)` 显式 SET。
 
+6. **RUC 邮箱真实发件人最终跑通（2026-05-26 收尾）** —— RUC 学校邮箱 `2024201564@ruc.edu.cn` 托管在网易企业邮杭州节点，正确配置是 `smtphz.qiye.163.com:465 SSL`。先后踩了三个坑：
+   - 误把 SMTP 端口填成 994（其实那是 IMAP 端口，smtphz 系列里 SMTP=465 / IMAP=993 / POP3=995）
+   - 服务端「客户端授权」页面里 SMTP / POP / IMAP 三个开关分开，只开 IMAP 不开 SMTP 会 `Authentication failed`
+   - PowerShell 双引号会解析 `$VDM` 这类含 `$` 的授权码字符串，必须用**单引号** `'...'` 包住
+   
+   最终 broadcastId=10 用 RUC 真实发件人成功投递到 QQ 邮箱。
+
 ### 2026-05 · 早期里程碑
 
 - 后端基础框架 + 认证 + 系统管理（A）

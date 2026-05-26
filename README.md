@@ -173,12 +173,14 @@ ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
 
 「信息精准推送」模块依赖 SMTP 发送真实邮件。授权码**不入库**、通过环境变量传入。`deploy/.env.prod` 和 `deploy/docker-compose.prod.yml` 已经把以下 4 个变量接通到 backend 容器：
 
-| 变量 | 默认值 | 说明 |
+| 变量 | yml/.env 默认 | 说明 |
 |---|---|---|
-| `MAIL_HOST` | `smtp.qq.com` | SMTP 服务器地址（网易企业邮改 `smtp.ym.163.com`） |
-| `MAIL_PORT` | `465` | SSL 端口（网易企业邮多用 `994`） |
-| `MAIL_USERNAME` | `3523698178@qq.com` | 发件人邮箱（必须与授权码同源） |
-| `MAIL_AUTH_CODE` | (空) | 客户端授权码（在邮箱后台单独生成，**不是登录密码**） |
+| `MAIL_HOST` | `smtphz.qiye.163.com` | SMTP 服务器（RUC 学校邮箱 = 网易企业邮杭州节点，**实测可用**） |
+| `MAIL_PORT` | `465` | SSL 端口。**注意**：smtphz 系列中 994 是 IMAP、995 是 POP3、465 才是 SMTP，别填错 |
+| `MAIL_USERNAME` | `2024201564@ruc.edu.cn` | 发件人邮箱（必须与授权码同源） |
+| `MAIL_AUTH_CODE` | (空) | 客户端授权码（在 https://mail.ruc.edu.cn → 设置 → 客户端授权密码 中生成，**不是登录密码**） |
+
+其他邮箱服务商（覆盖默认即可）：QQ 个人 `smtp.qq.com:465` / QQ 企业 `smtp.exmail.qq.com:465` / 网易企业邮通用 `smtp.qiye.163.com:465`。
 
 - 本地开发：在启动后端的 PowerShell 同会话内 `$env:MAIL_AUTH_CODE = "你的授权码"; .\mvnw.cmd spring-boot:run`
 - 生产部署：在 `deploy-package/.env` 里编辑 `MAIL_AUTH_CODE=`
