@@ -8,6 +8,7 @@ import com.ruc.college.module.approval.entity.ApprovalApplication;
 import com.ruc.college.module.approval.entity.ApprovalRecord;
 import com.ruc.college.module.approval.entity.ApprovalType;
 import com.ruc.college.module.approval.service.ApprovalService;
+import com.ruc.college.module.qa.entity.QaDocument;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -32,9 +33,17 @@ public class ApprovalController {
         return Result.ok(approvalService.getApprovalTypes());
     }
 
+    /** 学生可申请的模板列表 (办公模板 doc_type='template', 已上传 file_path 非空) */
+    @GetMapping("/templates")
+    public Result<List<QaDocument>> applicableTemplates() {
+        return Result.ok(approvalService.getApplicableTemplates());
+    }
+
     @PostMapping("/apply")
     public Result<Map<String, Object>> apply(@RequestBody ApplyRequest request) {
-        ApprovalApplication app = approvalService.apply(request.getTypeId(), request.getFormData());
+        // 新模板申请走 templateDocId, 旧 typeId 兼容: 任一非空即可
+        Long tplId = request.getTemplateDocId() != null ? request.getTemplateDocId() : request.getTypeId();
+        ApprovalApplication app = approvalService.apply(tplId, request.getFormData());
         Map<String, Object> result = new HashMap<>();
         result.put("id", app.getId());
         result.put("appNo", app.getAppNo());
@@ -73,8 +82,10 @@ public class ApprovalController {
     }
 
     @GetMapping("/my/{id}/download-file")
-    public ResponseEntity<Resource> downloadFile(@PathVariable Long id) {
-        return approvalService.downloadCertFile(id);
+    public ResponseEntity<Resource> downloadFile(
+            @PathVariable Long id,
+            @RequestParam(name = "preview", defaultValue = "false") boolean preview) {
+        return approvalService.downloadCertFile(id, preview);
     }
 
     // ==================== 管理端 ====================
@@ -124,7 +135,10 @@ public class ApprovalController {
 
     @Data
     public static class ApplyRequest {
+        /** 旧字段, 仅兼容历史前端; 新前端用 templateDocId */
         private Long typeId;
+        /** 新申请走的模板 ID (qa_document.id, doc_type='template') */
+        private Long templateDocId;
         private Map<String, Object> formData;
     }
 

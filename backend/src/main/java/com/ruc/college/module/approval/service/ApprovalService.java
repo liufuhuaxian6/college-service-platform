@@ -9,6 +9,8 @@ import com.ruc.college.module.approval.entity.*;
 import com.ruc.college.module.approval.mapper.*;
 import com.ruc.college.module.auth.entity.SysUser;
 import com.ruc.college.module.auth.mapper.SysUserMapper;
+import com.ruc.college.module.qa.entity.QaDocument;
+import com.ruc.college.module.qa.mapper.QaDocumentMapper;
 import com.ruc.college.module.system.service.SystemService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +61,7 @@ public class ApprovalService {
     private final ApprovalRecordMapper recordMapper;
     private final ApprovalTypeMapper typeMapper;
     private final SysUserMapper userMapper;
+    private final QaDocumentMapper qaDocumentMapper;
     private final SystemService systemService;
 
     @Value("${file.upload-path:./uploads}")
@@ -74,23 +77,41 @@ public class ApprovalService {
         );
     }
 
+    /**
+     * 学生可申请的模板列表 = qa_document 中 doc_type='template' 且已上传文件 (file_path 非空).
+     * 待上线的模板不出现在申请页.
+     */
+    public List<QaDocument> getApplicableTemplates() {
+        return qaDocumentMapper.selectList(
+                new LambdaQueryWrapper<QaDocument>()
+                        .eq(QaDocument::getDocType, "template")
+                        .isNotNull(QaDocument::getFilePath)
+                        .ne(QaDocument::getFilePath, "")
+                        .orderByAsc(QaDocument::getId));
+    }
+
+    /**
+     * 提交申请: 学生选择一份办公模板 + 填表单. 通过后会用该模板套学生信息生成 PDF.
+     * 模板申请统一走 2 级审批 (管理老师).
+     */
     @Transactional
-    public ApprovalApplication apply(Long typeId, java.util.Map<String, Object> formData) {
-        if (typeId == null) throw new BusinessException("审批类型不能为空");
-        ApprovalType type = typeMapper.selectById(typeId);
-        if (type == null) throw new BusinessException("审批类型不存在");
-        if (!StringUtils.hasText(type.getApprovalChain())) throw new BusinessException("审批链配置为空");
+    public ApprovalApplication apply(Long templateDocId, java.util.Map<String, Object> formData) {
+        if (templateDocId == null) throw new BusinessException("请选择申请模板");
+        QaDocument tpl = qaDocumentMapper.selectById(templateDocId);
+        if (tpl == null || !"template".equals(tpl.getDocType())) {
+            throw new BusinessException("模板不存在");
+        }
+        if (!StringUtils.hasText(tpl.getFilePath())) {
+            throw new BusinessException("该模板尚未上线, 暂不能申请");
+        }
 
         ApprovalApplication app = new ApprovalApplication();
         app.setAppNo(generateAppNo());
         app.setUserId(UserContext.getUserId());
-        app.setTypeId(typeId);
+        app.setTemplateDocId(templateDocId);
         app.setFormData(formData);
         app.setStatus(ApprovalStatus.PENDING.getCode());
-
-        // 设置第一级审批人角色
-        String[] chain = type.getApprovalChain().split(",");
-        app.setCurrentApproverLevel(Integer.parseInt(chain[0].trim()));
+        app.setCurrentApproverLevel(2);   // 统一走二级审批
 
         applicationMapper.insert(app);
 
@@ -135,6 +156,8 @@ public class ApprovalService {
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Set<Long> userIds = apps.stream().map(ApprovalApplication::getUserId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> tplIds = apps.stream().map(ApprovalApplication::getTemplateDocId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
 
         Map<Long, ApprovalType> typeMap = typeIds.isEmpty() ? Map.of()
                 : typeMapper.selectBatchIds(typeIds).stream()
@@ -142,14 +165,25 @@ public class ApprovalService {
         Map<Long, SysUser> userMap = userIds.isEmpty() ? Map.of()
                 : userMapper.selectBatchIds(userIds).stream()
                         .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+        Map<Long, QaDocument> tplMap = tplIds.isEmpty() ? Map.of()
+                : qaDocumentMapper.selectBatchIds(tplIds).stream()
+                        .collect(Collectors.toMap(QaDocument::getId, Function.identity(), (a, b) -> a));
 
         for (ApprovalApplication a : apps) {
-            ApprovalType t = typeMap.get(a.getTypeId());
-            if (t != null) a.setTypeName(t.getName());
-            SysUser u = userMap.get(a.getUserId());
-            if (u != null) {
-                a.setUserName(u.getName());
-                a.setStudentId(u.getStudentId());
+            if (a.getTypeId() != null) {
+                ApprovalType t = typeMap.get(a.getTypeId());
+                if (t != null) a.setTypeName(t.getName());
+            }
+            if (a.getTemplateDocId() != null) {
+                QaDocument tpl = tplMap.get(a.getTemplateDocId());
+                if (tpl != null) a.setTemplateName(tpl.getTitle());
+            }
+            if (a.getUserId() != null) {
+                SysUser u = userMap.get(a.getUserId());
+                if (u != null) {
+                    a.setUserName(u.getName());
+                    a.setStudentId(u.getStudentId());
+                }
             }
         }
     }
@@ -209,33 +243,49 @@ public class ApprovalService {
     }
 
     @Transactional
-    public ResponseEntity<Resource> downloadCertFile(Long id) {
+    /**
+     * 学生预览 / 下载证明 PDF.
+     * @param preview true=仅预览, 不变状态; false=下载, 触发锁定 (downloaded)
+     */
+    public ResponseEntity<Resource> downloadCertFile(Long id, boolean preview) {
         ApprovalApplication app = applicationMapper.selectById(id);
         if (app == null) throw new BusinessException("申请不存在");
         if (!app.getUserId().equals(UserContext.getUserId())) {
-            throw new BusinessException(403, "只能下载自己的证明");
+            throw new BusinessException(403, "只能查看自己的证明");
         }
-        ApprovalStateMachine.validateDownload(app.getStatus());
+        // 锁定状态下: 预览仍允许 (打开归档), 下载拒绝 (已锁)
+        if (!preview) {
+            ApprovalStateMachine.validateDownload(app.getStatus());
+        } else if (!ApprovalStatus.APPROVED.getCode().equals(app.getStatus())
+                && !ApprovalStatus.DOWNLOADED.getCode().equals(app.getStatus())) {
+            throw new BusinessException("申请尚未通过, 暂无法预览证明");
+        }
 
-        ApprovalType type = typeMapper.selectById(app.getTypeId());
-        if (type == null) throw new BusinessException("审批类型不存在");
         SysUser user = userMapper.selectById(app.getUserId());
         if (user == null) throw new BusinessException("用户不存在");
 
-        String relativePath = ensureCertFile(app, type, user);
+        String relativePath = ensureCertFile(app, user);
         File file = new File(System.getProperty("user.dir"), relativePath);
         if (!file.exists() || !file.isFile()) throw new BusinessException("证明文件不存在");
 
-        app.setCertFilePath(relativePath);
-        app.setStatus(ApprovalStatus.DOWNLOADED.getCode());
-        app.setDownloadedAt(LocalDateTime.now());
-        applicationMapper.updateById(app);
+        // 只有"下载"模式才触发锁定
+        if (!preview) {
+            app.setCertFilePath(relativePath);
+            app.setStatus(ApprovalStatus.DOWNLOADED.getCode());
+            app.setDownloadedAt(LocalDateTime.now());
+            applicationMapper.updateById(app);
+        } else if (app.getCertFilePath() == null) {
+            // 第一次预览, 记下 cert_file_path 方便管理端也能拿到
+            app.setCertFilePath(relativePath);
+            applicationMapper.updateById(app);
+        }
 
         Resource resource = new FileSystemResource(file);
         String encodedName = URLEncoder.encode(file.getName(), StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        (preview ? "inline" : "attachment") + "; filename*=UTF-8''" + encodedName)
                 .body(resource);
     }
 
@@ -270,10 +320,16 @@ public class ApprovalService {
         if (!ApprovalStatus.PENDING.getCode().equals(app.getStatus())) throw new BusinessException("当前状态不允许审批");
         assertApproverPermission(app);
 
-        ApprovalType type = typeMapper.selectById(app.getTypeId());
-        if (type == null) throw new BusinessException("审批类型不存在");
-        if (!StringUtils.hasText(type.getApprovalChain())) throw new BusinessException("审批链配置为空");
-        String[] chain = type.getApprovalChain().split(",");
+        // 审批链解析: 模板申请统一一级审批 (即当前层级是终点); 旧的 type_id 申请按 approval_type.approvalChain 推进
+        String[] chain;
+        if (app.getTemplateDocId() != null) {
+            chain = new String[]{ String.valueOf(app.getCurrentApproverLevel()) };
+        } else {
+            ApprovalType type = app.getTypeId() != null ? typeMapper.selectById(app.getTypeId()) : null;
+            if (type == null) throw new BusinessException("审批类型不存在");
+            if (!StringUtils.hasText(type.getApprovalChain())) throw new BusinessException("审批链配置为空");
+            chain = type.getApprovalChain().split(",");
+        }
 
         // 检查是否还有下一级审批
         int currentIndex = -1;
@@ -381,7 +437,7 @@ public class ApprovalService {
         }
     }
 
-    private String ensureCertFile(ApprovalApplication app, ApprovalType type, SysUser user) {
+    private String ensureCertFile(ApprovalApplication app, SysUser user) {
         String normalizedUploadPath = normalizeRelativePath(uploadPath);
         String dateDir = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
         String fileName = app.getAppNo() + ".pdf";
@@ -396,7 +452,16 @@ public class ApprovalService {
             return relativePath;
         }
 
-        byte[] pdf = buildSimplePdfBytes(buildPdfLines(app, type, user));
+        List<String> lines;
+        if (app.getTemplateDocId() != null) {
+            QaDocument tpl = qaDocumentMapper.selectById(app.getTemplateDocId());
+            lines = buildLinesFromTemplate(app, user, tpl);
+        } else {
+            ApprovalType type = app.getTypeId() != null ? typeMapper.selectById(app.getTypeId()) : null;
+            lines = buildLegacyLines(app, type, user);
+        }
+
+        byte[] pdf = buildSimplePdfBytes(lines);
         try (FileOutputStream fos = new FileOutputStream(file)) {
             fos.write(pdf);
         } catch (Exception e) {
@@ -405,15 +470,120 @@ public class ApprovalService {
         return relativePath;
     }
 
-    private static List<String> buildPdfLines(ApprovalApplication app, ApprovalType type, SysUser user) {
+    private static List<String> buildLegacyLines(ApprovalApplication app, ApprovalType type, SysUser user) {
         List<String> lines = new ArrayList<>();
         lines.add("学院学生综合服务平台 - 电子证明");
         lines.add("申请编号: " + safe(app.getAppNo()));
-        lines.add("证明类型: " + safe(type.getName()));
+        lines.add("证明类型: " + safe(type != null ? type.getName() : "未知"));
         lines.add("学号: " + safe(user.getStudentId()));
         lines.add("姓名: " + safe(user.getName()));
         lines.add("生成日期: " + LocalDate.now());
         return lines;
+    }
+
+    /**
+     * 读取 docx 模板文本, 替换《姓名》《学号》《班级》《专业》《年级》《用途》《份数》《备注》《申请日期》
+     * 等占位符为实际值, 输出按段落分行的纯文本, 后续 PDFBox 渲染.
+     */
+    private List<String> buildLinesFromTemplate(ApprovalApplication app, SysUser user, QaDocument tpl) {
+        Map<String, String> map = buildPlaceholderMap(app, user);
+
+        List<String> lines = new ArrayList<>();
+        // 标题
+        String title = tpl != null ? tpl.getTitle() : "学院电子证明";
+        lines.add(title);
+        lines.add("申请编号: " + safe(app.getAppNo()));
+
+        // 读取 docx 段落文本
+        List<String> bodyLines = new ArrayList<>();
+        if (tpl != null && StringUtils.hasText(tpl.getFilePath())) {
+            File docxFile = new File(System.getProperty("user.dir"), tpl.getFilePath());
+            if (docxFile.exists() && docxFile.isFile()) {
+                bodyLines = extractDocxParagraphs(docxFile);
+            } else {
+                log.warn("模板源文件不存在: {}", docxFile.getAbsolutePath());
+            }
+        }
+        if (bodyLines.isEmpty()) {
+            // 模板没法读取时的降级文本
+            bodyLines = List.of(
+                    "兹证明 《姓名》 (学号: 《学号》) 系本院 《年级》 级",
+                    "《专业》 《班级》 学生.",
+                    "用途: 《用途》",
+                    "备注: 《备注》",
+                    "申请日期: 《申请日期》"
+            );
+        }
+
+        for (String raw : bodyLines) {
+            String replaced = applyPlaceholders(raw, map);
+            if (StringUtils.hasText(replaced)) lines.add(replaced);
+        }
+        return lines;
+    }
+
+    /** 占位符 → 实际值映射. 支持 《...》【...】{{...}} 三种格式书写. */
+    private static Map<String, String> buildPlaceholderMap(ApprovalApplication app, SysUser user) {
+        Map<String, Object> form = app.getFormData() != null ? app.getFormData() : Map.of();
+        Map<String, String> m = new HashMap<>();
+        m.put("姓名", safe(user.getName()));
+        m.put("学号", safe(user.getStudentId()));
+        m.put("年级", safe(user.getGrade()));
+        m.put("专业", safe(user.getMajor()));
+        m.put("班级", safe(user.getClassName()));
+        m.put("手机号", safe(user.getPhone()));
+        m.put("用途", toStr(form.get("purpose")));
+        m.put("份数", toStr(form.get("copies")));
+        m.put("备注", toStr(form.get("remark")));
+        m.put("申请编号", safe(app.getAppNo()));
+        m.put("申请日期", LocalDate.now().toString());
+        m.put("生成日期", LocalDate.now().toString());
+        return m;
+    }
+
+    private static String applyPlaceholders(String text, Map<String, String> map) {
+        if (text == null) return "";
+        String out = text;
+        for (Map.Entry<String, String> e : map.entrySet()) {
+            String key = e.getKey();
+            String val = e.getValue() == null ? "" : e.getValue();
+            out = out.replace("《" + key + "》", val);
+            out = out.replace("【" + key + "】", val);
+            out = out.replace("{{" + key + "}}", val);
+        }
+        return out;
+    }
+
+    /** 用 Apache POI 读 docx 段落 + 表格单元格里的文本. */
+    private static List<String> extractDocxParagraphs(File docx) {
+        List<String> result = new ArrayList<>();
+        try (java.io.FileInputStream in = new java.io.FileInputStream(docx);
+             org.apache.poi.xwpf.usermodel.XWPFDocument doc = new org.apache.poi.xwpf.usermodel.XWPFDocument(in)) {
+            for (org.apache.poi.xwpf.usermodel.XWPFParagraph p : doc.getParagraphs()) {
+                String t = p.getText();
+                if (StringUtils.hasText(t)) result.add(t);
+            }
+            for (org.apache.poi.xwpf.usermodel.XWPFTable table : doc.getTables()) {
+                for (org.apache.poi.xwpf.usermodel.XWPFTableRow row : table.getRows()) {
+                    StringBuilder rowSb = new StringBuilder();
+                    for (org.apache.poi.xwpf.usermodel.XWPFTableCell cell : row.getTableCells()) {
+                        String ct = cell.getText();
+                        if (StringUtils.hasText(ct)) {
+                            if (rowSb.length() > 0) rowSb.append("  |  ");
+                            rowSb.append(ct.trim());
+                        }
+                    }
+                    if (rowSb.length() > 0) result.add(rowSb.toString());
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("解析 docx 模板失败: {}", ex.toString());
+        }
+        return result;
+    }
+
+    private static String toStr(Object v) {
+        return v == null ? "" : String.valueOf(v);
     }
 
     /** 系统中文 TTF/TTC 路径缓存: -1=未查找, null=找不到, 否则=路径 */

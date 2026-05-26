@@ -7,26 +7,28 @@
     </view>
 
     <view class="section-head">
-      <text class="section-title">类型选择</text>
-      <text class="section-desc">请选择本次需要开具的证明类型</text>
+      <text class="section-title">选择证明模板</text>
+      <text class="section-desc">通过后将基于该模板自动生成 PDF, 含你的姓名/学号等信息</text>
     </view>
 
     <view class="type-list">
       <view
-        v-for="t in types"
+        v-for="t in templates"
         :key="t.id"
         class="type-item"
-        :class="{ selected: selectedType === t.id }"
-        @click="selectType(t.id)"
+        :class="{ selected: selectedTemplate === t.id }"
+        @click="selectTemplate(t.id)"
       >
-        <view class="type-icon">{{ getTypeInitial(t.name) }}</view>
         <view class="type-content">
-          <text class="type-name">{{ t.name }}</text>
-          <text class="type-desc">{{ t.description }}</text>
+          <text class="type-name">{{ t.title }}</text>
+          <text class="type-desc">{{ t.description || (t.category ? t.category + ' · 办公模板' : '办公模板') }}</text>
         </view>
         <view class="type-check">
-          <text v-if="selectedType === t.id">✓</text>
+          <text v-if="selectedTemplate === t.id">✓</text>
         </view>
+      </view>
+      <view v-if="!templates.length" class="empty-hint">
+        <text>暂无可用模板, 请联系管理员上传办公模板</text>
       </view>
     </view>
 
@@ -37,8 +39,8 @@
 
     <view class="form">
       <view class="form-summary">
-        <text class="summary-label">当前类型</text>
-        <text class="summary-value">{{ selectedTypeName || '未选择' }}</text>
+        <text class="summary-label">已选模板</text>
+        <text class="summary-value">{{ selectedTemplateName || '未选择' }}</text>
       </view>
 
       <view class="field">
@@ -104,39 +106,29 @@
 import { computed, ref, reactive, onMounted } from 'vue'
 import { approvalApi } from '@/api'
 
-const types = ref([])
-const selectedType = ref(null)
+const templates = ref([])
+const selectedTemplate = ref(null)
 const submitting = ref(false)
 const formData = reactive({ purpose: '', copies: 1, remark: '' })
 
-const selectedTypeName = computed(() => types.value.find((item) => item.id === selectedType.value)?.name || '')
-const canSubmit = computed(() => !!selectedType.value && !!formData.purpose.trim())
+const selectedTemplateName = computed(
+  () => templates.value.find((item) => item.id === selectedTemplate.value)?.title || ''
+)
+const canSubmit = computed(() => !!selectedTemplate.value && !!formData.purpose.trim())
 
-onMounted(loadTypes)
+onMounted(loadTemplates)
 
-async function loadTypes() {
+async function loadTemplates() {
   try {
-    const res = await approvalApi.getTypes()
-    types.value = res.data || []
+    const res = await approvalApi.getTemplates()
+    templates.value = res.data || []
   } catch (e) {
-    types.value = []
-  }
-  if (!types.value.length) {
-    types.value = [
-      { id: 1, name: '在读证明', description: '用于证明当前在校就读状态' },
-      { id: 2, name: '成绩证明', description: '用于证明课程成绩与学业情况' },
-      { id: 3, name: '政审证明', description: '开具政审相关证明，需院领导审批' },
-      { id: 4, name: '离校证明', description: '用于证明毕业或离校相关事项' },
-    ]
+    templates.value = []
   }
 }
 
-function selectType(id) {
-  selectedType.value = id
-}
-
-function getTypeInitial(name) {
-  return String(name || '证').slice(0, 1)
+function selectTemplate(id) {
+  selectedTemplate.value = id
 }
 
 function changeCopies(delta) {
@@ -148,7 +140,7 @@ function confirmSubmit() {
   return new Promise((resolve) => {
     uni.showModal({
       title: '确认提交',
-      content: '确定提交该证明申请吗？',
+      content: '确定提交该证明申请吗？通过后将自动生成 PDF。',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false),
     })
@@ -156,8 +148,8 @@ function confirmSubmit() {
 }
 
 async function submitApply() {
-  if (!selectedType.value) {
-    uni.showToast({ title: '请选择类型', icon: 'none' })
+  if (!selectedTemplate.value) {
+    uni.showToast({ title: '请选择模板', icon: 'none' })
     return
   }
   if (!formData.purpose.trim()) {
@@ -170,7 +162,7 @@ async function submitApply() {
   submitting.value = true
   try {
     await approvalApi.apply({
-      typeId: selectedType.value,
+      templateDocId: selectedTemplate.value,
       formData: {
         purpose: formData.purpose,
         copies: Number(formData.copies || 1),

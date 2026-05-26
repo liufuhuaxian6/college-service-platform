@@ -67,12 +67,15 @@ export const partyApi = {
 // ==================== 审批 ====================
 export const approvalApi = {
   getTypes: () => request({ url: '/approval/types' }),
+  getTemplates: () => request({ url: '/approval/templates' }),
   apply: (data) => request({ url: '/approval/apply', method: 'POST', data }),
   getMyPage: (params) => request({ url: '/approval/my/page', data: params }),
   getMyDetail: (id) => request({ url: `/approval/my/${id}` }),
   withdraw: (id) => request({ url: `/approval/my/${id}/withdraw`, method: 'PUT' }),
   download: (id) => request({ url: `/approval/my/${id}/download` }),
-  downloadFileUrl: (id) => `${BASE_URL}/approval/my/${id}/download-file`,
+  /** preview=true 仅预览不锁定; 默认 false 下载并锁定 */
+  downloadFileUrl: (id, preview = false) =>
+    `${BASE_URL}/approval/my/${id}/download-file${preview ? '?preview=true' : ''}`,
 }
 
 // ==================== 学生 ====================

@@ -32,7 +32,9 @@
             <span class="cell-sub">{{ row.studentId || row.userId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="typeName" label="证明类型" width="140" show-overflow-tooltip />
+        <el-table-column label="证明类型 / 模板" width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.templateName || row.typeName || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="110">
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
@@ -80,7 +82,7 @@
           {{ detail.userName || '-' }}
           <span class="cell-sub">{{ detail.studentId || detail.userId }}</span>
         </el-descriptions-item>
-        <el-descriptions-item label="证明类型">{{ detail.typeName || `类型 ${detail.typeId}` }}</el-descriptions-item>
+        <el-descriptions-item label="证明类型 / 模板">{{ detail.templateName || detail.typeName || `类型 ${detail.typeId}` }}</el-descriptions-item>
         <el-descriptions-item label="状态"><StatusTag :status="detail.status" /></el-descriptions-item>
         <el-descriptions-item label="当前审批层级">L{{ detail.currentApproverLevel || '-' }}</el-descriptions-item>
         <el-descriptions-item label="下载时间">{{ detail.downloadedAt || '-' }}</el-descriptions-item>

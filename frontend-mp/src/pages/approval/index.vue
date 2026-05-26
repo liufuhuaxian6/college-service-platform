@@ -46,7 +46,7 @@
     >
       <view class="app-top">
         <view class="app-main">
-          <text class="app-title">{{ app.typeName || '证明申请' }}</text>
+          <text class="app-title">{{ app.templateName || app.typeName || '证明申请' }}</text>
           <text class="app-no">{{ app.appNo || '暂无编号' }}</text>
         </view>
         <StatusPill :status="normalizedStatus(app)" />
@@ -74,6 +74,13 @@
       </view>
 
       <view class="app-actions" v-if="app.status === 'approved' || app.status === 'pending' || isLocked(app)">
+        <view
+          v-if="app.status === 'approved' || isLocked(app)"
+          class="action-btn ghost"
+          @click.stop="handlePreview(app.id)"
+        >
+          预览
+        </view>
         <view
           v-if="app.status === 'approved' && !isLocked(app)"
           class="action-btn primary"
@@ -196,30 +203,39 @@ async function handleDownload(id) {
     title: '确认下载',
     content: '下载后申请将归档锁定，不能再撤回或修改，确定下载吗？',
     success: (res) => {
-      if (res.confirm) downloadFile(id)
+      if (res.confirm) downloadFile(id, false)
     },
   })
 }
 
-function downloadFile(id) {
+function handlePreview(id) {
+  // 预览不锁定状态, 可反复调用
+  downloadFile(id, true)
+}
+
+function downloadFile(id, preview) {
   const token = uni.getStorageSync('token') || ''
-  uni.showLoading({ title: '下载中' })
+  uni.showLoading({ title: preview ? '加载中' : '下载中' })
   uni.downloadFile({
-    url: approvalApi.downloadFileUrl(id),
+    url: approvalApi.downloadFileUrl(id, preview),
     header: token ? { Authorization: `Bearer ${token}` } : {},
     success: (res) => {
       if (res.statusCode !== 200) {
-        uni.showToast({ title: '下载失败', icon: 'none' })
+        uni.showToast({ title: preview ? '预览失败' : '下载失败', icon: 'none' })
         return
       }
       uni.openDocument({
         filePath: res.tempFilePath,
+        fileType: 'pdf',
         showMenu: true,
-        complete: loadApplications,
+        complete: () => {
+          // 下载操作回来后刷新状态 (会变成 downloaded), 预览不需要刷新
+          if (!preview) loadApplications()
+        },
       })
     },
     fail: () => {
-      uni.showToast({ title: '下载失败', icon: 'none' })
+      uni.showToast({ title: preview ? '预览失败' : '下载失败', icon: 'none' })
     },
     complete: () => {
       uni.hideLoading()

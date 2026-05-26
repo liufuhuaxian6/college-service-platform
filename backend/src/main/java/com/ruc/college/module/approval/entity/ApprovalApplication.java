@@ -15,6 +15,8 @@ public class ApprovalApplication {
     private String appNo;
     private Long userId;
     private Long typeId;
+    /** 模板申请: qa_document.id (doc_type='template'), 通过后用此模板生成 PDF */
+    private Long templateDocId;
 
     @TableField(typeHandler = JsonbTypeHandler.class)
     private Map<String, Object> formData;
@@ -32,9 +34,12 @@ public class ApprovalApplication {
     private LocalDateTime updatedAt;
 
     // ====== 以下字段非数据库列, 仅用于响应返回时回填关联信息 ======
-    /** 审批类型名称, 来自 approval_type.name */
+    /** 审批类型名称, 来自 approval_type.name (旧申请) */
     @TableField(exist = false)
     private String typeName;
+    /** 模板名称, 来自 qa_document.title (新模板申请) */
+    @TableField(exist = false)
+    private String templateName;
     /** 申请人姓名, 来自 sys_user.name */
     @TableField(exist = false)
     private String userName;

@@ -271,7 +271,8 @@ CREATE TABLE approval_application (
     id                      BIGSERIAL PRIMARY KEY,
     app_no                  VARCHAR(50) UNIQUE NOT NULL,
     user_id                 BIGINT NOT NULL REFERENCES sys_user(id),
-    type_id                 BIGINT NOT NULL REFERENCES approval_type(id),
+    type_id                 BIGINT REFERENCES approval_type(id),
+    template_doc_id         BIGINT REFERENCES qa_document(id),
     form_data               JSONB,
     status                  VARCHAR(20) NOT NULL DEFAULT 'draft',
     current_approver_level  SMALLINT,
@@ -286,9 +287,12 @@ COMMENT ON TABLE approval_application IS '审批申请表';
 COMMENT ON COLUMN approval_application.status IS '状态: draft/pending/approved/rejected/withdrawn/downloaded';
 COMMENT ON COLUMN approval_application.downloaded_at IS '下载时间（非空=已锁定，严禁撤回）';
 COMMENT ON COLUMN approval_application.withdraw_deadline IS '撤回截止时间（通过后1-2天）';
+COMMENT ON COLUMN approval_application.template_doc_id IS '模板 (qa_document.id, doc_type=template), 通过后用此模板生成 PDF';
+COMMENT ON COLUMN approval_application.type_id IS '旧的审批类型 ID (保留兼容), 新申请用 template_doc_id';
 CREATE INDEX idx_app_user ON approval_application(user_id);
 CREATE INDEX idx_app_status ON approval_application(status);
 CREATE INDEX idx_app_type ON approval_application(type_id);
+CREATE INDEX idx_app_template ON approval_application(template_doc_id);
 
 -- 审批记录表
 CREATE TABLE approval_record (
