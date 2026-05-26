@@ -19,7 +19,7 @@ spring:
   mail:
     host: ${MAIL_HOST:smtphz.qiye.163.com}
     port: ${MAIL_PORT:465}
-    username: ${MAIL_USERNAME:2024201564@ruc.edu.cn}
+    username: ${MAIL_USERNAME:}
     password: ${MAIL_AUTH_CODE:}
     protocol: smtp
     default-encoding: UTF-8

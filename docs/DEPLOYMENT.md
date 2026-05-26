@@ -869,10 +869,10 @@ pwsh scripts/import-templates.ps1
 
 ```bash
 # deploy/.env.prod (随部署包一起 scp 到服务器, 部署前在 deploy-package/.env 里改)
-# 默认走 RUC 学校邮箱 (托管在网易企业邮杭州节点), 已实测可投递
+# 默认不内置真实发件邮箱; 需要真实邮件时部署前手动填写
 MAIL_HOST=smtphz.qiye.163.com   # RUC 邮箱; 切 QQ 个人邮箱用 smtp.qq.com
 MAIL_PORT=465                   # SSL 端口. 注意: smtphz 系列里 994=IMAP, 995=POP3, 465=SMTP
-MAIL_USERNAME=2024201564@ruc.edu.cn  # 发件人邮箱 (必须与授权码同源)
+MAIL_USERNAME=                  # 发件人邮箱 (必须与授权码同源)
 MAIL_AUTH_CODE=                 # 客户端授权码 - 部署前手动填入, 留空则邮件渠道降级为 email_sim
 ```
 
