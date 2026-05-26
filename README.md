@@ -154,10 +154,11 @@ npm run dev:mp-weixin   # 持续运行，文件改动会自动重新编译到 di
 
 ## 离线生产部署
 
-一行命令构建打包：
+一行命令构建打包（任意一种 PowerShell 都行）：
 
 ```powershell
-pwsh scripts/build-deploy-package.ps1
+.\scripts\build-deploy-package.ps1            # Windows PowerShell 5.1 / PowerShell 7+
+# pwsh scripts/build-deploy-package.ps1        # 如果你装了 PowerShell 7+
 ```
 
 部署前编辑 `deploy-package/.env`，把 `MAIL_AUTH_CODE=` 填上你的邮箱授权码（留空则邮件渠道自动降级，**不阻塞部署**）。

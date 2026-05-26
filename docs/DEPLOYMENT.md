@@ -15,7 +15,7 @@
 ```
 ┌──────── 本地开发电脑 (有外网) ─────────┐    ┌──── 服务器 10.10.0.27 (内网) ────┐
 │                                       │    │                                  │
-│  pwsh scripts/build-deploy-package.ps1│    │  cd ~/deploy-package             │
+│  .\scripts\build-deploy-package.ps1│    │  cd ~/deploy-package             │
 │        │                              │    │  bash deploy.sh                  │
 │        ▼ 产出 deploy-package/          │    │        │                         │
 │        │  ├─ images/*.tar (5 个)      │    │        ▼ 自动:                   │
@@ -32,7 +32,7 @@
 
 ```powershell
 # 仓库根目录执行（Windows + Docker Desktop + curl.exe）
-pwsh scripts/build-deploy-package.ps1
+.\scripts\build-deploy-package.ps1
 ```
 
 脚本会**幂等地**完成 7 步：
@@ -51,10 +51,10 @@ pwsh scripts/build-deploy-package.ps1
 **常用参数：**
 
 ```powershell
-pwsh scripts/build-deploy-package.ps1                  # 默认增量
-pwsh scripts/build-deploy-package.ps1 -SkipFrontend    # 只改了后端时
-pwsh scripts/build-deploy-package.ps1 -SkipBackend     # 只改了前端/模型时
-pwsh scripts/build-deploy-package.ps1 -Force           # 强制重建所有镜像 tar 和重下模型
+.\scripts\build-deploy-package.ps1                  # 默认增量
+.\scripts\build-deploy-package.ps1 -SkipFrontend    # 只改了后端时
+.\scripts\build-deploy-package.ps1 -SkipBackend     # 只改了前端/模型时
+.\scripts\build-deploy-package.ps1 -Force           # 强制重建所有镜像 tar 和重下模型
 ```
 
 产出位置：`deploy-package/`（已在 `.gitignore`，不会入库），大约 1.5GB。
@@ -105,7 +105,7 @@ ssh user@10.10.0.27 'cd ~/deploy-package && bash deploy.sh'
 代码改完后，本地：
 
 ```powershell
-pwsh scripts/build-deploy-package.ps1   # 增量构建, 没改的部分秒跳过
+.\scripts\build-deploy-package.ps1   # 增量构建, 没改的部分秒跳过
 ```
 
 只传变化的子目录省带宽：
