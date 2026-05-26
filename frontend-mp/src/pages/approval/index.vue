@@ -86,7 +86,7 @@
           class="action-btn ghost"
           @click.stop="handleWithdraw(app.id)"
         >
-          撤回重批
+          {{ app.status === 'pending' ? '撤回申请' : '撤回重批' }}
         </view>
         <view v-if="isLocked(app)" class="action-btn disabled">锁定归档</view>
       </view>
