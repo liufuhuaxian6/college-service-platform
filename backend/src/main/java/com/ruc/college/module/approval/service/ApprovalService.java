@@ -11,6 +11,15 @@ import com.ruc.college.module.auth.entity.SysUser;
 import com.ruc.college.module.auth.mapper.SysUserMapper;
 import com.ruc.college.module.system.service.SystemService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -30,10 +39,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ApprovalService {
@@ -362,74 +371,126 @@ public class ApprovalService {
         return lines;
     }
 
-    private static byte[] buildSimplePdfBytes(List<String> lines) {
-        try {
-            String content = buildPdfContent(lines);
-            byte[] contentBytes = content.getBytes(StandardCharsets.US_ASCII);
+    /** 系统中文 TTF/TTC 路径缓存: -1=未查找, null=找不到, 否则=路径 */
+    private static volatile File CJK_FONT_FILE;
+    private static volatile boolean CJK_FONT_LOOKED_UP = false;
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            List<Integer> offsets = new ArrayList<>();
-
-            writeAscii(out, "%PDF-1.4\n");
-
-            offsets.add(out.size());
-            writeAscii(out, "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-
-            offsets.add(out.size());
-            writeAscii(out, "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
-
-            offsets.add(out.size());
-            writeAscii(out, "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ");
-            writeAscii(out, "/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n");
-
-            offsets.add(out.size());
-            writeAscii(out, "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
-
-            offsets.add(out.size());
-            writeAscii(out, "5 0 obj\n<< /Length " + contentBytes.length + " >>\nstream\n");
-            out.write(contentBytes);
-            writeAscii(out, "\nendstream\nendobj\n");
-
-            int xrefStart = out.size();
-            writeAscii(out, "xref\n0 6\n");
-            writeAscii(out, "0000000000 65535 f \n");
-            for (int i = 0; i < offsets.size(); i++) {
-                writeAscii(out, String.format("%010d 00000 n \n", offsets.get(i)));
+    /** 在常见 OS 字体目录里查找一份可用的中文 TTF/OTF, 找到第一份就返回. */
+    private static File findCjkFont() {
+        if (CJK_FONT_LOOKED_UP) return CJK_FONT_FILE;
+        synchronized (ApprovalService.class) {
+            if (CJK_FONT_LOOKED_UP) return CJK_FONT_FILE;
+            String[] candidates = {
+                    // Windows
+                    "C:/Windows/Fonts/msyh.ttc",       // 微软雅黑
+                    "C:/Windows/Fonts/simsun.ttc",     // 宋体
+                    "C:/Windows/Fonts/simhei.ttf",     // 黑体
+                    // Linux (Ubuntu/Debian 安装 fonts-noto-cjk / fonts-wqy 后)
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+                    // macOS
+                    "/System/Library/Fonts/PingFang.ttc",
+                    "/System/Library/Fonts/STHeiti Light.ttc",
+                    "/Library/Fonts/Arial Unicode.ttf"
+            };
+            for (String path : candidates) {
+                File f = new File(path);
+                if (f.exists() && f.isFile() && f.length() > 0) {
+                    CJK_FONT_FILE = f;
+                    break;
+                }
             }
-            writeAscii(out, "trailer\n<< /Size 6 /Root 1 0 R >>\n");
-            writeAscii(out, "startxref\n" + xrefStart + "\n%%EOF\n");
+            CJK_FONT_LOOKED_UP = true;
+            if (CJK_FONT_FILE == null) {
+                log.warn("未在常见路径找到中文字体, PDF 证明将退化为 ASCII (中文显示为 ?). 服务器请安装 fonts-noto-cjk");
+            } else {
+                log.info("PDF 证明使用中文字体: {}", CJK_FONT_FILE.getAbsolutePath());
+            }
+            return CJK_FONT_FILE;
+        }
+    }
 
+    /**
+     * 用 PDFBox 渲染证明 PDF. 找到中文 TTF 时嵌入子集真正显示中文; 否则用 Helvetica 退化为 ASCII.
+     */
+    private static byte[] buildSimplePdfBytes(List<String> lines) {
+        if (lines == null || lines.isEmpty()) return new byte[0];
+        try (PDDocument doc = new PDDocument();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            PDPage page = new PDPage(PDRectangle.A4);
+            doc.addPage(page);
+
+            File cjkFile = findCjkFont();
+            PDFont titleFont;
+            PDFont bodyFont;
+            boolean usingCjk = false;
+            if (cjkFile != null) {
+                try {
+                    // embedSubset=true: 仅嵌入用到的字形, 输出小且不侵权
+                    PDFont cjk = PDType0Font.load(doc, cjkFile);
+                    titleFont = cjk;
+                    bodyFont = cjk;
+                    usingCjk = true;
+                } catch (Exception ex) {
+                    log.warn("加载中文字体失败, 退化为 Helvetica: {}", ex.getMessage());
+                    titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                    bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+                }
+            } else {
+                titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            }
+
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                float y = 780f;
+                // 标题
+                cs.beginText();
+                cs.setFont(titleFont, 20);
+                cs.newLineAtOffset(60, y);
+                cs.showText(safePdfText(lines.get(0), usingCjk));
+                cs.endText();
+                y -= 36;
+
+                // 副信息正文
+                for (int i = 1; i < lines.size(); i++) {
+                    cs.beginText();
+                    cs.setFont(bodyFont, 13);
+                    cs.newLineAtOffset(60, y);
+                    cs.showText(safePdfText(lines.get(i), usingCjk));
+                    cs.endText();
+                    y -= 24;
+                }
+
+                // 落款
+                cs.beginText();
+                cs.setFont(bodyFont, 12);
+                cs.newLineAtOffset(60, 100);
+                cs.showText(safePdfText("中国人民大学信息学院 (盖章)", usingCjk));
+                cs.endText();
+            }
+
+            doc.save(out);
             return out.toByteArray();
         } catch (Exception e) {
+            log.error("PDFBox 生成证明 PDF 失败", e);
             return new byte[0];
         }
     }
 
-    private static String buildPdfContent(List<String> lines) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("BT\n");
-        sb.append("/F1 18 Tf\n");
-        sb.append("50 800 Td\n");
-        if (lines != null && !lines.isEmpty()) {
-            sb.append("(").append(escapePdfText(lines.get(0))).append(") Tj\n");
-            sb.append("0 -30 Td\n");
-            sb.append("/F1 12 Tf\n");
-            for (int i = 1; i < lines.size(); i++) {
-                sb.append("(").append(escapePdfText(lines.get(i))).append(") Tj\n");
-                sb.append("0 -18 Td\n");
-            }
-        }
-        sb.append("ET");
-        return sb.toString();
-    }
-
-    private static String escapePdfText(String s) {
+    /** 没有 CJK 字体时把非 ASCII 字符替换成 ?, 防止 Helvetica 抛 IllegalArgumentException. */
+    private static String safePdfText(String s, boolean cjkAvailable) {
         if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)");
-    }
-
-    private static void writeAscii(ByteArrayOutputStream out, String s) throws Exception {
-        out.write(s.getBytes(StandardCharsets.US_ASCII));
+        if (cjkAvailable) return s;
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            sb.append(c < 0x80 ? c : '?');
+        }
+        return sb.toString();
     }
 
     private static String safe(String s) {
