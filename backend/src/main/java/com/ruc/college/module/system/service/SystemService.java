@@ -53,6 +53,7 @@ public class SystemService {
     private final ApprovalApplicationMapper approvalApplicationMapper;
     private final PartyProcessInstanceMapper partyProcessInstanceMapper;
     private final PartyProcessTemplateMapper partyProcessTemplateMapper;
+    private final EmailService emailService;
 
     // ==================== 用户管理 ====================
 
@@ -62,7 +63,10 @@ public class SystemService {
                 .eq(major != null, SysUser::getMajor, major)
                 .orderByAsc(SysUser::getStudentId);
         Page<SysUser> result = userMapper.selectPage(new Page<>(page, size), wrapper);
-        result.getRecords().forEach(u -> u.setPassword(null));
+        result.getRecords().forEach(u -> {
+            u.setPassword(null);
+            u.setEmail(emailService.resolveEmail(u));
+        });
         return result;
     }
 
@@ -70,6 +74,7 @@ public class SystemService {
         SysUser user = userMapper.selectById(id);
         if (user == null) throw new BusinessException("用户不存在");
         user.setPassword(null);
+        user.setEmail(emailService.resolveEmail(user));
         return user;
     }
 

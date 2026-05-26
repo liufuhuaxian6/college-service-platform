@@ -39,6 +39,12 @@ public class ApprovalController {
         return Result.ok(approvalService.getApplicableTemplates());
     }
 
+    /** 返回模板需要学生补充填写的字段，字段定义来自代码中固化的模板注册表。 */
+    @GetMapping("/templates/{id}/fields")
+    public Result<Map<String, Object>> templateFields(@PathVariable Long id) {
+        return Result.ok(approvalService.getTemplateFields(id));
+    }
+
     @PostMapping("/apply")
     public Result<Map<String, Object>> apply(@RequestBody ApplyRequest request) {
         // 新模板申请走 templateDocId, 旧 typeId 兼容: 任一非空即可

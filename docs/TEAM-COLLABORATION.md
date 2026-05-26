@@ -298,12 +298,14 @@ A 同学 (后端基础)          B 同学 (后端业务)
 |------|------|------|------|------------|------|
 | **学生端** |
 | GET | `/approval/types` | 可申请的审批类型 | 全部角色 | 无 | `List<ApprovalType>` |
-| POST | `/approval/apply` | 提交申请 | 全部角色 | `{ typeId, formData: {...} }` | `{ id, appNo }` |
+| GET | `/approval/templates` | 可选办公模板 | 全部角色 | 无 | `List<QaDocument(docType=template)>` |
+| GET | `/approval/templates/{id}/fields` | 获取模板所需字段 | 全部角色 | 模板文档 ID | `{ templateId, templateTitle, profileValues, inputs }` |
+| POST | `/approval/apply` | 提交申请 | 全部角色 | `{ typeId, templateDocId, formData: {...} }` | `{ id, appNo }` |
 | GET | `/approval/my/page` | 我的申请列表 | 全部角色 | `?page=1&size=20&status=` | `PageResult<Application>` |
 | GET | `/approval/my/{id}` | 申请详情 | 全部角色 | 无 | `Application` (含审批记录) |
 | PUT | `/approval/my/{id}/withdraw` | 撤回申请 | 全部角色 | 无 | 无 |
 | GET | `/approval/my/{id}/download` | 锁定申请并返回申请对象 | 全部角色 | 无 | `Application` |
-| GET | `/approval/my/{id}/download-file` | 生成并下载证明文件(同样触发锁定) | 全部角色 | 无 | PDF 文件流 |
+| GET | `/approval/my/{id}/download-file` | 生成证明 PDF。`preview=true` 仅预览；默认下载并触发锁定 | 全部角色 | `?preview=true/false` | PDF 文件流 |
 | **管理端** |
 | GET | `/approval/pending/page` | 待审批列表 | ≤2级 | `?page=1&size=20&typeId=` | `PageResult<Application>` |
 | PUT | `/approval/{id}/approve` | 通过 | ≤2级 | `{ comment }` | 无 |
@@ -345,6 +347,12 @@ A 同学 (后端基础)          B 同学 (后端业务)
 1. 学生调用 `/download-file` → 状态变为 `downloaded` + 记录 `downloaded_at`，并返回 PDF 文件流
 2. `downloaded` 状态后，**任何** PUT 接口必须拒绝并返回 403
 3. 管理员撤回: 仅 `approved` 状态 + `downloaded_at IS NULL` + 未超过 `withdraw_deadline`
+
+#### 证明模板规则
+
+- 党员证明、团员证明由后端 `CertTemplateRegistry` 固化生成结构，模板 docx 只作为离线参考，不在运行时读取。
+- 小程序必须先调用 `/approval/templates/{id}/fields` 渲染字段，再把用户填写内容放入 `formData` 提交。
+- 未匹配到注册模板时走通用证明文本；正式演示建议模板标题包含 `党员证明模板` 或 `团员证明模板`。
 
 #### 关键数据结构
 

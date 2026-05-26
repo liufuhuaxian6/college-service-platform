@@ -1,23 +1,25 @@
 <template>
   <view class="page">
-    <!-- 标签筛选条 -->
-    <scroll-view scroll-x class="tag-bar" v-if="tags.length">
-      <view
-        class="tag"
-        :class="{ active: activeTag === '' }"
-        @click="switchTag('')"
-      >全部</view>
-      <view
-        v-for="t in tags"
-        :key="t"
-        class="tag"
-        :class="{ active: activeTag === t }"
-        @click="switchTag(t)"
-      >{{ t }}</view>
+    <scroll-view scroll-x class="tag-bar" show-scrollbar="false">
+      <view class="tag-row">
+        <view class="tag" :class="{ active: activeTag === '' }" @click="switchTag('')">
+          全部
+        </view>
+        <view
+          v-for="t in tags"
+          :key="t"
+          class="tag"
+          :class="{ active: activeTag === t }"
+          @click="switchTag(t)"
+        >
+          {{ t }}
+        </view>
+      </view>
     </scroll-view>
 
-    <view class="actions">
-      <text class="mark-all" @click="markAll">全部标记已读</text>
+    <view class="toolbar">
+      <text class="toolbar-title">{{ activeTag || '全部通知' }}</text>
+      <text class="mark-all" @click="markAll">全部已读</text>
     </view>
 
     <view
@@ -27,16 +29,20 @@
       :class="{ unread: !n.isRead }"
       @click="markRead(n)"
     >
-      <view class="notify-head">
-        <text class="notify-title">{{ n.title }}</text>
-        <text v-if="n.source" class="notify-source">{{ n.source }}</text>
+      <view class="notify-main">
+        <view class="notify-head">
+          <view v-if="!n.isRead" class="unread-dot" />
+          <text class="notify-title">{{ n.title }}</text>
+        </view>
+        <text class="notify-content">{{ n.content }}</text>
       </view>
-      <text class="notify-content">{{ n.content }}</text>
+
       <view class="notify-foot">
-        <view class="tag-chips" v-if="splitTags(n.tags).length">
+        <view class="tag-chips">
+          <text v-if="n.source" class="tag-chip source-chip">{{ n.source }}</text>
           <text v-for="t in splitTags(n.tags)" :key="t" class="tag-chip">{{ t }}</text>
         </view>
-        <text class="notify-time">{{ n.createdAt }}</text>
+        <text class="notify-time">{{ formatTime(n.createdAt) }}</text>
       </view>
     </view>
 
@@ -61,7 +67,7 @@ onMounted(async () => {
 async function loadTags() {
   try {
     const res = await notifyApi.getTags()
-    tags.value = res.data || []
+    tags.value = normalizeTags(res.data || [])
   } catch (_) {
     tags.value = []
   }
@@ -74,6 +80,18 @@ async function loadList() {
   list.value = res.data?.records || []
 }
 
+function normalizeTags(raw) {
+  const seen = new Set()
+  return raw
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .filter((item) => {
+      if (seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+}
+
 function switchTag(t) {
   if (activeTag.value === t) return
   activeTag.value = t
@@ -82,7 +100,20 @@ function switchTag(t) {
 
 function splitTags(s) {
   if (!s) return []
-  return s.split(',').map(x => x.trim()).filter(Boolean)
+  return normalizeTags(String(s).split(','))
+}
+
+function formatTime(value) {
+  if (!value) return ''
+  const text = String(value).replace('T', ' ')
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/)
+  if (!match) return text.split('.')[0]
+  const now = new Date()
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const prefix = now.getFullYear() === year ? `${month}-${day}` : `${year}-${month}-${day}`
+  return `${prefix} ${match[4]}:${match[5]}`
 }
 
 async function markRead(n) {
@@ -104,110 +135,142 @@ async function markAll() {
 <style scoped>
 .page {
   min-height: 100vh;
-  padding: 24rpx;
-  background: var(--mp-bg);
+  padding: 20rpx 24rpx 36rpx;
+  background: linear-gradient(180deg, #FBF7F5 0%, #F6F4F2 320rpx, #F6F4F2 100%);
   box-sizing: border-box;
 }
 
-.actions {
-  text-align: right;
-  margin-bottom: 16rpx;
+.tag-bar {
+  width: 100%;
+  margin-bottom: 18rpx;
+  white-space: nowrap;
+}
+
+.tag-row {
+  display: inline-flex;
+  gap: 12rpx;
+  padding: 4rpx 0 8rpx;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96rpx;
+  height: 56rpx;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: #FFFFFF;
+  color: #5B6472;
+  border: 1rpx solid rgba(31, 35, 41, 0.08);
+  box-shadow: 0 8rpx 18rpx rgba(31, 35, 41, 0.04);
+  font-size: 24rpx;
+  font-weight: 650;
+  box-sizing: border-box;
+}
+
+.tag.active {
+  color: #FFFFFF;
+  background: #9B2C36;
+  border-color: #9B2C36;
+  box-shadow: 0 10rpx 22rpx rgba(155, 44, 54, 0.18);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6rpx 0 18rpx;
+}
+
+.toolbar-title {
+  color: #1F2329;
+  font-size: 30rpx;
+  font-weight: 800;
 }
 
 .mark-all {
-  color: var(--mp-primary);
-  font-size: 26rpx;
+  color: #9B2C36;
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
 .notify-item {
   padding: 24rpx;
-  margin-bottom: 12rpx;
-  background: var(--mp-card);
-  border: 1rpx solid var(--mp-border);
-  border-radius: var(--mp-radius);
+  margin-bottom: 18rpx;
+  background: #FFFFFF;
+  border: 1rpx solid rgba(31, 35, 41, 0.07);
+  border-radius: 22rpx;
+  box-shadow: 0 12rpx 30rpx rgba(31, 35, 41, 0.05);
 }
 
 .notify-item.unread {
-  border-left: 8rpx solid var(--mp-primary);
-}
-
-.notify-title {
-  display: block;
-  color: var(--mp-text-main);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.notify-content {
-  display: block;
-  margin-top: 8rpx;
-  color: var(--mp-text-sub);
-  font-size: 26rpx;
-  line-height: 1.5;
-}
-
-.notify-time {
-  color: var(--mp-text-muted);
-  font-size: 22rpx;
+  border-color: rgba(155, 44, 54, 0.22);
 }
 
 .notify-head {
   display: flex;
-  align-items: center;
-  gap: 12rpx;
+  align-items: flex-start;
+  gap: 10rpx;
 }
 
-.notify-source {
-  padding: 2rpx 12rpx;
-  font-size: 20rpx;
-  color: var(--mp-primary);
-  background: var(--mp-primary-light);
-  border-radius: 16rpx;
+.unread-dot {
+  width: 12rpx;
+  height: 12rpx;
+  margin-top: 14rpx;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #9B2C36;
+}
+
+.notify-title {
+  flex: 1;
+  color: #1F2329;
+  font-size: 29rpx;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.notify-content {
+  display: block;
+  margin-top: 10rpx;
+  color: #4E5969;
+  font-size: 25rpx;
+  line-height: 1.62;
 }
 
 .notify-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 10rpx;
-  gap: 12rpx;
-  flex-wrap: wrap;
+  margin-top: 18rpx;
+  gap: 16rpx;
 }
 
 .tag-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8rpx;
+  min-width: 0;
 }
 
 .tag-chip {
-  padding: 2rpx 12rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  color: #5B6472;
+  background: #F2F3F5;
   font-size: 20rpx;
-  color: var(--mp-text-sub);
-  background: #f0eeec;
-  border-radius: 16rpx;
+  line-height: 1.3;
 }
 
-.tag-bar {
-  white-space: nowrap;
-  margin-bottom: 16rpx;
-  padding-bottom: 4rpx;
+.source-chip {
+  color: #9B2C36;
+  background: #F7EDEF;
 }
 
-.tag {
-  display: inline-block;
-  padding: 8rpx 22rpx;
-  margin-right: 12rpx;
-  font-size: 24rpx;
-  color: var(--mp-text-sub);
-  background: var(--mp-card);
-  border: 1rpx solid var(--mp-border);
-  border-radius: 32rpx;
-}
-
-.tag.active {
-  color: #fff;
-  background: var(--mp-primary);
-  border-color: var(--mp-primary);
+.notify-time {
+  flex-shrink: 0;
+  color: #86909C;
+  font-size: 22rpx;
 }
 </style>

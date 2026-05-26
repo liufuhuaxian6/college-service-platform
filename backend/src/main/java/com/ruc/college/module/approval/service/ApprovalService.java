@@ -44,6 +44,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -90,6 +91,22 @@ public class ApprovalService {
                         .orderByAsc(QaDocument::getId));
     }
 
+    public Map<String, Object> getTemplateFields(Long templateDocId) {
+        QaDocument tpl = qaDocumentMapper.selectById(templateDocId);
+        if (tpl == null || !"template".equals(tpl.getDocType())) {
+            throw new BusinessException("模板不存在");
+        }
+        SysUser user = userMapper.selectById(UserContext.getUserId());
+        CertTemplateRegistry.CertTemplate template = CertTemplateRegistry.byTitle(tpl.getTitle());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("templateId", templateDocId);
+        result.put("templateTitle", tpl.getTitle());
+        result.put("profileValues", CertTemplateRegistry.profileValues(user));
+        result.put("inputs", template.getStudentInputs());
+        return result;
+    }
+
     /**
      * 提交申请: 学生选择一份办公模板 + 填表单. 通过后会用该模板套学生信息生成 PDF.
      * 模板申请统一走 2 级审批 (管理老师).
@@ -104,6 +121,7 @@ public class ApprovalService {
         if (!StringUtils.hasText(tpl.getFilePath())) {
             throw new BusinessException("该模板尚未上线, 暂不能申请");
         }
+        validateTemplateForm(tpl, formData);
 
         ApprovalApplication app = new ApprovalApplication();
         app.setAppNo(generateAppNo());
@@ -481,45 +499,24 @@ public class ApprovalService {
         return lines;
     }
 
-    /**
-     * 读取 docx 模板文本, 替换《姓名》《学号》《班级》《专业》《年级》《用途》《份数》《备注》《申请日期》
-     * 等占位符为实际值, 输出按段落分行的纯文本, 后续 PDFBox 渲染.
-     */
     private List<String> buildLinesFromTemplate(ApprovalApplication app, SysUser user, QaDocument tpl) {
-        Map<String, String> map = buildPlaceholderMap(app, user);
+        CertTemplateRegistry.CertTemplate template = CertTemplateRegistry.byTitle(tpl != null ? tpl.getTitle() : "");
+        Map<String, Object> form = app.getFormData() != null ? app.getFormData() : Map.of();
+        return template.buildLines(user, form, app.getAppNo());
+    }
 
-        List<String> lines = new ArrayList<>();
-        // 标题
-        String title = tpl != null ? tpl.getTitle() : "学院电子证明";
-        lines.add(title);
-        lines.add("申请编号: " + safe(app.getAppNo()));
-
-        // 读取 docx 段落文本
-        List<String> bodyLines = new ArrayList<>();
-        if (tpl != null && StringUtils.hasText(tpl.getFilePath())) {
-            File docxFile = new File(System.getProperty("user.dir"), tpl.getFilePath());
-            if (docxFile.exists() && docxFile.isFile()) {
-                bodyLines = extractDocxParagraphs(docxFile);
-            } else {
-                log.warn("模板源文件不存在: {}", docxFile.getAbsolutePath());
+    private void validateTemplateForm(QaDocument tpl, Map<String, Object> formData) {
+        CertTemplateRegistry.CertTemplate template = CertTemplateRegistry.byTitle(tpl != null ? tpl.getTitle() : "");
+        Map<String, Object> form = formData != null ? formData : Map.of();
+        for (CertTemplateRegistry.FieldSpec field : template.getStudentInputs()) {
+            if (!field.isRequired()) {
+                continue;
+            }
+            Object value = form.get(field.getKey());
+            if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+                throw new BusinessException("请填写" + field.getLabel());
             }
         }
-        if (bodyLines.isEmpty()) {
-            // 模板没法读取时的降级文本
-            bodyLines = List.of(
-                    "兹证明 《姓名》 (学号: 《学号》) 系本院 《年级》 级",
-                    "《专业》 《班级》 学生.",
-                    "用途: 《用途》",
-                    "备注: 《备注》",
-                    "申请日期: 《申请日期》"
-            );
-        }
-
-        for (String raw : bodyLines) {
-            String replaced = applyPlaceholders(raw, map);
-            if (StringUtils.hasText(replaced)) lines.add(replaced);
-        }
-        return lines;
     }
 
     /** 占位符 → 实际值映射. 支持 《...》【...】{{...}} 三种格式书写. */

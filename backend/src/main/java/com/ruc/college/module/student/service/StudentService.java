@@ -80,6 +80,7 @@ public class StudentService {
         // 脱敏处理
         result.getRecords().forEach(u -> {
             u.setPassword(null);
+            u.setEmail(emailService.resolveEmail(u));
             if (u.getIdCardEnc() != null) {
                 String decrypted = EncryptUtil.decrypt(u.getIdCardEnc());
                 u.setIdCardEnc(EncryptUtil.desensitize(decrypted, 3, 4));

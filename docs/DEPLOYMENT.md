@@ -718,6 +718,18 @@ curl -s http://localhost:8080/api/auth/login -X POST -H "Content-Type: applicati
 
 智能问答模块使用 RAG 检索增强生成，依赖一个 HTTP embedding 服务把中文文本转成 512 维向量。当前选用 **HuggingFace Text Embeddings Inference (TEI)** 容器 + **BAAI BGE-small-zh-v1.5** 模型。
 
+当前开发环境默认：
+
+| 项 | 值 |
+|---|---|
+| PostgreSQL / pgvector | `localhost:5433` |
+| 数据库 | `college_service` |
+| 用户名 / 密码 | `postgres / postgres` |
+| Embedding API | `http://localhost:8081/v1/embeddings` |
+| 后端 API | `http://localhost:8080/api` |
+
+`application-dev.yml` 已开启 `rag.enabled=true`，开发环境切片大小为 450 字符；`application.yml` 保留生产默认 700 字符、120 字符重叠、`top-k=4`、`min-score=0.5`。
+
 ### 12.1 国内网络注意事项
 
 | 资源 | 国内访问问题 | 解决方案 |
@@ -826,6 +838,28 @@ psql -U postgres -h localhost -p 5432 -d college_service \
 | backend 日志 `Embedding HTTP call failed` | TEI 容器未就绪或网络不通 | `docker compose logs embedding`；确认 `RAG_EMBEDDING_API_URL` 指向正确 |
 | backend 日志 `Embedding dimension mismatch: expected 512 but got X` | 模型维度与配置不符 | 校对 `rag.embedding-dim` 与模型实际输出维度 |
 | 问答返回 `sourceType: manual`（无 RAG） | 数据库无切片或检索 score 都 < min-score | 先索引文档；或临时下调 `rag.min-score` 调试 |
+| 节假日、校历、报到类问题未匹配 | 校历文件未导入、分类不对或未重新索引 | 将校历文本作为政策文档导入，分类设为 `校历安排`，管理端点「重新索引」 |
+
+### 12.7 政策文档 / 校历 / 党团文件导入
+
+管理端推荐路径：
+
+1. 进入「智能问答 → 政策文档」。
+2. 上传 PDF / DOCX / TXT 文件，分类填写实际业务分类，例如 `新生报到`、`校历安排`、`党团文件`。
+3. 上传后点击「重新索引」，后端会解析文本、切片、向量化并写入 `qa_document_chunk`。
+4. 在小程序「智能问答」输入问题验证，返回中出现 `sourceType=rag` 或带「依据」片段即表示 RAG 命中。
+
+命令行辅助脚本：
+
+```powershell
+# 批量导入党团官方文件
+pwsh scripts/import-party-docs.ps1
+
+# 批量导入办公模板
+pwsh scripts/import-templates.ps1
+```
+
+校历图片不适合直接入 RAG。当前推荐先转成 TXT/Markdown 文本，再作为政策文档导入；OCR 结果中应保留日期、放假、调休、开学、考试周等关键词。
 
 ---
 

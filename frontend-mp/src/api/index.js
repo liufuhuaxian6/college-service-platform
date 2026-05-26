@@ -68,6 +68,7 @@ export const partyApi = {
 export const approvalApi = {
   getTypes: () => request({ url: '/approval/types' }),
   getTemplates: () => request({ url: '/approval/templates' }),
+  getTemplateFields: (id) => request({ url: `/approval/templates/${id}/fields` }),
   apply: (data) => request({ url: '/approval/apply', method: 'POST', data }),
   getMyPage: (params) => request({ url: '/approval/my/page', data: params }),
   getMyDetail: (id) => request({ url: `/approval/my/${id}` }),

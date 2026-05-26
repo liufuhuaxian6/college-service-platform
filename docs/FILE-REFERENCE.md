@@ -21,7 +21,7 @@
 |------|------|------|
 | `pom.xml` | Maven 依赖清单 | 声明了 Spring Boot 3、MyBatis-Plus、JWT、Hutool、EasyExcel、Knife4j(Swagger)、MinIO、Lombok 等全部依赖。Kingbase 驱动已注释，等拿到 jar 包后取消注释即可 |
 | `Dockerfile` | 后端 Docker 镜像构建 | 两阶段构建：第一阶段用 Maven 编译打包，第二阶段用 JRE 运行，最终镜像体积小 |
-| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关，**RAG 配置**（512 维 BGE / TEI HTTP provider / min-score 0.3 / 查询前缀 / rerank-pool-size），**邮件 SMTP 配置**（`spring.mail.*` 默认 smtp.qq.com:465，授权码由 `MAIL_AUTH_CODE` 环境变量注入），**通知群发参数**（`notify.broadcast.*` 24h 撤回窗口 / 5000 上限） |
+| `src/main/resources/application.yml` | 主配置文件 | 端口 8080，接口前缀 `/api`，文件上传限制 30MB，JWT 密钥，AI 模型开关（默认 none），MyBatis-Plus 配置，Knife4j 文档开关，**RAG 配置**（512 维 BGE / TEI HTTP provider / min-score 0.5 / extractive-confidence 55 / 查询前缀 / rerank-pool-size），**邮件 SMTP 配置**（`spring.mail.*` 默认 smtp.qq.com:465，授权码由 `MAIL_AUTH_CODE` 环境变量注入），**通知群发参数**（`notify.broadcast.*` 24h 撤回窗口 / 5000 上限） |
 | `src/main/resources/application-dev.yml` | 开发环境配置 | 连接本地 PostgreSQL（替代 Kingbase 开发），Redis localhost |
 | `src/main/resources/application-prod.yml` | 生产环境配置 | 连接 Kingbase 数据库，密码从环境变量读取，关闭 SQL 日志和 Swagger |
 
@@ -135,7 +135,7 @@
 | `entity/QaDocumentChunk.java` | 政策文档向量切片，对应表 `qa_document_chunk`。字段：文档ID、标题、分类、切片序号、文本内容、关键词、score（运行时打分） |
 | `mapper/QaDocumentChunkMapper.java` | 切片表 CRUD + 余弦相似度检索的原生 SQL（`embedding <=> ?::vector`） |
 | `service/rag/EmbeddingService.java` | 向量化服务。两种 provider：`local-hash`（SHA-256 hash 兜底）和 `http`（生产环境，调用 TEI / OpenAI 兼容服务）。区分 `embed()`（文档不加前缀）和 `embedQuery()`（查询加 BGE 前缀）。兼容 OpenAI/TEI 原生/嵌套数组等多种响应格式，HTTP 失败或维度不符自动回退 local-hash |
-| `service/rag/DocumentRagService.java` | RAG 主服务。`indexDocument()` 解析 PDF/DOCX/TXT、切片（优先按"第X条"边界）、批量调 embedding 写库；`retrieve()` 向量检索 + boost 重排；`buildContext()` 拼接 prompt 上下文 |
+| `service/rag/DocumentRagService.java` | RAG 主服务。`indexDocument()` 解析 PDF/DOCX/TXT、切片（优先按"第X条"边界，长段落按语义边界切分）、批量调 embedding 写库；`retrieve()` 向量检索 + 查询扩展 + boost 重排；校历/节假日/报到/学期安排等短问题会优先匹配 `校历安排` 分类；`buildContext()` 拼接 prompt 上下文 |
 | `service/rag/RagScoringUtil.java` | 共享评分逻辑工具类。提供词项提取/同义词扩展/受众匹配/意图结构评分等，被 QaService 和 DocumentRagService 共用，避免代码重复 |
 
 #### Controller 层
@@ -205,15 +205,16 @@
 | 文件 | 用途 |
 |------|------|
 | `service/ApprovalStateMachine.java` | **审批状态机**（纯逻辑，无数据库操作）。定义了合法的状态转换表，提供三个校验方法：`validateTransition(from, to)` 校验状态流转合法性、`validateWithdraw()` 校验撤回(已下载=禁止、超期=禁止)、`validateDownload()` 校验下载(仅 approved 可下载)。这是需求中最核心的业务规则保障 |
-| `service/ApprovalService.java` | 核心业务。学生端：`apply()` 提交申请(生成编号+设置审批链第一级)、`getMyApplications()` 我的申请列表、`withdraw()` 撤回(调状态机校验)、`downloadCert()` 下载证明(**触发锁定!** 状态→downloaded + 记录时间)。管理端：`approve()` 通过(多级审批链自动推进)、`reject()` 驳回、`adminWithdraw()` 管理员撤回(状态机校验) |
+| `service/ApprovalService.java` | 核心业务。学生端：`apply()` 提交申请(校验模板必填字段、生成编号、设置审批链第一级)、`getTemplateFields()` 返回模板表单字段、`getMyApplications()` 我的申请列表、`withdraw()` 撤回(调状态机校验)、`downloadCert()` 下载证明(**触发锁定!** 状态→downloaded + 记录时间)、`downloadCertFile(preview)` 预览/下载 PDF。管理端：`approve()` 通过(多级审批链自动推进并生成证明)、`reject()` 驳回、`adminWithdraw()` 管理员撤回(状态机校验) |
+| `service/CertTemplateRegistry.java` | 证明模板注册表。运行时不解析 docx；党员证明、团员证明的正文结构、必填字段、日期格式和学生档案取值都在这里固化。未匹配到注册模板时走通用证明文本生成 |
 
-**后续需要补充**：证明 PDF 生成（根据模板填充学生信息），审批通过/驳回后调通知 Service 给学生发消息。
+审批通过/驳回/撤回会写审批记录并发送站内通知；下载后状态锁定为 `downloaded`，禁止继续撤回或重新审批。
 
 #### Controller 层
 
 | 文件 | 用途 |
 |------|------|
-| `controller/ApprovalController.java` | 学生端：`GET /approval/types` 可选类型、`POST /approval/apply` 提交、`GET /approval/my/page` 列表、`PUT /approval/my/{id}/withdraw` 撤回、`GET /approval/my/{id}/download` **下载(触发锁定)**。管理端(≤2级)：待审批列表、通过/驳回/管理员撤回、全部申请查询。关键操作标注了 @OperationLog |
+| `controller/ApprovalController.java` | 学生端：`GET /approval/types` 可选类型、`GET /approval/templates` 办公模板、`GET /approval/templates/{id}/fields` 模板字段、`POST /approval/apply` 提交、`GET /approval/my/page` 列表、`GET /approval/my/{id}` 详情、`PUT /approval/my/{id}/withdraw` 撤回、`GET /approval/my/{id}/download` 旧下载接口、`GET /approval/my/{id}/download-file?preview=true|false` PDF 预览/下载（非 preview 会触发锁定）。管理端(≤2级)：待审批列表、通过/驳回/管理员撤回、全部申请查询。关键操作标注了 @OperationLog |
 
 ---
 
@@ -331,13 +332,13 @@
 
 | 文件 | 用途 |
 |------|------|
-| `src/layouts/MainLayout.vue` | 管理端主布局。左侧深色导航栏（根据 roleLevel 动态显示/隐藏菜单项，可折叠）+ 顶栏（面包屑、通知铃铛+未读数、用户下拉菜单：改密码/退出）+ 右侧内容区。蓝/灰/白严谨配色 |
+| `src/layouts/MainLayout.vue` | 管理端主布局。左侧暗红深色导航栏（根据 roleLevel 动态显示/隐藏菜单项，可折叠）+ 顶栏（面包屑、通知铃铛+未读数、用户下拉菜单：改密码/退出）+ 右侧内容区。暗红/灰白/白色严谨配色 |
 
 ### 4.7 页面 (`src/views/`)
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `views/login/index.vue` | 登录页 | 学号+密码表单，蓝色渐变背景，白色卡片，调 authApi.login 后存 Store 跳转 |
+| `views/login/index.vue` | 登录页 | 学号+密码表单，低饱和暗红主题，白色表单区，调 authApi.login 后存 Store 跳转 |
 | `views/dashboard/index.vue` | 数据概览 | 四个统计卡片（在校学生/总用户/待审批/进行中流程），调 systemApi.getDashboard |
 | `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表、新增/编辑弹窗、删除确认 |
 | `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表、上传(限30MB)、下载、删除、「重新索引」触发 RAG 入库 |
@@ -346,8 +347,8 @@
 | `views/party/InstanceList.vue` | 学生流程管理 | 按模板/状态筛选、表格列表、推进(弹窗填备注)/暂停操作 |
 | `views/approval/PendingList.vue` | 待审批列表 | 申请编号/申请人/类型/时间、通过(填意见)/驳回(必填原因)/查看详情 |
 | `views/approval/AllList.vue` | 全部申请 | 按状态筛选(6种)、状态标签颜色区分、管理员撤回(仅 approved 且未下载)、已锁定显示标签 |
-| `views/student/StudentList.vue` | 学生信息 | 年级/专业/班级筛选、表格列表(学号/姓名/年级/专业/班级/手机)、查看详情。**后续需要补充**：详情弹窗（画像+荣誉+流程+申请汇总） |
-| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色)、Excel 导入按钮、编辑/设置角色(1-4) |
+| `views/student/StudentList.vue` | 学生信息 | 年级/专业/班级筛选、表格列表(学号/姓名/年级/专业/班级/手机/邮箱)、查看详情抽屉（画像、荣誉、流程、申请汇总） |
+| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色、邮箱列)、Excel 导入按钮、编辑用户基础信息和邮箱、设置角色(1-4) |
 | `views/system/LogList.vue` | 操作日志 | 按模块/时间范围筛选、表格列表(操作人/模块/操作/IP/时间) |
 | `views/system/NotificationBroadcast.vue` | 通知群发 | 双 tab：**群发新通知**（标题/正文/标签/来源/链接 + 角色/年级/专业/班级筛选 + 渠道勾选 + 预览目标人数）；**广播历史**（命中/已读/邮件数 + 状态徽标 + 24h 内撤回按钮） |
 
@@ -361,7 +362,7 @@
 |------|------|
 | `package.json` | npm 依赖：uni-app 系列(@dcloudio/*)、Vue3、Pinia |
 | `vite.config.js` | Vite + uni-app 插件 |
-| `src/pages.json` | 页面路由配置 + 全局样式(导航栏#1a3a5c深蓝) + TabBar 配置(首页/问答/申请/我的 四个标签页) |
+| `src/pages.json` | 页面路由配置 + 全局样式(导航栏低饱和暗红) + TabBar 配置(首页/问答/申请/我的 四个标签页) |
 | `src/manifest.json` | 小程序配置：appid(待填)、H5 开发代理(指向 localhost:8080) |
 
 ### 5.2 核心架构
@@ -370,21 +371,21 @@
 |------|------|
 | `src/main.js` | SSR 模式创建 Vue 实例，安装 Pinia |
 | `src/App.vue` | 根组件，设置全局样式(#f0f2f5 背景、平方字体) |
-| `src/api/index.js` | 基于 `uni.request` 封装的请求工具。自动注入 Token，统一错误处理(401 跳登录)。导出全部 API：authApi、qaApi、partyApi、approvalApi、studentApi、notifyApi |
+| `src/api/index.js` | 基于 `uni.request` 封装的请求工具。自动注入 Token，统一错误处理(401 跳登录)。开发环境默认 `http://localhost:8080/api`，生产环境默认 `http://10.10.0.27/api`，可用 `VITE_API_BASE_URL` 覆盖。导出全部 API：authApi、qaApi、partyApi、approvalApi、studentApi、notifyApi |
 | `src/stores/user.js` | Pinia Store，使用 `uni.getStorageSync/setStorageSync` 替代 localStorage（小程序环境）|
 
 ### 5.3 页面 (`src/pages/`)
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `pages/login/index.vue` | 登录页 | 蓝色渐变顶部 + 白色卡片表单，学号+密码登录后 switchTab 到首页 |
+| `pages/login/index.vue` | 登录页 | 暗红主题品牌区 + 白色表单卡片，密码输入隐藏，学号+密码登录后 switchTab 到首页 |
 | `pages/index/index.vue` | 首页(TabBar) | 欢迎头部(姓名+学院+通知铃铛)、四宫格入口(智能问答/政策文档/党团进度/我的申请)、最新通知列表 |
-| `pages/qa/index.vue` | 智能问答(TabBar) | **对话式聊天界面**。消息气泡(用户右侧蓝色/系统左侧白色)、AI 回答标注"仅供参考"、官方链接可复制、底部输入框+发送按钮 |
+| `pages/qa/index.vue` | 智能问答(TabBar) | **移动端 AI 应用式聊天界面**。消息气泡(用户右侧暗红/系统左侧白色)、快捷问题标签、AI 回答标注"仅供参考"、官方链接可复制、底部输入框+发送按钮 |
 | `pages/qa/document.vue` | 政策文档 | 文档列表(标题/分类/大小/下载次数)、点击下载 |
 | `pages/party/index.vue` | 党团进度 | 我的所有流程卡片：流程名称+状态标签+进度圆点条(绿=完成/蓝=当前/灰=未到)+当前步骤名 |
 | `pages/party/detail.vue` | 流程详情 | 纵向时间线：每个步骤圆点+名称+描述+完成时间/预计天数 |
 | `pages/approval/index.vue` | 我的申请(TabBar) | 申请列表(编号+状态标签)。approved 状态显示"下载证明"按钮(**弹窗警告"下载后锁定不可撤回"**)、pending 状态显示"撤回"按钮、downloaded 状态显示"已锁定归档"、底部"提交新申请"按钮 |
-| `pages/approval/apply.vue` | 提交申请 | 选择证明类型(卡片选中高亮)→填写表单(用途/份数/备注)→提交 |
+| `pages/approval/apply.vue` | 提交申请 | 现代卡片式提交页。先选择证明类型和办公模板，再调用 `getTemplateFields` 动态渲染文本/下拉/日期字段；提交 `typeId + templateDocId + formData`，由后端固定模板生成证明正文 |
 | `pages/profile/index.vue` | 个人中心(TabBar) | 头像+姓名+学号；**联系方式卡片**（邮箱/手机，点击 `uni.showModal` 编辑，含正则校验，清空回落默认派生）；荣誉列表；退出登录 |
 | `pages/notify/index.vue` | 消息中心 | 通知列表 + **横向标签筛选条**（调 `/notify/tags`）+ 来源徽章 + 标签 chips。未读左侧深红色边框、点击标记已读、「全部标记已读」按钮 |
 

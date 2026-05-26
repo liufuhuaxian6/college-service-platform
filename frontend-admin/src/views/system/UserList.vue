@@ -37,6 +37,7 @@
         <el-table-column prop="major" label="专业" min-width="140" show-overflow-tooltip />
         <el-table-column prop="className" label="班级" width="130" show-overflow-tooltip />
         <el-table-column prop="phone" label="手机号" width="130" />
+        <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
@@ -70,6 +71,7 @@
         <el-form-item label="专业"><el-input v-model="editForm.major" /></el-form-item>
         <el-form-item label="班级"><el-input v-model="editForm.className" /></el-form-item>
         <el-form-item label="手机号"><el-input v-model="editForm.phone" /></el-form-item>
+        <el-form-item label="邮箱"><el-input v-model="editForm.email" placeholder="为空时默认使用 学号@ruc.edu.cn" /></el-form-item>
         <el-form-item label="导师"><el-input v-model="editForm.tutor" /></el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="editForm.status" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="禁用" />
@@ -120,7 +122,7 @@ const total = ref(0)
 const query = reactive({ page: 1, size: 20, grade: '', major: '' })
 const editForm = reactive({
   id: null, studentId: '', name: '', grade: '', major: '',
-  className: '', phone: '', tutor: '', status: 1,
+  className: '', phone: '', email: '', tutor: '', status: 1,
 })
 
 const ROLE_LABELS = { 1: '院领导', 2: '管理老师', 3: '班团骨干', 4: '学生' }
@@ -160,6 +162,7 @@ async function editUser(row) {
     major: res.data.major || '',
     className: res.data.className || '',
     phone: res.data.phone || '',
+    email: res.data.email || '',
     tutor: res.data.tutor || '',
     status: res.data.status ?? 1,
   })
@@ -176,6 +179,7 @@ async function saveUser() {
       major: editForm.major,
       className: editForm.className,
       phone: editForm.phone,
+      email: editForm.email,
       tutor: editForm.tutor,
       status: editForm.status,
     })

@@ -701,6 +701,14 @@ approval_type (审批类型)
 
 > `form_data` 用 JSONB 类型，不同类型的申请可以有不同的表单字段，无需改表结构。
 
+当前证明模板分两层：
+
+- `approval_type` 决定审批类型和审批链，例如在读证明、成绩证明、政审证明、离校证明。
+- `qa_document(doc_type='template')` 中的办公模板记录作为学生端可选模板。党员证明、团员证明运行时不解析 docx，而是由 `CertTemplateRegistry` 根据模板标题匹配固定生成器，返回必填字段并生成证明正文。
+
+党员证明当前必填：身份证号、培养层次、入党日期、所属党支部、证明用途。
+团员证明当前必填：身份证号、培养层次、入团日期、团员编号、证明用途。
+
 **审批状态机**（status 字段的流转规则）：
 
 ```
@@ -887,6 +895,7 @@ List<SysUser> students = userMapper.selectList(
 │   + 0.25 × 元数据（标题/分类/keywords）重叠  │
 │   + 0.35 × 意图结构匹配（"多久"→年限词）     │
 │   + 0.45 × 受众范围匹配（"本科生"→标题）     │
+│   + 校历/节假日/报到等短问题查询扩展和分类过滤 │
 │  按总分降序取 topK 条                       │
 └─────────────────────────────────────────┘
          │
@@ -929,7 +938,8 @@ ivfflat 余弦索引自动维护
 | `chunk-size` | 700 | 长段落切片最大字符数 |
 | `chunk-overlap` | 120 | 长段落切片之间的重叠字符数 |
 | `top-k` | 4 | 最终返回的片段数 |
-| `min-score` | 0.3 | 余弦相似度阈值（local-hash 时期为 0.05） |
+| `min-score` | 0.5 | 余弦相似度阈值（local-hash 时期为 0.05；dev/prod 可覆盖） |
+| `extractive-confidence` | 55 | 抽取式回答置信度阈值，低于阈值转 manual 兜底 |
 | `rerank-pool-size` | 20 | 从 pgvector 召回 `topK × 此值` 条候选送入重排 |
 | `embedding.provider` | http | `local-hash` 或 `http`（生产用 http） |
 | `embedding.api-url` | http://localhost:8081/v1/embeddings | TEI 服务地址，可由 `RAG_EMBEDDING_API_URL` 环境变量覆盖 |

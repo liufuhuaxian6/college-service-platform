@@ -27,6 +27,7 @@
         <el-table-column prop="major" label="专业" min-width="160" show-overflow-tooltip />
         <el-table-column prop="className" label="班级" width="120" />
         <el-table-column prop="phone" label="手机号" width="140" />
+        <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
         <el-table-column prop="roleLevel" label="角色等级" width="100" />
         <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
@@ -55,6 +56,7 @@
         <el-descriptions-item label="专业">{{ detail.major || '-' }}</el-descriptions-item>
         <el-descriptions-item label="班级">{{ detail.className || '-' }}</el-descriptions-item>
         <el-descriptions-item label="手机号">{{ detail.phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="邮箱">{{ detail.email || '-' }}</el-descriptions-item>
         <el-descriptions-item label="身份证号">{{ detail.idCard || '-' }}</el-descriptions-item>
       </el-descriptions>
 
