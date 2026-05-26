@@ -1,7 +1,10 @@
 <template>
   <view class="page">
     <view class="profile-hero">
-      <view class="avatar">{{ userInitial }}</view>
+      <view class="avatar">
+        <view class="avatar-head" />
+        <view class="avatar-body" />
+      </view>
       <view class="hero-info">
         <text class="name">{{ userInfo.name }}</text>
         <text class="identity">{{ userInfo.major }} · {{ userInfo.className }}</text>
@@ -23,18 +26,27 @@
       </view>
     </view>
 
-    <view class="quick-card">
-      <view class="quick-item" @click="switchTab('/pages/approval/index')">
-        <text class="quick-icon">审</text>
-        <text class="quick-title">我的申请</text>
+    <view class="quick-list">
+      <view class="quick-row" @click="switchTab('/pages/approval/index')">
+        <view class="quick-text">
+          <text class="quick-title">我的申请</text>
+          <text class="quick-sub">查看历史申请单与办理进度</text>
+        </view>
+        <text class="quick-arrow">›</text>
       </view>
-      <view class="quick-item" @click="navigateTo('/pages/party/index')">
-        <text class="quick-icon">流</text>
-        <text class="quick-title">党团进度</text>
+      <view class="quick-row" @click="navigateTo('/pages/party/index')">
+        <view class="quick-text">
+          <text class="quick-title">党团进度</text>
+          <text class="quick-sub">入党 / 入团各阶段节点进展</text>
+        </view>
+        <text class="quick-arrow">›</text>
       </view>
-      <view class="quick-item" @click="navigateTo('/pages/notify/index')">
-        <text class="quick-icon">信</text>
-        <text class="quick-title">消息中心</text>
+      <view class="quick-row" @click="navigateTo('/pages/notify/index')">
+        <view class="quick-text">
+          <text class="quick-title">消息中心</text>
+          <text class="quick-sub">通知与系统提醒</text>
+        </view>
+        <text class="quick-arrow">›</text>
       </view>
     </view>
 
@@ -66,7 +78,6 @@
       </view>
 
       <view v-for="h in honors" :key="h.id" class="honor-item">
-        <view class="honor-badge">荣</view>
         <view class="honor-body">
           <text class="honor-name">{{ h.name }}</text>
           <text class="honor-meta">{{ h.level || '-' }} · {{ h.date || '-' }}</text>
@@ -102,8 +113,6 @@ const userInfo = computed(() => ({
   major: profile.value.major || '-',
   className: profile.value.className || '-',
 }))
-
-const userInitial = computed(() => userInfo.value.name?.charAt(0) || '?')
 
 onMounted(loadProfile)
 
@@ -210,16 +219,35 @@ function handleLogout() {
 }
 
 .avatar {
+  position: relative;
   width: 100rpx;
   height: 100rpx;
-  line-height: 100rpx;
-  text-align: center;
   flex-shrink: 0;
   border-radius: 28rpx;
   background: rgba(255, 255, 255, 0.17);
-  color: #fff;
-  font-size: 42rpx;
-  font-weight: 800;
+  overflow: hidden;
+}
+
+.avatar-head {
+  position: absolute;
+  top: 18rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.avatar-body {
+  position: absolute;
+  bottom: -36rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .hero-info {
@@ -276,39 +304,52 @@ function handleLogout() {
   white-space: nowrap;
 }
 
-.quick-card {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14rpx;
+.quick-list {
   margin-bottom: 22rpx;
-}
-
-.quick-item {
-  padding: 22rpx 10rpx;
-  text-align: center;
-  border-radius: 20rpx;
+  padding: 8rpx 24rpx;
   background: #fff;
+  border-radius: 20rpx;
   border: 1rpx solid rgba(31, 35, 41, 0.06);
   box-shadow: 0 10rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
-.quick-icon {
-  width: 54rpx;
-  height: 54rpx;
-  line-height: 54rpx;
-  display: inline-block;
-  border-radius: 16rpx;
-  background: var(--mp-primary-light);
-  color: #9B2C36;
-  font-size: 23rpx;
-  font-weight: 800;
+.quick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--mp-border);
+}
+
+.quick-row:last-child {
+  border-bottom: none;
+}
+
+.quick-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .quick-title {
-  display: block;
-  margin-top: 12rpx;
-  color: var(--mp-text-regular);
-  font-size: 23rpx;
+  color: var(--mp-text-main);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.quick-sub {
+  margin-top: 6rpx;
+  color: var(--mp-text-sub);
+  font-size: 22rpx;
+}
+
+.quick-arrow {
+  flex-shrink: 0;
+  color: var(--mp-text-muted);
+  font-size: 30rpx;
+  line-height: 1;
 }
 
 .section {
@@ -339,27 +380,24 @@ function handleLogout() {
 }
 
 .honor-item {
-  display: flex;
-  gap: 16rpx;
-  padding: 20rpx 0;
+  position: relative;
+  padding: 20rpx 0 20rpx 22rpx;
   border-bottom: 1rpx solid var(--mp-border);
+}
+
+.honor-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 26rpx;
+  width: 6rpx;
+  height: 32rpx;
+  border-radius: 4rpx;
+  background: #C9A95B;
 }
 
 .honor-item:last-child {
   border-bottom: none;
-}
-
-.honor-badge {
-  width: 48rpx;
-  height: 48rpx;
-  line-height: 48rpx;
-  text-align: center;
-  flex-shrink: 0;
-  border-radius: 14rpx;
-  background: #FBF3E4;
-  color: #8A6422;
-  font-size: 21rpx;
-  font-weight: 800;
 }
 
 .honor-body {

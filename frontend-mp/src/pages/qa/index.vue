@@ -65,7 +65,6 @@
 
       <view class="composer">
         <view class="input-card">
-          <view class="input-prefix">问</view>
           <input
             v-model="inputText"
             class="input"
@@ -453,18 +452,6 @@ watch(
   box-sizing: border-box;
 }
 
-.input-prefix {
-  width: 48rpx;
-  height: 48rpx;
-  line-height: 48rpx;
-  text-align: center;
-  flex-shrink: 0;
-  border-radius: 14rpx;
-  background: var(--mp-primary-light);
-  color: var(--mp-primary);
-  font-size: 22rpx;
-  font-weight: 800;
-}
 
 .input {
   flex: 1;
