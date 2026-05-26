@@ -51,7 +51,8 @@ export const authApi = {
 export const qaApi = {
   chat: (data) => request({ url: '/qa/chat', method: 'POST', data }),
   getChatHistory: (params) => request({ url: '/qa/chat/history', data: params }),
-  getDocumentList: (params) => request({ url: '/qa/document/list', data: params }),
+  getDocumentList: (params) => request({ url: '/qa/document/list', data: { docType: 'policy', ...(params || {}) } }),
+  getTemplateList: (params) => request({ url: '/qa/document/list', data: { docType: 'template', ...(params || {}) } }),
 }
 
 // ==================== 党团 ====================

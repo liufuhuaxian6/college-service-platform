@@ -94,22 +94,28 @@ COMMENT ON COLUMN qa_knowledge.source_url IS '官方政策链接';
 CREATE INDEX idx_qa_category ON qa_knowledge(category);
 CREATE INDEX idx_qa_keywords ON qa_knowledge(keywords);
 
--- 政策文档表
+-- 政策文档 / 办公模板表（doc_type 区分）
 CREATE TABLE qa_document (
     id             BIGSERIAL PRIMARY KEY,
     title          VARCHAR(200) NOT NULL,
     category       VARCHAR(50),
-    file_path      VARCHAR(500) NOT NULL,
+    doc_type       VARCHAR(20) NOT NULL DEFAULT 'policy',
+    file_path      VARCHAR(500) NOT NULL DEFAULT '',
     file_size      BIGINT,
-    file_type      VARCHAR(20),
+    file_type      VARCHAR(100),
     download_count INT NOT NULL DEFAULT 0,
     status         SMALLINT NOT NULL DEFAULT 1,
     created_by     BIGINT,
+    description    VARCHAR(500),
     created_at     TIMESTAMP DEFAULT NOW()
 );
 
-COMMENT ON TABLE qa_document IS '政策文档（≤30MB下载）';
+COMMENT ON TABLE qa_document IS '政策文档与办公模板（≤30MB下载）';
+COMMENT ON COLUMN qa_document.doc_type IS '文档类型: policy=政策文件, template=办公模板';
+COMMENT ON COLUMN qa_document.file_path IS '文件相对路径; 空字符串表示模板占位记录, 待管理员补传';
+COMMENT ON COLUMN qa_document.description IS '简要描述（适用范围 / 填写说明）';
 CREATE INDEX idx_doc_category ON qa_document(category);
+CREATE INDEX idx_doc_type ON qa_document(doc_type, status);
 
 -- 问答记录表
 CREATE TABLE qa_chat_log (
@@ -292,19 +298,40 @@ INSERT INTO approval_type (name, description, approval_chain) VALUES
 ('政审证明', '开具政审证明（需院领导审批）', '2,1'),
 ('离校证明', '开具离校证明', '2,1');
 
--- 默认入党流程模板
+-- 默认入党流程模板（按“发展党员工作程序”）
 INSERT INTO party_process_template (name, description, total_steps) VALUES
-('入党流程', '标准入党全流程', 8);
+('入党流程', '发展党员工作程序', 29);
 
 INSERT INTO party_process_step (template_id, step_order, name, description, duration_days) VALUES
-(1, 1, '递交入党申请书', '向党组织递交书面入党申请书', NULL),
-(1, 2, '确定入党积极分子', '经党支部研究同意，确定为入党积极分子', 90),
-(1, 3, '积极分子培养考察', '指定培养联系人，进行为期一年以上的培养考察', 365),
-(1, 4, '确定发展对象', '经党支部研究同意，列为发展对象', NULL),
-(1, 5, '政治审查', '对发展对象进行政治审查', 30),
-(1, 6, '短期集中培训', '参加入党前短期集中培训', 7),
-(1, 7, '支部大会讨论通过', '召开支部大会讨论接收预备党员', NULL),
-(1, 8, '上级审批', '报上级党组织审批', 90);
+(1, 1, '教育引导', '入党积极分子确定', NULL),
+(1, 2, '接收入党申请书并派人谈话', '入党积极分子确定', NULL),
+(1, 3, '确定入党积极分子并报党委备案', '入党积极分子确定', NULL),
+(1, 4, '指定培养联系人并进行培养教育', '入党积极分子确定', NULL),
+(1, 5, '考察', '入党积极分子确定', NULL),
+(1, 6, '支部委员会听取意见后讨论', '发展对象确定', NULL),
+(1, 7, '报党委备案后确定发展对象', '发展对象确定', NULL),
+(1, 8, '确定入党介绍人', '发展对象确定', NULL),
+(1, 9, '政治审查', '发展对象确定', NULL),
+(1, 10, '短期集中培训', '发展对象确定', NULL),
+(1, 11, '支部委员会听取意见后讨论', '预备党员接收', NULL),
+(1, 12, '报党委预审', '预备党员接收', NULL),
+(1, 13, '公示', '预备党员接收', NULL),
+(1, 14, '召开支部大会讨论接收预备党员', '预备党员接收', NULL),
+(1, 15, '将有关材料报党委', '预备党员接收', NULL),
+(1, 16, '党委委员或组织员与发展对象谈话', '预备党员接收', NULL),
+(1, 17, '党委审批', '预备党员接收', NULL),
+(1, 18, '党委审批结果通知党支部', '预备党员接收', NULL),
+(1, 19, '报上级党委组织部门备案', '预备党员接收', NULL),
+(1, 20, '编入党支部和党小组', '预备党员教育和转正', NULL),
+(1, 21, '入党宣誓', '预备党员教育和转正', NULL),
+(1, 22, '教育和考察', '预备党员教育和转正', NULL),
+(1, 23, '提交转正申请并征求意见并审查', '预备党员教育和转正', NULL),
+(1, 24, '公示', '预备党员教育和转正', NULL),
+(1, 25, '召开支部大会讨论预备党员转正', '预备党员教育和转正', NULL),
+(1, 26, '将有关材料报党委', '预备党员教育和转正', NULL),
+(1, 27, '党委审批', '预备党员教育和转正', NULL),
+(1, 28, '党委审批结果通知党支部', '预备党员教育和转正', NULL),
+(1, 29, '存档', '正式党员', NULL);
 
 INSERT INTO party_process_template (name, description, total_steps) VALUES
 ('入团流程', '标准入团流程', 5);
@@ -315,3 +342,11 @@ INSERT INTO party_process_step (template_id, step_order, name, description, dura
 (2, 3, '团课学习', '参加团课学习并通过考核', 30),
 (2, 4, '支部大会表决', '团支部大会讨论表决', NULL),
 (2, 5, '上级团委审批', '报上级团委审批并颁发团员证', 30);
+
+-- 办公模板占位记录（file_path 由 scripts/import-templates.ps1 填充实际路径; 空字符串表示模板尚未上线）
+INSERT INTO qa_document (title, category, doc_type, file_path, file_type, description) VALUES
+('党员证明模板',     '党团证明', 'template', '', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '面向已发展为正式党员的学生, 用于办理需出具党员身份证明的事项'),
+('团员证明模板',     '党团证明', 'template', '', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '面向团员学生, 用于办理需出具团员身份证明的事项'),
+('请假条模板',       '请假申请', 'template', '', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '学生请假申请使用; 由辅导员审批后留底备查（待上传）'),
+('活动预算表模板',   '活动报销', 'template', '', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',          '学生组织活动经费预算编制使用（待上传）'),
+('班会简报模板',     '工作简报', 'template', '', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '班会、团日活动总结汇报使用（待上传）');

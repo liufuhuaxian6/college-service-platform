@@ -32,6 +32,12 @@ const routes = [
         component: () => import('@/views/qa/DocumentList.vue'),
         meta: { title: '政策文档', icon: 'Document', minRole: 2 },
       },
+      {
+        path: 'qa/template',
+        name: 'QaTemplate',
+        component: () => import('@/views/qa/TemplateList.vue'),
+        meta: { title: '办公模板', icon: 'CopyDocument', minRole: 2 },
+      },
       // 党团流程
       {
         path: 'party/template',

@@ -175,11 +175,14 @@ public class QaService {
 
     // ==================== 政策文档 ====================
 
-    public List<QaDocument> getDocumentList(String category) {
+    public List<QaDocument> getDocumentList(String category, String docType) {
         boolean hasCategory = StringUtils.hasText(category);
+        // docType 未传时默认 policy, 保持现有调用方向后兼容; 显式传 template 才返回模板
+        String effectiveType = StringUtils.hasText(docType) ? docType : "policy";
         return documentMapper.selectList(
                 new LambdaQueryWrapper<QaDocument>()
                         .eq(QaDocument::getStatus, 1)
+                        .eq(QaDocument::getDocType, effectiveType)
                         .eq(hasCategory, QaDocument::getCategory, category)
                         .orderByDesc(QaDocument::getCreatedAt)
         );
@@ -198,11 +201,38 @@ public class QaService {
         if (doc.getFileSize() != null && doc.getFileSize() > MAX_DOC_SIZE) {
             throw new BusinessException("文件大小不能超过30MB");
         }
+        if (!StringUtils.hasText(doc.getDocType())) {
+            doc.setDocType("policy");
+        }
         doc.setCreatedBy(UserContext.getUserId());
         doc.setStatus(1);
         doc.setDownloadCount(0);
         documentMapper.insert(doc);
         return doc.getId();
+    }
+
+    /**
+     * 用已上传的文件补全占位模板记录 (file_path 为空的)。
+     * 用于"留下接口给未导入模板", 管理员后续可以上传文件填进占位记录。
+     */
+    public void fillTemplateFile(Long id, QaDocument fileInfo) {
+        QaDocument existing = documentMapper.selectById(id);
+        if (existing == null) throw new BusinessException("模板不存在");
+        if (!"template".equals(existing.getDocType())) {
+            throw new BusinessException("仅占位模板可补传文件");
+        }
+        if (fileInfo == null || !StringUtils.hasText(fileInfo.getFilePath())) {
+            throw new BusinessException("缺少文件信息");
+        }
+        if (fileInfo.getFileSize() != null && fileInfo.getFileSize() > MAX_DOC_SIZE) {
+            throw new BusinessException("文件大小不能超过30MB");
+        }
+        existing.setFilePath(fileInfo.getFilePath());
+        existing.setFileSize(fileInfo.getFileSize());
+        if (StringUtils.hasText(fileInfo.getFileType())) {
+            existing.setFileType(fileInfo.getFileType());
+        }
+        documentMapper.updateById(existing);
     }
 
     public QaDocument getDocumentForDownload(Long id) {
@@ -212,7 +242,10 @@ public class QaService {
             throw new BusinessException("文档已下架");
         }
         if (!StringUtils.hasText(doc.getFilePath())) {
-            throw new BusinessException("文档文件路径为空");
+            // 占位模板（管理员尚未上传文件）
+            throw new BusinessException("template".equals(doc.getDocType())
+                    ? "该模板尚未上线, 请联系管理员补传"
+                    : "文档文件路径为空");
         }
         // 下载计数 +1
         doc.setDownloadCount(doc.getDownloadCount() + 1);

@@ -105,9 +105,13 @@ public class DocumentRagService {
         }
 
         try {
-            String embedding = embeddingService.toVectorLiteral(embeddingService.embedQuery(question));
+            String retrievalQuery = expandRetrievalQuery(question);
+            String embedding = embeddingService.toVectorLiteral(embeddingService.embedQuery(retrievalQuery));
             int poolSize = Math.max(topK, topK * Math.max(1, rerankPoolSize));
-            return chunkMapper.searchSimilar(embedding, StringUtils.hasText(category) ? category : "", poolSize)
+            String effectiveCategory = StringUtils.hasText(category)
+                    ? category
+                    : (isCalendarIntent(question) ? "校历安排" : "");
+            return chunkMapper.searchSimilar(embedding, effectiveCategory, poolSize)
                     .stream()
                     // 第一道闸: 用原始余弦相似度过滤明显不相关的片段, 关键词加权不能"救活"语义不相关
                     .filter(c -> RagScoringUtil.nullToZero(c.getScore()) >= minScore)
@@ -120,6 +124,32 @@ public class DocumentRagService {
             log.warn("RAG retrieve skipped because vector store is unavailable: {}", e.getMessage());
             return List.of();
         }
+    }
+
+    private static String expandRetrievalQuery(String question) {
+        if (!StringUtils.hasText(question)) {
+            return question;
+        }
+        String q = question.trim();
+        if (isCalendarIntent(q) && !q.contains("校历")) {
+            return q + "\n校历安排 学期安排 节假日 放假 调休 寒假 暑假 开学 上课 考试周";
+        }
+        return q;
+    }
+
+    private static boolean isCalendarIntent(String question) {
+        String q = question == null ? "" : question;
+        String[] terms = {
+                "校历", "节假日", "节日", "放假", "调休", "假期", "寒假", "暑假",
+                "开学", "上课", "学期", "考试周", "报到",
+                "国庆", "中秋", "元旦", "清明", "劳动节", "端午"
+        };
+        for (String term : terms) {
+            if (q.contains(term)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String buildContext(String question) {
@@ -218,14 +248,14 @@ public class DocumentRagService {
 
         List<String> articleBlocks = splitByArticles(normalized);
         if (articleBlocks.size() > 1) {
-            int maxArticleChunkSize = Math.max(1200, chunkSize);
+            int maxArticleChunkSize = Math.max(300, chunkSize);
             for (String block : articleBlocks) {
                 addChunkPreservingParagraphs(chunks, block, maxArticleChunkSize);
             }
             return chunks;
         }
 
-        addChunkPreservingParagraphs(chunks, normalized, Math.max(900, chunkSize));
+        addChunkPreservingParagraphs(chunks, normalized, Math.max(300, chunkSize));
         return chunks;
     }
 

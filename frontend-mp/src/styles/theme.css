@@ -1,0 +1,19 @@
+:root {
+  --mp-primary: #9B2C36;
+  --mp-primary-dark: #872631;
+  --mp-primary-soft: #B64A54;
+  --mp-primary-light: #F7EDEF;
+  --mp-bg: #F6F4F2;
+  --mp-bg-warm: #FBF8F6;
+  --mp-card: #FFFFFF;
+  --mp-text-main: #1F2329;
+  --mp-text-regular: #4E5969;
+  --mp-text-sub: #86909C;
+  --mp-border: #E5E6EB;
+  --mp-success: #2F7D55;
+  --mp-warning: #9A6A16;
+  --mp-danger: #B4232C;
+  --mp-info: #5B6472;
+  --mp-shadow: 0 14rpx 36rpx rgba(31, 35, 41, 0.08);
+  --mp-radius: 18rpx;
+}

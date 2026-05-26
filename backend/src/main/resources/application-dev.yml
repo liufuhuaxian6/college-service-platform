@@ -13,5 +13,6 @@ spring:
 
 rag:
   enabled: true
+  chunk-size: 450
   embedding:
     api-url: "http://localhost:8081/v1/embeddings"

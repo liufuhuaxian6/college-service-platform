@@ -44,6 +44,12 @@ export const qaApi = {
   searchDocumentChunks: (params) => request.get('/qa/document/chunk/search', { params }),
   deleteDocument: (id) => request.delete(`/qa/document/${id}`),
   getDocumentDownloadUrl: (id) => `/api/qa/document/${id}/download`,
+  // ---- 办公模板（复用 document 接口, docType=template） ----
+  getTemplateList: (params) => request.get('/qa/document/list', { params: { ...params, docType: 'template' } }),
+  addTemplate: (data) => request.post('/qa/document', { ...data, docType: 'template' }),
+  fillTemplateFile: (id, fileInfo) => request.put(`/qa/document/${id}/file`, fileInfo),
+  deleteTemplate: (id) => request.delete(`/qa/document/${id}`),
+  getTemplateDownloadUrl: (id) => `/api/qa/document/${id}/download`,
 }
 
 // ==================== 党团流程 ====================

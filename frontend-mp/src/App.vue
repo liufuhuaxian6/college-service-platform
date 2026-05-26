@@ -1,4 +1,4 @@
-<script>
+﻿<script>
 export default {
   onLaunch() {
     console.log('App Launch')
@@ -7,10 +7,21 @@ export default {
 </script>
 
 <style>
+@import '@/styles/theme.css';
+
 page {
-  background-color: #f0f2f5;
+  background-color: var(--mp-bg);
   font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
-  color: #333;
+  font-size: 28rpx;
+  color: var(--mp-text-main);
+}
+
+button {
+  border-radius: 10rpx;
+}
+
+button::after {
+  border: none;
 }
 </style>
+
