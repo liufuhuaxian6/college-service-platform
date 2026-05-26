@@ -66,6 +66,11 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET}
       RAG_EMBEDDING_API_URL: http://embedding:80/v1/embeddings
+      # 邮件 SMTP (模块三): 通过 .env 注入授权码, 缺失则自动降级为 email_sim
+      MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-3523698178@qq.com}
+      MAIL_AUTH_CODE: ${MAIL_AUTH_CODE:-}
     depends_on:
       postgres:
         condition: service_healthy
