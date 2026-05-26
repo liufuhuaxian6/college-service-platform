@@ -14,12 +14,18 @@
     <el-row :gutter="16" class="row-spaced">
       <el-col :span="12">
         <DataPanel title="审批状态分布" description="所有证明申请按状态的占比">
-          <div ref="approvalPieRef" class="chart-box" />
+          <div v-show="hasApprovalData" ref="approvalPieRef" class="chart-box" />
+          <div v-if="!hasApprovalData" class="chart-empty">
+            <EmptyState title="暂无审批数据" description="学生提交申请后, 这里会展示各状态占比" />
+          </div>
         </DataPanel>
       </el-col>
       <el-col :span="12">
         <DataPanel title="党团流程模板分布" description="每个模板下的实例数量">
-          <div ref="partyBarRef" class="chart-box" />
+          <div v-show="hasPartyData" ref="partyBarRef" class="chart-box" />
+          <div v-if="!hasPartyData" class="chart-empty">
+            <EmptyState title="暂无流程实例" description="为学生创建入党/入团流程后, 这里会展示分布" />
+          </div>
         </DataPanel>
       </el-col>
     </el-row>
@@ -27,7 +33,10 @@
     <el-row :gutter="16" class="row-spaced">
       <el-col :span="16">
         <DataPanel title="近 7 日活动趋势" description="审批申请与系统通知数量">
-          <div ref="trendLineRef" class="chart-box" />
+          <div v-show="hasTrendData" ref="trendLineRef" class="chart-box" />
+          <div v-if="!hasTrendData" class="chart-empty">
+            <EmptyState title="近 7 日无活动" description="审批申请与通知数据会在产生后实时累计" />
+          </div>
         </DataPanel>
       </el-col>
       <el-col :span="8">
@@ -68,6 +77,9 @@ const cards = ref([
 ])
 
 const todo = ref([])
+const hasApprovalData = ref(false)
+const hasPartyData = ref(false)
+const hasTrendData = ref(false)
 
 const approvalPieRef = ref(null)
 const partyBarRef = ref(null)
@@ -223,10 +235,22 @@ onMounted(async () => {
     cards.value[3].value = d.activeProcesses ?? 0
     todo.value = d.pendingTodo || []
 
+    // 判定每张图是否有可视化数据
+    const dist = d.approvalStatusDist || {}
+    hasApprovalData.value = Object.values(dist).some((v) => Number(v) > 0)
+
+    const partyRows = d.partyTemplateDist || []
+    hasPartyData.value = partyRows.some((r) => Number(r.count) > 0)
+
+    const apt = d.approvalTrend7d || []
+    const ntt = d.notifyTrend7d || []
+    hasTrendData.value =
+      apt.some((r) => Number(r.count) > 0) || ntt.some((r) => Number(r.count) > 0)
+
     await nextTick()
-    renderApprovalPie(d.approvalStatusDist)
-    renderPartyBar(d.partyTemplateDist)
-    renderTrend(d.approvalTrend7d, d.notifyTrend7d)
+    if (hasApprovalData.value) renderApprovalPie(dist)
+    if (hasPartyData.value) renderPartyBar(partyRows)
+    if (hasTrendData.value) renderTrend(apt, ntt)
     window.addEventListener('resize', handleResize)
   } catch (e) {
     /* api 层已提示 */
@@ -247,6 +271,13 @@ onBeforeUnmount(() => {
 .chart-box {
   height: 320px;
   width: 100%;
+}
+
+.chart-empty {
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .todo-list {
