@@ -5,6 +5,7 @@ import com.ruc.college.common.log.OperationLog;
 import com.ruc.college.common.result.Result;
 import com.ruc.college.common.security.RequireRole;
 import com.ruc.college.module.qa.entity.QaChatLog;
+import com.ruc.college.module.qa.entity.QaDocumentChunk;
 import com.ruc.college.module.qa.entity.QaDocument;
 import com.ruc.college.module.qa.entity.QaKnowledge;
 import com.ruc.college.module.qa.service.QaService;
@@ -92,16 +93,44 @@ public class QaController {
     // ==================== 政策文档 ====================
 
     @GetMapping("/document/list")
-    public Result<List<QaDocument>> documentList(@RequestParam(required = false) String category) {
-        return Result.ok(qaService.getDocumentList(category));
+    public Result<List<QaDocument>> documentList(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false, defaultValue = "policy") String docType) {
+        return Result.ok(qaService.getDocumentList(category, docType));
     }
 
     @PostMapping("/document")
     @RequireRole(minLevel = 2)
-    @OperationLog(module = "文档管理", action = "上传政策文档")
+    @OperationLog(module = "文档管理", action = "上传文档/模板")
     public Result<Map<String, Object>> addDocument(@RequestBody QaDocument doc) {
         Long id = qaService.addDocument(doc);
         return Result.ok(Map.of("id", id));
+    }
+
+    /**
+     * 补传占位模板的实际文件 (留给"待上传"模板用的接口)。
+     */
+    @PutMapping("/document/{id}/file")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "文档管理", action = "补传模板文件")
+    public Result<Void> fillTemplateFile(@PathVariable Long id, @RequestBody QaDocument fileInfo) {
+        qaService.fillTemplateFile(id, fileInfo);
+        return Result.ok();
+    }
+
+    @PostMapping("/document/{id}/index")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "文档管理", action = "解析政策文档向量入库")
+    public Result<Map<String, Object>> indexDocument(@PathVariable Long id) {
+        return Result.ok(qaService.indexDocument(id));
+    }
+
+    @GetMapping("/document/chunk/search")
+    @RequireRole(minLevel = 2)
+    public Result<List<QaDocumentChunk>> searchChunks(
+            @RequestParam String question,
+            @RequestParam(required = false) String category) {
+        return Result.ok(qaService.retrieveDocumentChunks(question, category));
     }
 
     @GetMapping("/document/{id}/download")

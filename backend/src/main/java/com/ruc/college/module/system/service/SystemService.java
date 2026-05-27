@@ -14,7 +14,9 @@ import com.ruc.college.module.approval.mapper.ApprovalApplicationMapper;
 import com.ruc.college.module.auth.entity.SysUser;
 import com.ruc.college.module.auth.mapper.SysUserMapper;
 import com.ruc.college.module.party.entity.PartyProcessInstance;
+import com.ruc.college.module.party.entity.PartyProcessTemplate;
 import com.ruc.college.module.party.mapper.PartyProcessInstanceMapper;
+import com.ruc.college.module.party.mapper.PartyProcessTemplateMapper;
 import com.ruc.college.module.system.entity.SysNotification;
 import com.ruc.college.module.system.entity.SysOperationLog;
 import com.ruc.college.module.system.mapper.SysNotificationMapper;
@@ -30,10 +32,15 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -45,6 +52,8 @@ public class SystemService {
     private final SysNotificationMapper notificationMapper;
     private final ApprovalApplicationMapper approvalApplicationMapper;
     private final PartyProcessInstanceMapper partyProcessInstanceMapper;
+    private final PartyProcessTemplateMapper partyProcessTemplateMapper;
+    private final EmailService emailService;
 
     // ==================== 用户管理 ====================
 
@@ -54,7 +63,10 @@ public class SystemService {
                 .eq(major != null, SysUser::getMajor, major)
                 .orderByAsc(SysUser::getStudentId);
         Page<SysUser> result = userMapper.selectPage(new Page<>(page, size), wrapper);
-        result.getRecords().forEach(u -> u.setPassword(null));
+        result.getRecords().forEach(u -> {
+            u.setPassword(null);
+            u.setEmail(emailService.resolveEmail(u));
+        });
         return result;
     }
 
@@ -62,6 +74,7 @@ public class SystemService {
         SysUser user = userMapper.selectById(id);
         if (user == null) throw new BusinessException("用户不存在");
         user.setPassword(null);
+        user.setEmail(emailService.resolveEmail(user));
         return user;
     }
 
@@ -208,6 +221,8 @@ public class SystemService {
 
     public Map<String, Object> getDashboard() {
         Map<String, Object> data = new HashMap<>();
+
+        // ---- 基础数字卡片 ----
         data.put("totalStudents", userMapper.selectCount(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getRoleLevel, 4).eq(SysUser::getStatus, 1)));
         data.put("totalUsers", userMapper.selectCount(
@@ -216,7 +231,90 @@ public class SystemService {
                 new LambdaQueryWrapper<ApprovalApplication>().eq(ApprovalApplication::getStatus, "pending")));
         data.put("activeProcesses", partyProcessInstanceMapper.selectCount(
                 new LambdaQueryWrapper<PartyProcessInstance>().eq(PartyProcessInstance::getStatus, "active")));
+
+        // ---- 审批状态分布 (饼图: 6 种状态) ----
+        List<ApprovalApplication> approvals = approvalApplicationMapper.selectList(null);
+        Map<String, Long> statusDist = approvals.stream()
+                .filter(a -> a.getStatus() != null)
+                .collect(Collectors.groupingBy(ApprovalApplication::getStatus, Collectors.counting()));
+        // 保证 6 种 status 都有 key (前端饼图无需自己补 0)
+        for (String s : new String[]{"draft", "pending", "approved", "rejected", "withdrawn", "downloaded"}) {
+            statusDist.putIfAbsent(s, 0L);
+        }
+        data.put("approvalStatusDist", statusDist);
+
+        // ---- 党团模板分布 (柱图: 每个模板下的实例数) ----
+        List<PartyProcessTemplate> templates = partyProcessTemplateMapper.selectList(null);
+        List<PartyProcessInstance> instances = partyProcessInstanceMapper.selectList(null);
+        Map<Long, Long> instanceCountByTemplate = instances.stream()
+                .filter(i -> i.getTemplateId() != null)
+                .collect(Collectors.groupingBy(PartyProcessInstance::getTemplateId, Collectors.counting()));
+        List<Map<String, Object>> partyDist = new ArrayList<>();
+        for (PartyProcessTemplate t : templates) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("name", t.getName());
+            row.put("count", instanceCountByTemplate.getOrDefault(t.getId(), 0L));
+            partyDist.add(row);
+        }
+        data.put("partyTemplateDist", partyDist);
+
+        // ---- 最近 7 天审批申请提交数 (折线) ----
+        LocalDateTime weekAgo = LocalDateTime.now().minusDays(6).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        List<ApprovalApplication> recentApprovals = approvalApplicationMapper.selectList(
+                new LambdaQueryWrapper<ApprovalApplication>()
+                        .ge(ApprovalApplication::getCreatedAt, weekAgo));
+        data.put("approvalTrend7d", buildDailyTrend(weekAgo.toLocalDate(),
+                recentApprovals.stream()
+                        .filter(a -> a.getCreatedAt() != null)
+                        .map(a -> a.getCreatedAt().toLocalDate())
+                        .collect(Collectors.toList())));
+
+        // ---- 最近 7 天通知数 (折线) ----
+        List<SysNotification> recentNotifications = notificationMapper.selectList(
+                new LambdaQueryWrapper<SysNotification>()
+                        .ge(SysNotification::getCreatedAt, weekAgo));
+        data.put("notifyTrend7d", buildDailyTrend(weekAgo.toLocalDate(),
+                recentNotifications.stream()
+                        .filter(n -> n.getCreatedAt() != null)
+                        .map(n -> n.getCreatedAt().toLocalDate())
+                        .collect(Collectors.toList())));
+
+        // ---- 待办: 最新 5 条待审批 (替代 EmptyState 占位) ----
+        List<ApprovalApplication> pendingList = approvalApplicationMapper.selectList(
+                new LambdaQueryWrapper<ApprovalApplication>()
+                        .eq(ApprovalApplication::getStatus, "pending")
+                        .orderByDesc(ApprovalApplication::getCreatedAt)
+                        .last("LIMIT 5"));
+        List<Map<String, Object>> todo = new ArrayList<>();
+        for (ApprovalApplication a : pendingList) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", a.getId());
+            row.put("appNo", a.getAppNo());
+            row.put("currentApproverLevel", a.getCurrentApproverLevel());
+            row.put("createdAt", a.getCreatedAt());
+            todo.add(row);
+        }
+        data.put("pendingTodo", todo);
+
         return data;
+    }
+
+    /**
+     * 把 dates 列表按"日"聚合成最近 7 天的趋势 (没有数据的日期填 0).
+     * 返回: [{date: "2026-05-20", count: 3}, ...] 顺序从早到晚.
+     */
+    private List<Map<String, Object>> buildDailyTrend(LocalDate from, List<LocalDate> dates) {
+        Map<LocalDate, Long> daily = dates.stream()
+                .collect(Collectors.groupingBy(d -> d, Collectors.counting()));
+        List<Map<String, Object>> trend = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            LocalDate d = from.plusDays(i);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", d.format(DateTimeFormatter.ofPattern("MM-dd")));
+            row.put("count", daily.getOrDefault(d, 0L));
+            trend.add(row);
+        }
+        return trend;
     }
 
     // ==================== 操作日志 ====================
@@ -232,12 +330,19 @@ public class SystemService {
 
     // ==================== 通知消息 ====================
 
-    public Page<SysNotification> getNotifications(int page, int size, String type) {
+    public Page<SysNotification> getNotifications(int page, int size, String type, String tag) {
         LambdaQueryWrapper<SysNotification> wrapper = new LambdaQueryWrapper<SysNotification>()
                 .eq(SysNotification::getUserId, UserContext.getUserId())
-                .eq(type != null, SysNotification::getType, type)
+                .eq(org.springframework.util.StringUtils.hasText(type), SysNotification::getType, type)
+                // tag 用模糊匹配, 兼容 "就业,实习" 这种逗号分隔的存储格式
+                .like(org.springframework.util.StringUtils.hasText(tag), SysNotification::getTags, tag)
                 .orderByDesc(SysNotification::getCreatedAt);
         return notificationMapper.selectPage(new Page<>(page, size), wrapper);
+    }
+
+    /** 兼容旧调用 */
+    public Page<SysNotification> getNotifications(int page, int size, String type) {
+        return getNotifications(page, size, type, null);
     }
 
     public long getUnreadCount() {

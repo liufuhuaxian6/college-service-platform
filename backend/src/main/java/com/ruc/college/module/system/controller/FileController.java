@@ -86,7 +86,7 @@ public class FileController {
     @GetMapping("/download")
     public ResponseEntity<Resource> download(@RequestParam("path") String path) {
         try {
-            String cleanPath = StringUtils.cleanPath(path);
+            String cleanPath = normalizeDownloadPath(path);
             if (cleanPath.contains("..")) {
                 return ResponseEntity.badRequest().build();
             }
@@ -97,7 +97,12 @@ public class FileController {
                 return ResponseEntity.status(403).build();
             }
 
-            File file = new File(System.getProperty("user.dir") + File.separator + cleanPathNorm);
+            File baseDir = new File(System.getProperty("user.dir")).getCanonicalFile();
+            File uploadDir = new File(baseDir, normalizedUploadPath).getCanonicalFile();
+            File file = new File(baseDir, cleanPathNorm).getCanonicalFile();
+            if (!file.toPath().startsWith(uploadDir.toPath())) {
+                return ResponseEntity.status(403).build();
+            }
             if (!file.exists() || !file.isFile()) {
                 return ResponseEntity.notFound().build();
             }
@@ -117,7 +122,16 @@ public class FileController {
 
     @GetMapping("/download/{*fileId}")
     public ResponseEntity<Resource> downloadById(@PathVariable String fileId) {
-        return download(fileId);
+        return download(normalizeDownloadPath(fileId));
+    }
+
+    private static String normalizeDownloadPath(String path) {
+        String cleanPath = StringUtils.cleanPath(path == null ? "" : path);
+        cleanPath = cleanPath.replace("\\", "/");
+        while (cleanPath.startsWith("/")) {
+            cleanPath = cleanPath.substring(1);
+        }
+        return cleanPath;
     }
 
     private static String normalizeRelativePath(String raw) {

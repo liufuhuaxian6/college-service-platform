@@ -1,35 +1,68 @@
 <template>
-  <view class="container">
-    <!-- 顶部欢迎 -->
-    <view class="header">
-      <view class="welcome">
+  <view class="page">
+    <view class="hero">
+      <view class="hero-main">
+        <text class="eyebrow">学院综合服务</text>
         <text class="greeting">你好，{{ userStore.name || '同学' }}</text>
-        <text class="school">中国人民大学信息学院</text>
+        <text class="school">学生服务、党团事务与证明审批统一入口</text>
       </view>
-      <view class="notify-icon" @click="goNotify">
-        <text class="badge" v-if="unreadCount > 0">{{ unreadCount }}</text>
-        🔔
-      </view>
-    </view>
-
-    <!-- 四宫格功能入口 -->
-    <view class="grid">
-      <view class="grid-item" v-for="item in menuItems" :key="item.url" @click="navigateTo(item.url)">
-        <view class="grid-icon">{{ item.icon }}</view>
-        <text class="grid-label">{{ item.label }}</text>
-      </view>
-    </view>
-
-    <!-- 最新通知 -->
-    <view class="section">
-      <view class="section-title">最新通知</view>
-      <view class="notify-list" v-if="notifications.length">
-        <view class="notify-item" v-for="n in notifications" :key="n.id">
-          <text class="notify-title">{{ n.title }}</text>
-          <text class="notify-time">{{ n.createdAt }}</text>
+      <view class="notify" @click="goNotify">
+        <view class="bell-icon">
+          <view class="bell-body" />
+          <view class="bell-rim" />
+          <view class="bell-clapper" />
         </view>
+        <view v-if="unreadCount > 0" class="notify-dot" />
       </view>
-      <view class="empty" v-else>暂无通知</view>
+    </view>
+
+    <view class="quick-panel">
+      <view class="quick-item" @click="navigateTo('/pages/qa/index')">
+        <text class="quick-label">政策咨询</text>
+        <text class="quick-sub">智能问答</text>
+      </view>
+      <view class="quick-divider" />
+      <view class="quick-item" @click="navigateTo('/pages/approval/index')">
+        <text class="quick-label">审批进度</text>
+        <text class="quick-sub">我的申请</text>
+      </view>
+      <view class="quick-divider" />
+      <view class="quick-item" @click="navigateTo('/pages/party/index')">
+        <text class="quick-label">党团流程</text>
+        <text class="quick-sub">个人节点</text>
+      </view>
+    </view>
+
+    <SectionTitle title="常用服务" />
+    <view class="service-grid">
+      <ServiceCard
+        v-for="item in menuItems"
+        :key="item.url"
+        :title="item.label"
+        :desc="item.desc"
+        :icon="item.icon"
+        :badge="item.badge"
+        :action="item.action"
+        :tone="item.tone"
+        @click="navigateTo(item.url)"
+      />
+    </view>
+
+    <SectionTitle title="最新通知">
+      <text v-if="notifications.length" class="section-action" @click="goNotify">查看全部</text>
+    </SectionTitle>
+    <view class="notice-panel">
+      <view v-if="notifications.length" class="notify-list">
+        <view v-for="n in notifications" :key="n.id" class="notice-item" @click="goNotify">
+            <view class="notice-dot" />
+            <view class="notice-content">
+              <text class="notice-title">{{ n.title }}</text>
+              <text class="notice-summary">{{ n.content }}</text>
+              <text class="notice-time">{{ formatTime(n.createdAt) }}</text>
+            </view>
+          </view>
+      </view>
+      <EmptyState v-else title="暂无通知" description="审批提醒和系统消息会显示在这里。" />
     </view>
   </view>
 </template>
@@ -38,24 +71,83 @@
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { notifyApi } from '@/api'
+import ServiceCard from '@/components/ServiceCard.vue'
+import SectionTitle from '@/components/SectionTitle.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const userStore = useUserStore()
 const unreadCount = ref(0)
 const notifications = ref([])
 
 const menuItems = [
-  { label: '智能问答', icon: '💬', url: '/pages/qa/index' },
-  { label: '政策文档', icon: '📄', url: '/pages/qa/document' },
-  { label: '党团进度', icon: '🏛️', url: '/pages/party/index' },
-  { label: '我的申请', icon: '📋', url: '/pages/approval/index' },
+  {
+    label: '智能问答',
+    desc: '政策制度、报到入学、党团事务即时咨询',
+    icon: '问',
+    badge: 'RAG',
+    action: '开始提问',
+    tone: 'red',
+    url: '/pages/qa/index',
+  },
+  {
+    label: '文件与模板',
+    desc: '政策文件、请假条、活动预算等模板下载',
+    icon: '文',
+    badge: '资源',
+    action: '查阅下载',
+    tone: 'blue',
+    url: '/pages/qa/document',
+  },
+  {
+    label: '党团进度',
+    desc: '查看个人流程节点、材料与完成状态',
+    icon: '流',
+    badge: '流程',
+    action: '查看节点',
+    tone: 'green',
+    url: '/pages/party/index',
+  },
+  {
+    label: '我的申请',
+    desc: '证明申请、审批流转与下载归档',
+    icon: '审',
+    badge: '审批',
+    action: '办理证明',
+    tone: 'amber',
+    url: '/pages/approval/index',
+  },
 ]
 
+const tabPages = new Set([
+  '/pages/index/index',
+  '/pages/qa/index',
+  '/pages/approval/index',
+  '/pages/profile/index',
+])
+
 function navigateTo(url) {
+  if (tabPages.has(url)) {
+    uni.switchTab({ url })
+    return
+  }
   uni.navigateTo({ url })
 }
 
 function goNotify() {
   uni.navigateTo({ url: '/pages/notify/index' })
+}
+
+function formatTime(value) {
+  if (!value) return ''
+  const text = String(value).replace('T', ' ')
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/)
+  if (!match) return text.split('.')[0]
+  const now = new Date()
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const prefix = now.getFullYear() === year ? `${month}-${day}` : `${year}-${month}-${day}`
+  return `${prefix} ${match[4]}:${match[5]}`
 }
 
 onMounted(async () => {
@@ -68,31 +160,240 @@ onMounted(async () => {
     unreadCount.value = res.data?.count || 0
     const listRes = await notifyApi.getPage({ page: 1, size: 5 })
     notifications.value = listRes.data?.records || []
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    // 首页通知失败不阻塞服务入口
+  }
 })
 </script>
 
 <style scoped>
-.container { padding: 20rpx; }
-.header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 30rpx; background: #1a3a5c; color: #fff; border-radius: 12rpx; margin-bottom: 30rpx;
+.page {
+  min-height: 100vh;
+  padding: 28rpx 24rpx 36rpx;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(155, 44, 54, 0.1), transparent 34%),
+    linear-gradient(180deg, #FBF7F5 0%, var(--mp-bg) 34%, var(--mp-bg) 100%);
 }
-.greeting { font-size: 34rpx; font-weight: bold; display: block; }
-.school { font-size: 24rpx; opacity: 0.8; margin-top: 8rpx; display: block; }
-.notify-icon { font-size: 40rpx; position: relative; }
-.badge { position: absolute; top: -10rpx; right: -10rpx; background: red; color: #fff; font-size: 20rpx; padding: 2rpx 10rpx; border-radius: 20rpx; }
-.grid { display: flex; flex-wrap: wrap; gap: 20rpx; margin-bottom: 30rpx; }
-.grid-item {
-  width: calc(50% - 10rpx); background: #fff; border-radius: 12rpx; padding: 30rpx;
-  display: flex; flex-direction: column; align-items: center; box-shadow: 0 2rpx 12rpx rgba(0,0,0,.06);
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 196rpx;
+  margin-bottom: 20rpx;
+  padding: 34rpx 30rpx;
+  border-radius: 26rpx;
+  background: linear-gradient(135deg, #9B2C36 0%, #7E2630 100%);
+  box-shadow: 0 18rpx 40rpx rgba(155, 44, 54, 0.22);
+  box-sizing: border-box;
 }
-.grid-icon { font-size: 48rpx; margin-bottom: 12rpx; }
-.grid-label { font-size: 28rpx; color: #333; }
-.section { background: #fff; border-radius: 12rpx; padding: 24rpx; }
-.section-title { font-size: 30rpx; font-weight: bold; margin-bottom: 16rpx; color: #1a3a5c; }
-.notify-item { padding: 16rpx 0; border-bottom: 1rpx solid #f0f0f0; display: flex; justify-content: space-between; }
-.notify-title { font-size: 26rpx; }
-.notify-time { font-size: 22rpx; color: #999; }
-.empty { text-align: center; color: #999; padding: 40rpx; font-size: 26rpx; }
+
+.hero-main {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 20rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 21rpx;
+}
+
+.greeting {
+  display: block;
+  color: #fff;
+  font-size: 38rpx;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.school {
+  display: block;
+  margin-top: 12rpx;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.notify {
+  position: relative;
+  width: 66rpx;
+  height: 66rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.bell-icon {
+  position: relative;
+  width: 36rpx;
+  height: 36rpx;
+}
+
+.bell-body {
+  position: absolute;
+  top: 4rpx;
+  left: 6rpx;
+  right: 6rpx;
+  bottom: 10rpx;
+  background: #fff;
+  border-radius: 12rpx 12rpx 4rpx 4rpx;
+}
+
+.bell-rim {
+  position: absolute;
+  left: 2rpx;
+  right: 2rpx;
+  bottom: 7rpx;
+  height: 4rpx;
+  background: #fff;
+  border-radius: 2rpx;
+}
+
+.bell-clapper {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.notify-dot {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #F0B35A;
+  border: 2rpx solid #9B2C36;
+  box-sizing: content-box;
+}
+
+.quick-panel {
+  display: flex;
+  align-items: stretch;
+  margin: -42rpx 18rpx 28rpx;
+  padding: 8rpx 12rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--mp-shadow);
+  position: relative;
+  z-index: 2;
+}
+
+.quick-panel .quick-item {
+  flex: 1;
+}
+
+.quick-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8rpx;
+  padding: 18rpx 4rpx;
+}
+
+.quick-label {
+  color: var(--mp-text-main);
+  font-size: 27rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.quick-sub {
+  color: var(--mp-text-sub);
+  font-size: 20rpx;
+}
+
+.quick-divider {
+  width: 1rpx;
+  margin: 18rpx 0;
+  background: rgba(31, 35, 41, 0.08);
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+  margin-bottom: 32rpx;
+}
+
+.section-action {
+  color: var(--mp-primary);
+  font-size: 23rpx;
+  font-weight: 500;
+}
+
+.notice-panel {
+  min-height: 210rpx;
+  background: var(--mp-card);
+  border: 1rpx solid rgba(31, 35, 41, 0.05);
+  border-radius: 20rpx;
+  box-shadow: 0 10rpx 26rpx rgba(31, 35, 41, 0.04);
+  overflow: hidden;
+}
+
+.notice-item {
+  display: flex;
+  gap: 18rpx;
+  padding: 24rpx;
+  border-bottom: 1rpx solid var(--mp-border);
+}
+
+.notice-item:last-child {
+  border-bottom: none;
+}
+
+.notice-dot {
+  width: 12rpx;
+  height: 12rpx;
+  margin-top: 12rpx;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--mp-primary);
+}
+
+.notice-content {
+  min-width: 0;
+}
+
+.notice-title {
+  display: block;
+  color: var(--mp-text-main);
+  font-size: 26rpx;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.notice-summary {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--mp-text-regular);
+  font-size: 23rpx;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-time {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--mp-text-sub);
+  font-size: 22rpx;
+}
 </style>

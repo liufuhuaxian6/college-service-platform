@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ruc.college.common.exception.BusinessException;
 import com.ruc.college.common.security.UserContext;
 import com.ruc.college.module.qa.entity.QaChatLog;
+import com.ruc.college.module.qa.entity.QaDocumentChunk;
 import com.ruc.college.module.qa.entity.QaDocument;
 import com.ruc.college.module.qa.entity.QaKnowledge;
 import com.ruc.college.module.qa.mapper.QaChatLogMapper;
@@ -12,6 +13,8 @@ import com.ruc.college.module.qa.mapper.QaDocumentMapper;
 import com.ruc.college.module.qa.mapper.QaKnowledgeMapper;
 import com.ruc.college.module.qa.service.ai.AiProvider;
 import com.ruc.college.module.qa.service.ai.AiProviderFactory;
+import com.ruc.college.module.qa.service.rag.DocumentRagService;
+import com.ruc.college.module.qa.service.rag.RagScoringUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,19 +37,49 @@ public class QaService {
     private final QaDocumentMapper documentMapper;
     private final QaChatLogMapper chatLogMapper;
     private final AiProviderFactory aiProviderFactory;
+    private final DocumentRagService documentRagService;
 
     @Value("${file.upload-path:./uploads}")
     private String uploadPath;
 
+    /**
+     * 抽取式回答最低置信度。低于此分数则视为"语义不相关"，返回兜底语而非伪造依据。
+     * 计算口径见 {@link #extractiveScore(String, QaDocumentChunk)}: vector_score*100 + 关键词/意图/受众加权
+     */
+    @Value("${rag.extractive-confidence:60}")
+    private int extractiveConfidence;
+
     private static final long MAX_DOC_SIZE = 30L * 1024 * 1024;
     private static final Pattern TOKEN_PATTERN = Pattern.compile("[\\p{IsHan}]{2,}|[A-Za-z0-9]{2,}");
+    private static final Pattern ARTICLE_PATTERN = Pattern.compile("第[一二三四五六七八九十百千万零〇0-9]+条");
 
     // ==================== 智能问答 ====================
 
+    /** 每用户每天最多提问次数 (可通过 qa.chat.daily-limit 覆盖) */
+    @org.springframework.beans.factory.annotation.Value("${qa.chat.daily-limit:200}")
+    private int dailyChatLimit;
+
     /**
-     * 智能问答: 先匹配知识库 → 未命中则调 AI → 记录日志
+     * 智能问答: 先匹配知识库 → 未命中则调 AI → 记录日志.
+     * 每用户每自然日提问数受 qa.chat.daily-limit 限制 (默认 200), 超过抛业务异常.
      */
     public Map<String, Object> chat(String question) {
+        // 0. 每日提问次数限流
+        Long userId = com.ruc.college.common.security.UserContext.getUserId();
+        if (userId != null && dailyChatLimit > 0) {
+            java.time.LocalDateTime dayStart = java.time.LocalDate.now().atStartOfDay();
+            Long todayCount = chatLogMapper.selectCount(
+                    new LambdaQueryWrapper<com.ruc.college.module.qa.entity.QaChatLog>()
+                            .eq(com.ruc.college.module.qa.entity.QaChatLog::getUserId, userId)
+                            .ge(com.ruc.college.module.qa.entity.QaChatLog::getCreatedAt, dayStart));
+            if (todayCount != null && todayCount >= dailyChatLimit) {
+                throw new com.ruc.college.common.exception.BusinessException(
+                        429,
+                        "今日提问已达上限 (" + dailyChatLimit + " 次), 请明日再试"
+                );
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
 
         // 1. 关键词匹配知识库
@@ -66,16 +100,23 @@ public class QaService {
             log.setSourceType("knowledge");
             log.setMatched(true);
         } else {
-            // 2. 调用 AI
-            String context = buildKnowledgeContext(question, tokens);
+            // 2. RAG 检索文档向量片段 + 知识库候选，作为 AI 上下文
+            List<QaDocumentChunk> ragChunks = documentRagService.retrieve(question, null);
+            String ragContext = documentRagService.buildContext(ragChunks);
+            String knowledgeContext = buildKnowledgeContext(question, tokens);
+            String context = buildRagPromptContext(knowledgeContext, ragContext);
             AiProvider ai = aiProviderFactory.getProvider();
-            String aiAnswer = ai.chat(question, context);
+            boolean hasRagContext = StringUtils.hasText(ragContext);
+            String aiAnswer = hasRagContext && ai.getName().equals("none")
+                    ? buildExtractiveRagAnswer(question, ragChunks)
+                    : ai.chat(question, context);
             result.put("answer", aiAnswer);
-            result.put("sourceType", ai.getName().equals("none") ? "manual" : "ai");
+            result.put("sourceType", hasRagContext ? "rag" : (ai.getName().equals("none") ? "manual" : "ai"));
             result.put("sourceUrl", null);
             result.put("aiGenerated", !ai.getName().equals("none"));
+            result.put("ragUsed", hasRagContext);
             log.setAnswer(aiAnswer);
-            log.setSourceType(ai.getName().equals("none") ? "manual" : "ai");
+            log.setSourceType(hasRagContext ? "rag" : (ai.getName().equals("none") ? "manual" : "ai"));
             log.setMatched(false);
         }
 
@@ -155,11 +196,14 @@ public class QaService {
 
     // ==================== 政策文档 ====================
 
-    public List<QaDocument> getDocumentList(String category) {
+    public List<QaDocument> getDocumentList(String category, String docType) {
         boolean hasCategory = StringUtils.hasText(category);
+        // docType 未传时默认 policy, 保持现有调用方向后兼容; 显式传 template 才返回模板
+        String effectiveType = StringUtils.hasText(docType) ? docType : "policy";
         return documentMapper.selectList(
                 new LambdaQueryWrapper<QaDocument>()
                         .eq(QaDocument::getStatus, 1)
+                        .eq(QaDocument::getDocType, effectiveType)
                         .eq(hasCategory, QaDocument::getCategory, category)
                         .orderByDesc(QaDocument::getCreatedAt)
         );
@@ -178,11 +222,38 @@ public class QaService {
         if (doc.getFileSize() != null && doc.getFileSize() > MAX_DOC_SIZE) {
             throw new BusinessException("文件大小不能超过30MB");
         }
+        if (!StringUtils.hasText(doc.getDocType())) {
+            doc.setDocType("policy");
+        }
         doc.setCreatedBy(UserContext.getUserId());
         doc.setStatus(1);
         doc.setDownloadCount(0);
         documentMapper.insert(doc);
         return doc.getId();
+    }
+
+    /**
+     * 用已上传的文件补全占位模板记录 (file_path 为空的)。
+     * 用于"留下接口给未导入模板", 管理员后续可以上传文件填进占位记录。
+     */
+    public void fillTemplateFile(Long id, QaDocument fileInfo) {
+        QaDocument existing = documentMapper.selectById(id);
+        if (existing == null) throw new BusinessException("模板不存在");
+        if (!"template".equals(existing.getDocType())) {
+            throw new BusinessException("仅占位模板可补传文件");
+        }
+        if (fileInfo == null || !StringUtils.hasText(fileInfo.getFilePath())) {
+            throw new BusinessException("缺少文件信息");
+        }
+        if (fileInfo.getFileSize() != null && fileInfo.getFileSize() > MAX_DOC_SIZE) {
+            throw new BusinessException("文件大小不能超过30MB");
+        }
+        existing.setFilePath(fileInfo.getFilePath());
+        existing.setFileSize(fileInfo.getFileSize());
+        if (StringUtils.hasText(fileInfo.getFileType())) {
+            existing.setFileType(fileInfo.getFileType());
+        }
+        documentMapper.updateById(existing);
     }
 
     public QaDocument getDocumentForDownload(Long id) {
@@ -192,7 +263,10 @@ public class QaService {
             throw new BusinessException("文档已下架");
         }
         if (!StringUtils.hasText(doc.getFilePath())) {
-            throw new BusinessException("文档文件路径为空");
+            // 占位模板（管理员尚未上传文件）
+            throw new BusinessException("template".equals(doc.getDocType())
+                    ? "该模板尚未上线, 请联系管理员补传"
+                    : "文档文件路径为空");
         }
         // 下载计数 +1
         doc.setDownloadCount(doc.getDownloadCount() + 1);
@@ -235,6 +309,14 @@ public class QaService {
         }
 
         documentMapper.deleteById(id);
+    }
+
+    public Map<String, Object> indexDocument(Long id) {
+        return documentRagService.indexDocument(id);
+    }
+
+    public List<QaDocumentChunk> retrieveDocumentChunks(String question, String category) {
+        return documentRagService.retrieve(question, category);
     }
 
     private List<String> extractTokens(String text) {
@@ -311,6 +393,161 @@ public class QaService {
             if (StringUtils.hasText(k.getSourceUrl())) {
                 sb.append("链接: ").append(k.getSourceUrl());
             }
+        }
+        return sb.toString();
+    }
+
+    private static final int MAX_EXTRACTIVE_CHUNKS = 3;
+    private static final int MIN_SECONDARY_SCORE_RATIO = 60; // 次级 chunk 至少要达到最佳分数 60% 才纳入
+
+    private String buildExtractiveRagAnswer(String question, List<QaDocumentChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return "未在现有政策文件中找到明确依据，请联系辅导员确认。";
+        }
+        String q = question == null ? "" : question;
+        List<QaDocumentChunk> ranked = chunks.stream()
+                .sorted((a, b) -> Integer.compare(extractiveScore(q, b), extractiveScore(q, a)))
+                .toList();
+        int bestScore = extractiveScore(q, ranked.get(0));
+
+        // 置信度门槛: 即使有候选, 最佳分数不达标也视为不相关, 避免给无关问题伪造依据
+        if (bestScore < extractiveConfidence) {
+            return "未在现有政策文件中找到明确依据，请联系辅导员确认。";
+        }
+        int threshold = Math.max(1, bestScore * MIN_SECONDARY_SCORE_RATIO / 100);
+
+        StringBuilder sb = new StringBuilder();
+        java.util.LinkedHashSet<String> seenTitles = new java.util.LinkedHashSet<>();
+        int included = 0;
+        for (QaDocumentChunk chunk : ranked) {
+            if (included >= MAX_EXTRACTIVE_CHUNKS) break;
+            int score = extractiveScore(q, chunk);
+            if (included > 0 && score < threshold) break;
+
+            String title = StringUtils.hasText(chunk.getTitle()) ? chunk.getTitle() : "政策文档";
+            String content = chunk.getContent() == null ? "" : chunk.getContent().trim();
+            content = focusExtractiveContent(q, content);
+            if (!StringUtils.hasText(content)) continue;
+
+            if (included > 0) sb.append("\n\n");
+            sb.append("【依据 ").append(included + 1).append("】《").append(title).append("》\n").append(content);
+            seenTitles.add(title);
+            included++;
+        }
+        return sb.length() == 0 ? "未在现有政策文件中找到明确依据，请联系辅导员确认。" : sb.toString();
+    }
+
+    /**
+     * 围绕最佳命中位置抽取一段连贯文本：
+     * 1) 优先按"第X条"边界完整返回整条条款（不截断）
+     * 2) 否则按段落起始定位，并允许最长 1200 字（条款式政策文件常见单条长度）
+     */
+    private static String focusExtractiveContent(String question, String content) {
+        if (!StringUtils.hasText(content)) return "";
+
+        int bestPosition = findBestMatchPosition(question, content);
+        int sectionStart = findSectionStart(content, bestPosition);
+
+        boolean atArticleBoundary = sectionStart < bestPosition
+                && ARTICLE_PATTERN.matcher(content.substring(sectionStart, Math.min(content.length(), sectionStart + 8))).find();
+        if (atArticleBoundary) {
+            int sectionEnd = findNextArticleStart(content, sectionStart + 1);
+            return content.substring(sectionStart, sectionEnd).trim();
+        }
+
+        int maxLength = sectionStart < bestPosition ? 900 : 520;
+        String focused = content.substring(Math.min(sectionStart, content.length()));
+        if (focused.length() > maxLength) {
+            focused = focused.substring(0, maxLength) + "...";
+        }
+        return focused;
+    }
+
+    private static int findNextArticleStart(String content, int from) {
+        Matcher matcher = ARTICLE_PATTERN.matcher(content);
+        if (matcher.find(from)) {
+            return matcher.start();
+        }
+        return content.length();
+    }
+
+    private static int extractiveScore(String question, QaDocumentChunk chunk) {
+        String title = chunk.getTitle() == null ? "" : chunk.getTitle();
+        String category = chunk.getCategory() == null ? "" : chunk.getCategory();
+        String keywords = chunk.getKeywords() == null ? "" : chunk.getKeywords();
+        String content = chunk.getContent() == null ? "" : chunk.getContent();
+        Set<String> queryTerms = RagScoringUtil.expandTerms(RagScoringUtil.extractTerms(question));
+        Set<String> contentTerms = RagScoringUtil.expandTerms(RagScoringUtil.extractTerms(content));
+        Set<String> metadataTerms = RagScoringUtil.expandTerms(RagScoringUtil.extractTerms(title + "\n" + category + "\n" + keywords));
+
+        double vectorScore = chunk.getScore() == null ? 0 : chunk.getScore();
+        double score = vectorScore * 100;
+        score += RagScoringUtil.weightedOverlap(queryTerms, contentTerms) * 55;
+        score += RagScoringUtil.weightedOverlap(queryTerms, metadataTerms) * 25;
+        score += RagScoringUtil.intentStructureScore(question, content) * 20;
+        score += RagScoringUtil.audienceScopeScore(question, title) * 45;
+        return (int) Math.round(score);
+    }
+
+    private static int findBestMatchPosition(String question, String content) {
+        Set<String> queryTerms = RagScoringUtil.expandTerms(RagScoringUtil.extractTerms(question));
+        int bestPosition = 0;
+        int bestScore = -1;
+        for (String term : queryTerms) {
+            if (term.length() < 2) {
+                continue;
+            }
+            int position = content.indexOf(term);
+            while (position >= 0) {
+                int score = windowHitCount(content, queryTerms, position, 260);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPosition = position;
+                }
+                position = content.indexOf(term, position + term.length());
+            }
+        }
+        return bestPosition;
+    }
+
+    private static int windowHitCount(String content, Set<String> terms, int center, int radius) {
+        int from = Math.max(0, center - radius);
+        int to = Math.min(content.length(), center + radius);
+        String window = content.substring(from, to);
+        int score = 0;
+        for (String term : terms) {
+            if (term.length() >= 2 && window.contains(term)) {
+                score += term.length() >= 4 ? 2 : 1;
+            }
+        }
+        return score;
+    }
+
+    private static int findSectionStart(String content, int bestPosition) {
+        int start = Math.max(0, bestPosition);
+        Matcher matcher = ARTICLE_PATTERN.matcher(content);
+        while (matcher.find()) {
+            if (matcher.start() <= bestPosition) {
+                start = matcher.start();
+            } else {
+                break;
+            }
+        }
+        if (start != bestPosition) {
+            return start;
+        }
+        int paragraphStart = content.lastIndexOf('\n', Math.max(0, bestPosition - 1));
+        return paragraphStart >= 0 ? paragraphStart + 1 : Math.max(0, bestPosition - 120);
+    }
+
+    private static String buildRagPromptContext(String knowledgeContext, String ragContext) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("回答规则：只能依据下列资料回答；资料中没有明确依据时，请回答“未在现有政策文件中找到明确依据，请联系辅导员确认。”；不得编造政策。\n");
+        if (StringUtils.hasText(knowledgeContext)) {
+            sb.append("\n【标准问答候选】\n").append(knowledgeContext);
+        }
+        if (StringUtils.hasText(ragContext)) {
+            sb.append("\n\n【政策文档片段】\n").append(ragContext);
         }
         return sb.toString();
     }

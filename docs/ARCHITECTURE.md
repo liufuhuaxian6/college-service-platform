@@ -440,7 +440,7 @@ docker-compose up -d
 
 ### 8.1 总览
 
-系统共 14 张表，分为 4 个业务域 + 1 个系统域：
+系统共 16 张表，分为 4 个业务域 + 1 个系统域：
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -448,14 +448,16 @@ docker-compose up -d
 │                        数据库: college_service                    │
 │                                                                  │
 │  ┌─ 系统域 ─────────────────────────────────────────────────┐   │
-│  │  sys_user             用户表 (全部角色的账号)              │   │
-│  │  sys_operation_log    操作日志 (管理员行为审计)            │   │
-│  │  sys_notification     通知消息 (含模拟短信)               │   │
+│  │  sys_user                    用户表 (含 email/phone)       │   │
+│  │  sys_operation_log           操作日志                      │   │
+│  │  sys_notification            通知消息 (站内/邮件模拟/短信) │   │
+│  │  sys_notification_broadcast  群发记录 (24h 撤回窗口)       │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 │  ┌─ 智能问答域 ────────────────────────────────────────────┐    │
 │  │  qa_knowledge         知识库标准问答                      │    │
-│  │  qa_document          政策文档 (≤30MB)                   │    │
+│  │  qa_document          政策文档/办公模板 (doc_type 区分)   │    │
+│  │  qa_document_chunk    RAG 向量切片 (vector(512))          │    │
 │  │  qa_chat_log          用户问答记录                        │    │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -526,7 +528,8 @@ approval_type (审批类型)
 | grade | VARCHAR(10) | 年级 |
 | major | VARCHAR(50) | 专业 |
 | class_name | VARCHAR(50) | 班级 |
-| phone | VARCHAR(20) | 手机号 |
+| phone | VARCHAR(20) | 手机号（学生端可自助修改） |
+| email | VARCHAR(100) | 邮箱（为空时派生 `学号@ruc.edu.cn`，学生端可自助修改） |
 | id_card_enc | VARCHAR(255) | 身份证号（**AES 加密存储**） |
 | origin_enc | VARCHAR(255) | 生源地（**AES 加密存储**） |
 | hukou_enc | VARCHAR(255) | 户籍地（**AES 加密存储**） |
@@ -556,8 +559,28 @@ approval_type (审批类型)
 | user_id | BIGINT | 接收人 |
 | title | VARCHAR(200) | 标题 |
 | content | TEXT | 内容 |
-| type | VARCHAR(20) | sms_sim=模拟短信 system=系统通知 reminder=流程提醒 |
+| type | VARCHAR(20) | sms_sim=模拟短信  system=系统通知  reminder=流程提醒  email_sim=邮件降级 |
+| tags | VARCHAR(200) | 标签（逗号分隔，用于学生端 tag 筛选） |
+| source | VARCHAR(50) | 来源（学院/就业办/...） |
+| source_url | VARCHAR(500) | 公众号原文链接 |
+| broadcast_id | BIGINT | 关联的群发记录（撤回时按此过滤） |
 | is_read | BOOLEAN | 是否已读 |
+
+**sys_notification_broadcast** — 群发记录
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGSERIAL PK | |
+| title / content | — | 群发原文 |
+| tags / source / source_url | — | 同 sys_notification |
+| target_filter | TEXT | 目标筛选 JSON：`{roleLevel, grades, majors, classNames}` |
+| channels | VARCHAR(50) | 已选渠道列表，如 `system,email` |
+| target_count / sent_count / email_sent | INT | 命中人数 / 站内已写入 / 邮件已发送 |
+| operator_id | BIGINT | 群发操作人 |
+| withdrawn | BOOLEAN | 是否已撤回 |
+| withdrawn_at | TIMESTAMP | 撤回时间 |
+
+> 24h 内可撤回；撤回时仅删除目标用户中**未读**的关联通知，已读保留留痕。
 
 #### 智能问答域
 
@@ -575,13 +598,15 @@ approval_type (审批类型)
 
 > 学生提问时，后端先用关键词匹配这张表。命中则返回标准答案（可信），未命中才调 AI（需标注"仅供参考"）。
 
-**qa_document** — 政策文档
+**qa_document** — 政策文档 / 办公模板
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | BIGSERIAL PK | |
 | title | VARCHAR(200) | 文档标题 |
 | category | VARCHAR(50) | 分类 |
+| doc_type | VARCHAR(20) | `policy`=政策文件，`template`=办公模板（请假条/活动预算表/简报…） |
+| description | TEXT | 适用范围 / 填写说明（主要用于模板） |
 | file_path | VARCHAR(500) | 服务器上的存储路径 |
 | file_size | BIGINT | 文件大小（字节，≤30MB） |
 | download_count | INT | 下载次数（每次下载 +1） |
@@ -609,7 +634,7 @@ approval_type (审批类型)
 | name | VARCHAR(100) | 如"入党流程"、"入团流程" |
 | total_steps | INT | 总步骤数 |
 
-> 初始数据已预置入党流程（8步）和入团流程（5步）。
+> 初始数据已预置入党流程（29 步，按《发展党员工作程序》）和入团流程（5 步）。
 
 **party_process_step** — 步骤定义
 
@@ -675,6 +700,14 @@ approval_type (审批类型)
 | withdraw_deadline | TIMESTAMP | 撤回截止时间（通过后 +2 天） |
 
 > `form_data` 用 JSONB 类型，不同类型的申请可以有不同的表单字段，无需改表结构。
+
+当前证明模板分两层：
+
+- `approval_type` 决定审批类型和审批链，例如在读证明、成绩证明、政审证明、离校证明。
+- `qa_document(doc_type='template')` 中的办公模板记录作为学生端可选模板。党员证明、团员证明运行时不解析 docx，而是由 `CertTemplateRegistry` 根据模板标题匹配固定生成器，返回必填字段并生成证明正文。
+
+党员证明当前必填：身份证号、培养层次、入党日期、所属党支部、证明用途。
+团员证明当前必填：身份证号、培养层次、入团日期、团员编号、证明用途。
 
 **审批状态机**（status 字段的流转规则）：
 
@@ -752,7 +785,7 @@ approval_type (审批类型)
 |------|------|
 | 管理员账号 | admin / admin123（一级，院领导） |
 | 审批类型 | 在读证明、成绩证明、政审证明、离校证明 |
-| 入党流程模板 | 8 步（递交申请书 → 积极分子 → 培养考察 → ... → 上级审批） |
+| 入党流程模板 | 29 步（按《发展党员工作程序》: 教育引导 → 入党积极分子确定 → 培养教育 → 发展对象 → 政治审查 → 短期培训 → 支部大会 → 上级审批 → 预备党员 → 转正 → 存档） |
 | 入团流程模板 | 5 步（递交申请书 → 审查 → 团课学习 → 表决 → 审批） |
 
 ### 8.6 后端怎么操作数据库
@@ -808,6 +841,186 @@ List<SysUser> students = userMapper.selectList(
 | 后端 | 8080 (内部) | backend |
 | Kingbase | 54321 | kingbase |
 | Redis | 6379 | redis |
+
+---
+
+## 九点五、智能问答 RAG 检索架构
+
+智能问答 `POST /api/qa/chat` 的回答来源分三级降级：
+
+```
+1. 知识库标准答案（qa_knowledge 关键词匹配命中）
+        ↓ 未命中
+2. RAG 检索 + AI 大模型基于政策文档片段回答
+        ↓ AI 未配置 / 检索为空
+3. 抽取式回答（直接返回政策文档原文片段，无需 AI）
+        ↓ 完全无依据
+4. manual 兜底："未在现有政策文件中找到明确依据，请联系辅导员确认。"
+```
+
+### 检索全链路
+
+```
+用户问题 "学生最长可以读多少年"
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ QaService.chat(question)                │
+│  ├─ extractTokens → 关键词匹配 qa_knowledge │ ← 命中则直接返回标准答案
+│  └─ 未命中 → DocumentRagService.retrieve │
+└─────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ EmbeddingService.embedQuery()           │
+│  ├─ 加 BGE 查询前缀                       │
+│  │   "为这个句子生成表示以用于检索相关文章："  │
+│  └─ HTTP POST → TEI :8081/v1/embeddings  │
+└─────────────────────────────────────────┘
+         │ 返回 512 维浮点数组（L2 归一化）
+         ▼
+┌─────────────────────────────────────────┐
+│ pgvector 余弦相似度检索                   │
+│  SELECT *, (1 - embedding <=> ?) AS score│
+│  FROM qa_document_chunk                  │
+│  ORDER BY embedding <=> ?                │
+│  LIMIT topK * rerank-pool-size           │
+└─────────────────────────────────────────┘
+         │ 返回 80 条候选片段
+         ▼
+┌─────────────────────────────────────────┐
+│ DocumentRagService.boostScore() 重排     │
+│  在余弦相似度基础上叠加：                  │
+│   + 0.55 × 内容关键词加权重叠               │
+│   + 0.25 × 元数据（标题/分类/keywords）重叠  │
+│   + 0.35 × 意图结构匹配（"多久"→年限词）     │
+│   + 0.45 × 受众范围匹配（"本科生"→标题）     │
+│   + 校历/节假日/报到等短问题查询扩展和分类过滤 │
+│  按总分降序取 topK 条                       │
+└─────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ QaService.buildExtractiveRagAnswer()    │
+│  ├─ 最多拼接 3 条「依据 N」                 │
+│  ├─ 次级片段需 ≥ 最佳分数的 60% 才纳入       │
+│  └─ 命中"第X条"边界时返回完整条款（不截断）   │
+└─────────────────────────────────────────┘
+         │
+         ▼
+返回 { sourceType: "rag", answer: "【依据1】《...》第十条 ..." }
+```
+
+### 文档入库流程（管理端「重新索引」按钮）
+
+```
+PDF / DOCX / TXT 文件 (≤ 30MB)
+         │
+         ▼
+DocumentRagService.indexDocument(docId)
+  ├─ extractText: PDFBox / Apache POI / 直接读 UTF-8
+  ├─ splitText: 优先按"第X条"切分；否则按段落保留语义边界
+  └─ 每个切片调 EmbeddingService.embed() 生成 512 维向量
+         │
+         ▼
+INSERT INTO qa_document_chunk (..., embedding) VALUES (..., '[0.1,0.2,...]'::vector)
+         │
+         ▼
+ivfflat 余弦索引自动维护
+```
+
+### 配置项（`application.yml` 的 `rag` 节）
+
+| 配置 | 默认值 | 含义 |
+|---|---|---|
+| `enabled` | true | RAG 总开关 |
+| `embedding-dim` | 512 | 向量维度，必须与模型匹配（BGE-small-zh=512） |
+| `chunk-size` | 700 | 长段落切片最大字符数 |
+| `chunk-overlap` | 120 | 长段落切片之间的重叠字符数 |
+| `top-k` | 4 | 最终返回的片段数 |
+| `min-score` | 0.5 | 余弦相似度阈值（local-hash 时期为 0.05；dev/prod 可覆盖） |
+| `extractive-confidence` | 55 | 抽取式回答置信度阈值，低于阈值转 manual 兜底 |
+| `rerank-pool-size` | 20 | 从 pgvector 召回 `topK × 此值` 条候选送入重排 |
+| `embedding.provider` | http | `local-hash` 或 `http`（生产用 http） |
+| `embedding.api-url` | http://localhost:8081/v1/embeddings | TEI 服务地址，可由 `RAG_EMBEDDING_API_URL` 环境变量覆盖 |
+| `embedding.query-prefix` | 「为这个句子生成表示以用于检索相关文章：」 | BGE 系列查询前缀，仅对查询添加，文档索引时不加 |
+
+### Embedding 模型选型
+
+当前生产配置：**BGE-small-zh-v1.5**（智源研究院 BAAI 出品，中文专项 BERT，4 层 8 头）
+
+| 模型 | 维度 | 中文质量 | 体积 | 用途 |
+|---|---|---|---|---|
+| **BGE-small-zh-v1.5** ⭐ | 512 | ★★★★ | 90MB | **当前选用**，CPU 推理 50ms/句 |
+| BGE-base-zh-v1.5 | 768 | ★★★★★ | 400MB | 服务器内存充足时升级 |
+| BGE-large-zh-v1.5 | 1024 | ★★★★★ | 1.3GB | 答辩演示效果最佳 |
+| local-hash（兜底） | 512 | ★ | 0 | TEI 不可用时回退，仅字面匹配 |
+
+切换模型时同步改 `rag.embedding-dim` 和 SQL `vector(N)` 列类型；旧向量不可复用，需 `TRUNCATE qa_document_chunk` 后重建索引。
+
+---
+
+## 九点六、信息精准推送 / 邮件投递架构
+
+模块三「信息精准推送」由管理员发起群发，覆盖**站内通知 + 真实邮件 + 短信模拟**三条通道，所有发送都通过 `NotificationBroadcastService.broadcast()` 在一个事务中完成：
+
+```
+管理员提交群发请求 (admin 端)
+     │  POST /api/notify/broadcast
+     │  { title, content, tags[], channels[], filter }
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ NotificationBroadcastService.broadcast()                         │
+│  1) 按 filter 查询 sys_user → targets (≤ notify.broadcast.max)   │
+│  2) INSERT sys_notification_broadcast                            │
+│  3) 站内通道: 批量 INSERT sys_notification (type=system)         │
+│  4) email 通道:                                                  │
+│     ├─ EmailService.isAvailable() = false                        │
+│     │    → 写 sys_notification (type=email_sim) 降级             │
+│     └─ true → 逐人 sendOne() 同步发送, 统计 emailSent             │
+│  5) sms_sim 通道: 批量 INSERT sys_notification (type=sms_sim)    │
+│  6) UPDATE broadcast SET sent_count, email_sent                  │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+EmailService.sendOne()  ──SMTP─→  smtphz.qiye.163.com:465 (RUC) / smtp.qq.com:465 (QQ)
+     │
+     ▼  (失败时 warn 日志 + 返回 false, 不抛异常)
+真实邮件投递到目标邮箱 (派生规则: sys_user.email || 学号@ruc.edu.cn)
+```
+
+**关键设计点：**
+
+- **授权码隔离**：`MAIL_AUTH_CODE` 仅通过环境变量传入 JVM，不入库、不入 yml、不进日志
+- **邮件降级**：`JavaMailSender` bean 缺失或鉴权失败时，broadcast 不报错，自动改写 `email_sim` 类型通知，前端展示为「邮件(模拟)」前缀
+- **24h 撤回**：`sys_notification` 表的 `broadcast_id` 把站内通知与群发关联起来，撤回时按 `(broadcast_id, is_read=false)` 删除
+- **节流**：`EmailService.sendBatch()` 每发 `notify.email.batch-size` 封 sleep 100ms，避免 SMTP 限流
+
+配置项（`application.yml`）：
+
+| 配置 | 默认 | 说明 |
+|---|---|---|
+| `spring.mail.host` | `smtphz.qiye.163.com` | SMTP 服务器（默认 RUC 网易企业邮杭州节点, 可通过 `MAIL_HOST` 覆盖） |
+| `spring.mail.port` | `465` | SSL 端口（`MAIL_PORT` 覆盖） |
+| `spring.mail.username` | `3523698178@qq.com` | 发件人（`MAIL_USERNAME` 覆盖） |
+| `spring.mail.password` | (空) | 客户端授权码（`MAIL_AUTH_CODE` 必传，否则降级） |
+| `notify.email.default-domain` | `ruc.edu.cn` | 邮箱派生域 |
+| `notify.email.batch-size` | 50 | 每 N 封小睡 100ms |
+| `notify.broadcast.withdraw-window-hours` | 24 | 撤回窗口 |
+| `notify.broadcast.max-targets` | 5000 | 单次群发最大目标人数 |
+
+### 数据流总览
+
+```
+qa_knowledge        ── 关键词匹配 ───┐
+                                    ├──► QaService.chat()
+qa_document_chunk   ── 向量检索 ─────┤      │
+  + ivfflat 索引                    │      ▼
+                                    │   返回答案
+qa_chat_log         ◄── 写入 ───────┘
+```
+
+`qa_document_chunk` 字段：`document_id`、`title`、`category`、`chunk_index`、`content`、`keywords`（关键词自动提取）、`embedding vector(512)`。
 
 ---
 

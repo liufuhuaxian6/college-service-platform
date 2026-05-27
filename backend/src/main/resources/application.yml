@@ -13,6 +13,26 @@ spring:
     multipart:
       max-file-size: 30MB
       max-request-size: 30MB
+  # SMTP 邮件发送 (默认走 RUC 学校邮箱 smtphz.qiye.163.com:465 SSL, 网易企业邮杭州节点)
+  # 授权码不入库, 通过环境变量 MAIL_AUTH_CODE 传入; 缺失时 EmailService 自动降级为只写"email_sim"通知
+  # 切换其他邮箱: 同时设置 MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_AUTH_CODE 4 个环境变量
+  mail:
+    host: ${MAIL_HOST:smtphz.qiye.163.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_AUTH_CODE:}
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          socketFactory:
+            class: javax.net.ssl.SSLSocketFactory
+            fallback: false
+            port: ${MAIL_PORT:465}
 
 # MyBatis-Plus
 mybatis-plus:
@@ -35,10 +55,54 @@ jwt:
 
 # AI 配置 (预留, 后续填入具体模型)
 ai:
-  provider: none  # none / http / wenxin / qianfan / openai
-  api-key: ""
-  api-url: ""
-  timeout-ms: 5000
+  provider: ${AI_PROVIDER:none}  # none / http / wenxin / qianfan / openai
+  api-key: ${AI_API_KEY:}
+  api-url: ${AI_API_URL:}
+  model: ${AI_MODEL:}
+  timeout-ms: ${AI_TIMEOUT_MS:5000}
+
+# 智能问答限流
+qa:
+  chat:
+    daily-limit: ${QA_DAILY_LIMIT:200}   # 每用户每自然日最多提问次数; 0 表示不限
+
+# RAG / 向量检索配置
+# 已切换至 BGE-small-zh-v1.5（中文专项，512维）通过 TEI HTTP 服务调用
+rag:
+  enabled: true
+  embedding-dim: 512
+  chunk-size: 700
+  chunk-overlap: 120
+  top-k: 4
+  min-score: 0.5        # 原始余弦阈值（不含加权）, BGE-small 中文模型上 0.5 大致区分"相关 vs 不相关"
+  extractive-confidence: 55   # 抽取式回答最低置信度（=vector*100 + 关键词/意图/受众加权和）; 低于则回兜底
+
+  rerank-pool-size: 20  # 从向量库召回多少候选送入重排（topK 的倍数，原硬编码 max(100, topK*20)）
+  embedding:
+    provider: http      # local-hash / http
+    # TEI（HuggingFace Text Embeddings Inference）OpenAI 兼容端点
+    # 本机开发: http://localhost:8081/v1/embeddings
+    # 容器内调用: http://embedding:80/v1/embeddings
+    api-url: "${RAG_EMBEDDING_API_URL:http://localhost:8081/v1/embeddings}"
+    api-key: ""
+    timeout-ms: 8000
+    # BGE 系列模型推荐对 query 加前缀以提升检索召回率
+    query-prefix: "为这个句子生成表示以用于检索相关文章："
+
+# 党团流程到期提醒 (定时任务 PartyReminderJob)
+party:
+  reminder:
+    cron: "0 0 9 * * ?"         # Quartz cron, 每天 09:00 触发; 演示时可改 "0 */5 * * * ?" 每 5 分钟
+    before-days: 7              # 距当前步骤预期完成日 N 天内开始提醒
+
+# 通知群发
+notify:
+  email:
+    default-domain: ruc.edu.cn   # 邮箱派生规则: 学号@ruc.edu.cn
+    batch-size: 50               # 邮件分批节流, 每 N 封小睡 100ms 防 SMTP 限流
+  broadcast:
+    withdraw-window-hours: 24    # 群发后多少小时内允许撤回(只删未读)
+    max-targets: 5000            # 单次群发最大目标人数
 
 # 文件上传
 file:

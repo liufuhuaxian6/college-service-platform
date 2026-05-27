@@ -1,4 +1,4 @@
-/* 全局样式 — 严谨正式朴素风格 */
+@use './theme.scss';
 
 * {
   margin: 0;
@@ -9,21 +9,51 @@
 body {
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
-  color: #333;
-  background-color: #f0f2f5;
+  color: var(--app-text);
+  background-color: var(--app-bg);
 }
 
-/* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #c0c4cc;
   border-radius: 3px;
 }
 
-/* Element Plus 样式覆盖 */
 .el-menu {
   border-right: none !important;
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+.el-card,
+.el-dialog {
+  border-radius: var(--app-radius-lg);
+}
+
+.el-card {
+  border-color: var(--app-border);
+}
+
+.el-table {
+  --el-table-header-bg-color: #FAFAFB;
+  --el-table-header-text-color: var(--app-text-regular);
+  --el-table-border-color: var(--app-border-light);
+}
+
+.app-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.table-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
 }

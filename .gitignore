@@ -29,12 +29,19 @@ Thumbs.db
 .env.local
 .env.production
 *.log
+*.err
 
 # Uploads
 uploads/
 
 # Docker image tars
 deploy/images/
+
+# 离线部署包（含 docker save 出来的 tar 镜像，体积大）
+deploy-package/
+
+# 预下载的 embedding 模型（BGE-small-zh-v1.5 等，约 200MB，按需重新下载）
+models/
 
 # Compiled
 *.pyc

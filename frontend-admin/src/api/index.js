@@ -15,6 +15,10 @@ export const systemApi = {
   importUsers: (formData) => request.post('/system/user/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
+  exportStudents: (params) => request.get('/system/user/export', {
+    params,
+    responseType: 'blob',
+  }),
   getDashboard: () => request.get('/system/dashboard'),
 }
 
@@ -29,6 +33,13 @@ export const notifyApi = {
   getUnreadCount: () => request.get('/notify/unread-count'),
   markRead: (id) => request.put(`/notify/${id}/read`),
   markAllRead: () => request.put('/notify/read-all'),
+  getTags: () => request.get('/notify/tags'),
+  // ---- 群发管理 ----
+  previewTargets: (filter) => request.post('/notify/broadcast/preview', filter || {}),
+  broadcast: (data) => request.post('/notify/broadcast', data),
+  getBroadcastPage: (params) => request.get('/notify/broadcast/page', { params }),
+  getBroadcastDetail: (id) => request.get(`/notify/broadcast/${id}`),
+  withdrawBroadcast: (id) => request.delete(`/notify/broadcast/${id}`),
 }
 // ==================== 智能问答 ====================
 export const qaApi = {
@@ -40,8 +51,16 @@ export const qaApi = {
 
   getDocumentList: (params) => request.get('/qa/document/list', { params }),
   addDocument: (data) => request.post('/qa/document', data),
+  indexDocument: (id) => request.post(`/qa/document/${id}/index`),
+  searchDocumentChunks: (params) => request.get('/qa/document/chunk/search', { params }),
   deleteDocument: (id) => request.delete(`/qa/document/${id}`),
   getDocumentDownloadUrl: (id) => `/api/qa/document/${id}/download`,
+  // ---- 办公模板（复用 document 接口, docType=template） ----
+  getTemplateList: (params) => request.get('/qa/document/list', { params: { ...params, docType: 'template' } }),
+  addTemplate: (data) => request.post('/qa/document', { ...data, docType: 'template' }),
+  fillTemplateFile: (id, fileInfo) => request.put(`/qa/document/${id}/file`, fileInfo),
+  deleteTemplate: (id) => request.delete(`/qa/document/${id}`),
+  getTemplateDownloadUrl: (id) => `/api/qa/document/${id}/download`,
 }
 
 // ==================== 党团流程 ====================

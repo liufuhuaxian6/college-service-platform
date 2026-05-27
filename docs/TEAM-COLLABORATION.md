@@ -1,6 +1,6 @@
 # 团队协作文档 — 学院学生综合服务与党团管理平台
 
-> 最后更新: 2026-04-28 | 版本: 1.0
+> 最后更新: 2026-05-26 | 版本: 1.2 | 迭代计划与待办已迁移至 [TODO.md](TODO.md)
 
 ---
 
@@ -145,10 +145,14 @@ A 同学 (后端基础)          B 同学 (后端业务)
 |------|------|------|------|--------|------|
 | POST | `/auth/login` | 登录 | 无需Token | `{ studentId, password }` | `{ token, userId, name, roleLevel, studentId }` |
 | POST | `/auth/register` | 注册 | 无需Token | `{ studentId, name, password }` | 无 |
-| GET | `/auth/profile` | 获取当前用户信息 | 全部角色 | 无 | `SysUser` (脱敏) |
+| GET | `/auth/profile` | 获取当前用户信息 | 全部角色 | 无 | `{ ..., email, emailCustom, phone }` 脱敏 |
+| PUT | `/auth/profile` | 修改自己的邮箱/手机 | 全部角色 | `{ email?, phone? }` 传空串=清空回落默认 | 无 |
 | PUT | `/auth/password` | 修改密码 | 全部角色 | `{ oldPassword, newPassword }` | 无 |
 
-> 注: `PUT /auth/password` 实际实现在 `SystemController` 中（路径仍为 `/auth/password`），由 A 同学维护。
+> 注:
+> - `PUT /auth/password` 实际在 `SystemController` 中（路径仍为 `/auth/password`）
+> - `PUT /auth/profile` 由 `AuthController` 处理，使用 `LambdaUpdateWrapper` 显式 SET 避免 MP 忽略 null
+> - `email` 字段缺省派生为 `学号@ruc.edu.cn`；`emailCustom=true` 表示用户已自定义
 
 ### 3.2 系统管理 — `/system` (A 同学)
 
@@ -183,11 +187,24 @@ A 同学 (后端基础)          B 同学 (后端业务)
 
 | 方法 | 路径 | 说明 | 权限 | 参数 | 响应 |
 |------|------|------|------|------|------|
-| GET | `/notify/page` | 我的通知列表 | 全部角色 | `?page=1&size=20&type=` | `PageResult<Notification>` |
+| GET | `/notify/page` | 我的通知列表 | 全部角色 | `?page=1&size=20&type=&tag=` | `Page<Notification>` |
 | GET | `/notify/unread-count` | 未读数量 | 全部角色 | 无 | `{ count: 5 }` |
 | GET | `/notify/unread` | 未读数量(别名) | 全部角色 | 无 | `{ count: 5 }` |
+| GET | `/notify/tags` | 当前用户通知出现过的全部标签 | 全部角色 | 无 | `["就业", "实习", ...]` |
 | PUT | `/notify/{id}/read` | 标记已读 | 全部角色 | 无 | 无 |
 | PUT | `/notify/read-all` | 全部标记已读 | 全部角色 | 无 | 无 |
+| **群发管理** |
+| POST | `/notify/broadcast/preview` | 预览目标人数 | ≤2级 | `{ roleLevel?, grades?, majors?, classNames? }` | `{ targetCount }` |
+| POST | `/notify/broadcast` | 信息精准推送（站内+邮件+sms_sim） | ≤2级 | `{ title, content, tags[], source?, sourceUrl?, channels[], filter }` | `{ broadcastId, targetCount, sentCount, emailSent }` |
+| GET | `/notify/broadcast/page` | 群发历史列表 | ≤2级 | `?page=1&size=20` | `Page<Broadcast>` |
+| GET | `/notify/broadcast/{id}` | 群发详情 | ≤2级 | 无 | `Broadcast` |
+| DELETE | `/notify/broadcast/{id}` | 撤回（24h 内 + 仅删未读） | ≤2级 | 无 | `{ broadcastId, removedCount }` |
+
+> 模块三关键约束:
+> 1. **站内通道**必发，`email` / `sms_sim` 为可选叠加。`email` 缺 SMTP 配置时自动降级为 `email_sim` 类型站内通知
+> 2. **24h 撤回**只删除目标用户中**未读**的该条通知；已读保留作为留痕
+> 3. **邮箱派生**：缺省 `sys_user.email` 时使用 `学号@ruc.edu.cn`
+> 4. **SMTP**：发件人/host/port/授权码全部通过环境变量传入，不入库（见 README）
 
 ---
 
@@ -205,10 +222,12 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | PUT | `/qa/knowledge/{id}` | 修改知识条目 | ≤2级 | 同上 | 无 |
 | DELETE | `/qa/knowledge/{id}` | 删除知识条目 | ≤2级 | 无 | 无 |
 | **政策文档** |
-| GET | `/qa/document/list` | 文档列表(含分类) | 全部角色 | `?category=` | `List<QaDocument>` |
-| POST | `/qa/document` | 新增政策文档记录(保存元数据) | ≤2级 | `application/json: { title, category, filePath, fileSize, fileType }` | `{ id }` |
+| GET | `/qa/document/list` | 文档列表(含分类) | 全部角色 | `?category=&docType=policy/template` | `List<QaDocument>` |
+| POST | `/qa/document` | 新增文档记录(保存元数据) | ≤2级 | `{ title, category, docType?, description?, filePath, fileSize, fileType }` | `{ id }` |
 | GET | `/qa/document/{id}/download` | 下载文档(计数+1) | 全部角色 | 需要Token | 文件流 |
 | DELETE | `/qa/document/{id}` | 删除文档 | ≤2级 | 无 | 无 |
+
+> `docType` 区分**政策文件 (policy)** 与**办公模板 (template)**；模板列表前端单独走 `/qa/document/list?docType=template`
 
 说明：
 1. 上传文件本身请先调用 `POST /file/upload`（表单上传），拿到 `filePath/fileSize/fileType`
@@ -221,7 +240,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 {
   "code": 200,
   "data": {
-    "answer": "入党流程共8个步骤，首先需要递交入党申请书...",
+    "answer": "入党流程共29个步骤（按《发展党员工作程序》），从教育引导、入党积极分子确定开始...",
     "sourceType": "knowledge",   // knowledge | ai | manual
     "sourceUrl": "https://...",  // 官方链接(如有)
     "aiGenerated": false         // true 时前端需标注"AI生成,仅供参考"
@@ -279,12 +298,14 @@ A 同学 (后端基础)          B 同学 (后端业务)
 |------|------|------|------|------------|------|
 | **学生端** |
 | GET | `/approval/types` | 可申请的审批类型 | 全部角色 | 无 | `List<ApprovalType>` |
-| POST | `/approval/apply` | 提交申请 | 全部角色 | `{ typeId, formData: {...} }` | `{ id, appNo }` |
+| GET | `/approval/templates` | 可选办公模板 | 全部角色 | 无 | `List<QaDocument(docType=template)>` |
+| GET | `/approval/templates/{id}/fields` | 获取模板所需字段 | 全部角色 | 模板文档 ID | `{ templateId, templateTitle, profileValues, inputs }` |
+| POST | `/approval/apply` | 提交申请 | 全部角色 | `{ typeId, templateDocId, formData: {...} }` | `{ id, appNo }` |
 | GET | `/approval/my/page` | 我的申请列表 | 全部角色 | `?page=1&size=20&status=` | `PageResult<Application>` |
 | GET | `/approval/my/{id}` | 申请详情 | 全部角色 | 无 | `Application` (含审批记录) |
 | PUT | `/approval/my/{id}/withdraw` | 撤回申请 | 全部角色 | 无 | 无 |
 | GET | `/approval/my/{id}/download` | 锁定申请并返回申请对象 | 全部角色 | 无 | `Application` |
-| GET | `/approval/my/{id}/download-file` | 生成并下载证明文件(同样触发锁定) | 全部角色 | 无 | PDF 文件流 |
+| GET | `/approval/my/{id}/download-file` | 生成证明 PDF。`preview=true` 仅预览；默认下载并触发锁定 | 全部角色 | `?preview=true/false` | PDF 文件流 |
 | **管理端** |
 | GET | `/approval/pending/page` | 待审批列表 | ≤2级 | `?page=1&size=20&typeId=` | `PageResult<Application>` |
 | PUT | `/approval/{id}/approve` | 通过 | ≤2级 | `{ comment }` | 无 |
@@ -326,6 +347,12 @@ A 同学 (后端基础)          B 同学 (后端业务)
 1. 学生调用 `/download-file` → 状态变为 `downloaded` + 记录 `downloaded_at`，并返回 PDF 文件流
 2. `downloaded` 状态后，**任何** PUT 接口必须拒绝并返回 403
 3. 管理员撤回: 仅 `approved` 状态 + `downloaded_at IS NULL` + 未超过 `withdraw_deadline`
+
+#### 证明模板规则
+
+- 党员证明、团员证明由后端 `CertTemplateRegistry` 固化生成结构，模板 docx 只作为离线参考，不在运行时读取。
+- 小程序必须先调用 `/approval/templates/{id}/fields` 渲染字段，再把用户填写内容放入 `formData` 提交。
+- 未匹配到注册模板时走通用证明文本；正式演示建议模板标题包含 `党员证明模板` 或 `团员证明模板`。
 
 #### 关键数据结构
 
@@ -427,83 +454,18 @@ main                    ← 稳定版本, 仅合并经过测试的代码
 3. 解决冲突后，提 PR 合并到 `dev`
 4. 每周末集中联调，`dev` 测试通过后合并到 `main`
 
-### 4.3 开发环境搭建
-
-```bash
-# 后端 (A/B 同学)
-cd backend
-# 1. 安装 JDK 17 + Maven
-# 2. 启动 PostgreSQL (开发替代 Kingbase)
-#    创建数据库: CREATE DATABASE college_service;
-# 3. 执行建表: psql -d college_service -f ../deploy/sql/schema.sql
-# 4. 启动 Redis
-# 5. 运行
-mvn spring-boot:run
-
-# 管理端 (C 同学)
-cd frontend-admin
-npm install
-npm run dev
-# 访问 http://localhost:5173
-
-# 小程序端 (D 同学)
-cd frontend-mp
-npm install
-# 用微信开发者工具导入项目, 或
-npm run dev:mp-weixin
-```
-
-### 4.4 联调约定
+### 4.3 联调约定
 
 - 后端统一运行在 `http://localhost:8080/api`
 - 前端开发时通过 Vite proxy 代理到后端，避免跨域问题
 - **接口联调前**: B 同学先用 Knife4j (http://localhost:8080/api/doc.html) 自测
 - **Mock 数据**: 前端同学可先用 Mock 数据开发页面，后端接口就绪后切换为真实接口
 
----
-
-## 五、迭代计划与里程碑
-
-### Sprint 1 (第1-2周) — 基础打通
-
-| 成员 | 任务 | 交付物 |
-|------|------|--------|
-| A | 后端能跑通: 登录+用户CRUD+文件上传 | 可用的基础 API |
-| B | 知识库 CRUD + 问答检索(不含AI) | 知识库相关 API |
-| C | 项目初始化 + 登录页 + 基础布局(侧边栏+顶栏) | 可看到的管理端骨架 |
-| D | 项目初始化 + 登录页 + 首页四宫格 | 可看到的小程序骨架 |
-
-### Sprint 2 (第3-4周) — P0 功能
-
-| 成员 | 任务 |
-|------|------|
-| A | Excel 导入导出 + 通知服务 + 操作日志查询 |
-| B | 党团流程全部接口 + AI 抽象层对接 |
-| C | 知识库管理页 + 文档管理页 + 党团流程管理页 |
-| D | 问答对话页 + 文档下载页 + 党团进度页 |
-
-### Sprint 3 (第5-8周) — P1 功能
-
-| 成员 | 任务 |
-|------|------|
-| A | 数据概览接口 + 部署脚本 |
-| B | 审批全流程(状态机+证明生成) + 学生画像 |
-| C | 审批管理页 + 学生画像页 + 用户管理页 + 日志页 |
-| D | 申请提交页 + 证明下载页 + 个人信息页 + 消息中心 |
-
-### Sprint 4 (第9-12周) — 联调 & 收尾
-
-| 成员 | 任务 |
-|------|------|
-| A | Kingbase 对接 + Docker 部署 + 性能优化 |
-| B | Bug 修复 + 接口补全 + 数据初始化脚本 |
-| C | 联调修复 + 界面打磨 + 用户手册(管理端) |
-| D | 联调修复 + 界面打磨 + 用户手册(小程序端) |
-| **全员** | **API 文档整理 + 答辩 PPT + 演示准备** |
+> 迭代计划、Sprint 任务拆解、各模块完成度详见 [TODO.md](TODO.md)
 
 ---
 
-## 六、常见问题
+## 五、常见问题
 
 **Q: 前端怎么判断用户权限来显示不同菜单?**
 登录接口返回 `roleLevel`，存到本地。路由守卫中判断:

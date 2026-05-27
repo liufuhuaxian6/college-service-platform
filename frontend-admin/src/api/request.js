@@ -20,6 +20,10 @@ request.interceptors.request.use(config => {
 // 响应拦截器: 统一处理错误
 request.interceptors.response.use(
   response => {
+    // blob 文件下载: 直接返回, 不要按 JSON 解析
+    if (response.config.responseType === 'blob') {
+      return response
+    }
     const res = response.data
     if (res.code !== 200) {
       ElMessage.error(res.message || '请求失败')

@@ -1,105 +1,70 @@
 <template>
-  <el-card>
-    <template #header>
-      <span>学生信息管理</span>
-    </template>
+  <div class="app-page">
+    <PageHeader title="学生信息" description="查看学生基本信息、荣誉记录及关联的党团流程和证明申请。" />
 
-    <el-form inline style="margin-bottom:16px">
-      <el-form-item label="年级">
-        <el-input
-          v-model="query.grade"
-          clearable
-          placeholder="例如 2023"
-          style="width: 140px"
-          @keyup.enter="handleSearch"
+    <FilterBar>
+      <el-form inline>
+        <el-form-item label="年级">
+          <el-input v-model="query.grade" clearable placeholder="例如 2023" style="width: 140px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="专业">
+          <el-input v-model="query.major" clearable placeholder="输入专业" style="width: 180px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="班级">
+          <el-input v-model="query.className" clearable placeholder="输入班级" style="width: 160px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+        </el-form-item>
+      </el-form>
+    </FilterBar>
+
+    <DataPanel title="学生列表">
+      <el-table :data="list" v-loading="loading" stripe>
+        <el-table-column prop="studentId" label="学号" width="140" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="grade" label="年级" width="100" />
+        <el-table-column prop="major" label="专业" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="className" label="班级" width="120" />
+        <el-table-column prop="phone" label="手机号" width="140" />
+        <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
+        <el-table-column prop="roleLevel" label="角色等级" width="100" />
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="viewDetail(row.id)">详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="table-footer">
+        <el-pagination
+          v-model:current-page="query.page"
+          v-model:page-size="query.size"
+          :total="total"
+          layout="total, prev, pager, next"
+          @current-change="loadData"
         />
-      </el-form-item>
+      </div>
+    </DataPanel>
 
-      <el-form-item label="专业">
-        <el-input
-          v-model="query.major"
-          clearable
-          placeholder="输入专业"
-          style="width: 180px"
-          @keyup.enter="handleSearch"
-        />
-      </el-form-item>
-
-      <el-form-item label="班级">
-        <el-input
-          v-model="query.className"
-          clearable
-          placeholder="输入班级"
-          style="width: 160px"
-          @keyup.enter="handleSearch"
-        />
-      </el-form-item>
-
-      <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-      </el-form-item>
-    </el-form>
-
-    <el-table :data="list" v-loading="loading" border stripe>
-      <el-table-column prop="studentId" label="学号" width="140" />
-      <el-table-column prop="name" label="姓名" width="100" />
-      <el-table-column prop="grade" label="年级" width="100" />
-      <el-table-column prop="major" label="专业" min-width="150" show-overflow-tooltip />
-      <el-table-column prop="className" label="班级" width="120" />
-      <el-table-column prop="phone" label="手机号" width="140" />
-      <el-table-column prop="roleLevel" label="角色等级" width="100" />
-      <el-table-column label="操作" width="120" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="viewDetail(row.id)">详情</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <el-pagination
-      style="margin-top:16px;justify-content:flex-end"
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      layout="total, prev, pager, next"
-      @current-change="loadData"
-    />
-
-    <el-dialog v-model="detailVisible" title="学生画像详情" width="780px">
+    <el-drawer v-model="detailVisible" title="学生画像详情" size="760px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="用户ID">
-          {{ detail.userId || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="学号">
-          {{ detail.studentId || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="姓名">
-          {{ detail.name || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="年级">
-          {{ detail.grade || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="专业">
-          {{ detail.major || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="班级">
-          {{ detail.className || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="手机号">
-          {{ detail.phone || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="身份证号">
-          {{ detail.idCard || '-' }}
-        </el-descriptions-item>
+        <el-descriptions-item label="用户ID">{{ detail.userId || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="学号">{{ detail.studentId || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="姓名">{{ detail.name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="年级">{{ detail.grade || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="专业">{{ detail.major || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="班级">{{ detail.className || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="手机号">{{ detail.phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="邮箱">{{ detail.email || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="身份证号">{{ detail.idCard || '-' }}</el-descriptions-item>
       </el-descriptions>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0 12px">
-        <div style="font-weight:600">荣誉记录</div>
-        <el-button type="primary" size="small" @click="showHonorDialog">
-          新增荣誉
-        </el-button>
+      <div class="section-title">
+        <span>荣誉记录</span>
+        <el-button type="primary" size="small" @click="showHonorDialog">新增荣誉</el-button>
       </div>
-
-      <el-table :data="honors" border stripe>
+      <el-table :data="honors" stripe>
         <el-table-column prop="honorName" label="荣誉名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="honorLevel" label="级别" width="120" />
         <el-table-column prop="awardDate" label="获奖日期" width="130" />
@@ -107,45 +72,37 @@
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
             <el-popconfirm title="确定删除该荣誉记录吗？" @confirm="deleteHonor(row.id)">
-              <template #reference>
-                <el-button link type="danger">删除</el-button>
-              </template>
+              <template #reference><el-button link type="danger">删除</el-button></template>
             </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
 
-      <div style="font-weight:600;margin:20px 0 12px">党团流程</div>
-      <el-table :data="processes" border stripe>
+      <div class="section-title"><span>党团流程</span></div>
+      <el-table :data="processes" stripe>
         <el-table-column prop="id" label="流程ID" width="90" />
         <el-table-column prop="templateName" label="流程名称" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column prop="status" label="状态" width="120">
+          <template #default="{ row }"><StatusTag :status="row.status" /></template>
+        </el-table-column>
         <el-table-column prop="currentStep" label="当前步骤" width="100" />
         <el-table-column prop="startDate" label="开始日期" width="120" />
-        <el-table-column prop="updatedAt" label="更新时间" min-width="170" show-overflow-tooltip />
       </el-table>
 
-      <div style="font-weight:600;margin:20px 0 12px">电子证明申请</div>
-      <el-table :data="approvals" border stripe>
-        <el-table-column prop="id" label="申请ID" width="90" />
+      <div class="section-title"><span>电子证明申请</span></div>
+      <el-table :data="approvals" stripe>
         <el-table-column prop="appNo" label="申请编号" min-width="180" show-overflow-tooltip />
         <el-table-column prop="typeName" label="类型" width="120" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="120" />
-        <el-table-column prop="currentApproverLevel" label="当前审批层级" width="120" />
-        <el-table-column prop="downloadedAt" label="下载时间" min-width="170" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" width="130">
+          <template #default="{ row }"><StatusTag :status="row.status" /></template>
+        </el-table-column>
+        <el-table-column prop="currentApproverLevel" label="审批层级" width="120" />
       </el-table>
-
-      <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
+    </el-drawer>
 
     <el-dialog v-model="honorVisible" title="新增荣誉" width="520px">
       <el-form :model="honorForm" label-width="90px">
-        <el-form-item label="荣誉名称" required>
-          <el-input v-model="honorForm.honorName" placeholder="请输入荣誉名称" />
-        </el-form-item>
-
+        <el-form-item label="荣誉名称" required><el-input v-model="honorForm.honorName" placeholder="请输入荣誉名称" /></el-form-item>
         <el-form-item label="荣誉级别" required>
           <el-select v-model="honorForm.honorLevel" placeholder="请选择荣誉级别" style="width: 100%">
             <el-option label="国家级" value="国家级" />
@@ -156,42 +113,32 @@
             <el-option label="其他" value="其他" />
           </el-select>
         </el-form-item>
-
         <el-form-item label="获奖日期" required>
-          <el-date-picker
-            v-model="honorForm.awardDate"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="请选择获奖日期"
-            style="width: 100%"
-          />
+          <el-date-picker v-model="honorForm.awardDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择获奖日期" style="width: 100%" />
         </el-form-item>
-
-        <el-form-item label="证书文件">
-          <el-input v-model="honorForm.certFile" placeholder="可填写证书文件路径或编号" />
-        </el-form-item>
+        <el-form-item label="证书文件"><el-input v-model="honorForm.certFile" placeholder="可填写证书文件路径或编号" /></el-form-item>
       </el-form>
-
       <template #footer>
         <el-button @click="honorVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="addHonor">
-          确定
-        </el-button>
+        <el-button type="primary" :loading="submitting" @click="addHonor">确定</el-button>
       </template>
     </el-dialog>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { studentApi } from '@/api'
+import PageHeader from '@/components/common/PageHeader.vue'
+import FilterBar from '@/components/common/FilterBar.vue'
+import DataPanel from '@/components/common/DataPanel.vue'
+import StatusTag from '@/components/common/StatusTag.vue'
 
 const loading = ref(false)
 const submitting = ref(false)
 const detailVisible = ref(false)
 const honorVisible = ref(false)
-
 const list = ref([])
 const total = ref(0)
 const detail = ref({})
@@ -199,46 +146,19 @@ const honors = ref([])
 const processes = ref([])
 const approvals = ref([])
 const currentStudentId = ref(null)
-
-const query = reactive({
-  page: 1,
-  size: 20,
-  grade: '',
-  major: '',
-  className: '',
-})
-
-const honorForm = reactive({
-  honorName: '',
-  honorLevel: '',
-  awardDate: '',
-  certFile: '',
-})
+const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '' })
+const honorForm = reactive({ honorName: '', honorLevel: '', awardDate: '', certFile: '' })
 
 function buildQueryParams() {
-  const params = {
-    page: query.page,
-    size: query.size,
-  }
-
-  if (query.grade) {
-    params.grade = query.grade
-  }
-
-  if (query.major) {
-    params.major = query.major
-  }
-
-  if (query.className) {
-    params.className = query.className
-  }
-
+  const params = { page: query.page, size: query.size }
+  if (query.grade) params.grade = query.grade
+  if (query.major) params.major = query.major
+  if (query.className) params.className = query.className
   return params
 }
 
 async function loadData() {
   loading.value = true
-
   try {
     const res = await studentApi.getPage(buildQueryParams())
     list.value = res.data.records || []
@@ -255,13 +175,11 @@ function handleSearch() {
 
 async function viewDetail(id) {
   currentStudentId.value = id
-
   const res = await studentApi.getDetail(id)
   detail.value = res.data || {}
   honors.value = detail.value.honors || []
   processes.value = detail.value.processes || []
   approvals.value = detail.value.approvals || []
-
   detailVisible.value = true
 }
 
@@ -278,32 +196,24 @@ function validateHonorForm() {
     ElMessage.warning('请输入荣誉名称')
     return false
   }
-
   if (!honorForm.honorLevel) {
     ElMessage.warning('请选择荣誉级别')
     return false
   }
-
   if (!honorForm.awardDate) {
     ElMessage.warning('请选择获奖日期')
     return false
   }
-
   return true
 }
 
 async function addHonor() {
-  if (!validateHonorForm()) {
-    return
-  }
-
+  if (!validateHonorForm()) return
   if (!currentStudentId.value) {
     ElMessage.error('当前学生信息不存在')
     return
   }
-
   submitting.value = true
-
   try {
     await studentApi.addHonor(currentStudentId.value, {
       honorName: honorForm.honorName.trim(),
@@ -311,7 +221,6 @@ async function addHonor() {
       awardDate: honorForm.awardDate,
       certFile: honorForm.certFile.trim(),
     })
-
     ElMessage.success('新增荣誉成功')
     honorVisible.value = false
     viewDetail(currentStudentId.value)
@@ -328,3 +237,13 @@ async function deleteHonor(id) {
 
 onMounted(loadData)
 </script>
+
+<style scoped>
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 22px 0 12px;
+  font-weight: 650;
+}
+</style>

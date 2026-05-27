@@ -1,22 +1,36 @@
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <h2>学院综合服务管理平台</h2>
-      <p class="subtitle">中国人民大学信息学院</p>
+  <div class="login-page">
+    <section class="login-intro">
+      <div class="brand-mark">综</div>
+      <h1>学院学生综合服务与党团管理平台</h1>
+      <p>面向学院师生的一体化服务入口，支撑政策问答、证明审批、党团流程和学生信息管理。</p>
+      <div class="intro-list">
+        <span>智能问答</span>
+        <span>多级审批</span>
+        <span>党团流程</span>
+        <span>数据治理</span>
+      </div>
+    </section>
+
+    <section class="login-card">
+      <div class="login-card__header">
+        <h2>管理端登录</h2>
+        <p>请使用学院统一账号登录</p>
+      </div>
       <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleLogin">
         <el-form-item prop="studentId">
-          <el-input v-model="form.studentId" placeholder="请输入学号" prefix-icon="User" size="large" />
+          <el-input v-model="form.studentId" placeholder="请输入账号/学号" prefix-icon="User" size="large" />
         </el-form-item>
         <el-form-item prop="password">
           <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" size="large" show-password />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" size="large" :loading="loading" style="width:100%" native-type="submit">
-            登 录
+          <el-button type="primary" size="large" :loading="loading" class="login-btn" native-type="submit">
+            登录
           </el-button>
         </el-form-item>
       </el-form>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -34,7 +48,7 @@ const loading = ref(false)
 
 const form = reactive({ studentId: '', password: '' })
 const rules = {
-  studentId: [{ required: true, message: '请输入学号', trigger: 'blur' }],
+  studentId: [{ required: true, message: '请输入账号/学号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
@@ -52,20 +66,98 @@ async function handleLogin() {
 </script>
 
 <style scoped lang="scss">
-.login-container {
-  height: 100vh;
-  display: flex;
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) 460px;
   align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1a3a5c 0%, #2d5f8a 100%);
+  gap: 56px;
+  padding: 64px 9vw;
+  background:
+    linear-gradient(90deg, rgba(155,44,54,.08), transparent 42%),
+    var(--app-bg);
 }
+
+.login-intro {
+  max-width: 620px;
+}
+
+.brand-mark {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+  border-radius: 10px;
+  background: var(--app-primary);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 34px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.login-intro p {
+  margin: 16px 0 0;
+  max-width: 520px;
+  color: var(--app-text-regular);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.intro-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+
+  span {
+    padding: 8px 12px;
+    color: var(--app-primary);
+    background: var(--app-primary-light);
+    border: 1px solid var(--app-primary-soft);
+    border-radius: 999px;
+    font-size: 13px;
+  }
+}
+
 .login-card {
-  width: 400px;
-  padding: 40px;
+  padding: 34px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,.15);
-  h2 { text-align: center; margin-bottom: 4px; color: #1a3a5c; }
-  .subtitle { text-align: center; color: #999; margin-bottom: 30px; font-size: 13px; }
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(31, 35, 41, .08);
+}
+
+.login-card__header {
+  margin-bottom: 24px;
+
+  h2 {
+    margin: 0;
+    color: var(--app-text);
+    font-size: 22px;
+  }
+
+  p {
+    margin: 8px 0 0;
+    color: var(--app-text-secondary);
+  }
+}
+
+.login-btn {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .login-page {
+    grid-template-columns: 1fr;
+    padding: 32px;
+  }
 }
 </style>

@@ -20,6 +20,8 @@ public class SysUser {
     private String major;
     private String className;
     private String phone;
+    /** 邮箱; 为空时默认 学号@ruc.edu.cn (由 EmailService.resolveEmail 处理) */
+    private String email;
     private String idCardEnc;
     private String originEnc;
     private Integer status;

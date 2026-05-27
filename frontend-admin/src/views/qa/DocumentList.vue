@@ -1,91 +1,68 @@
 <template>
-  <el-card>
-    <template #header>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span>政策文档管理</span>
+  <div class="app-page">
+    <PageHeader title="政策文档" description="上传政策制度文件，并执行向量入库供智能问答检索。">
+      <template #actions>
         <el-button type="primary" @click="showUploadDialog">上传文档</el-button>
-      </div>
-    </template>
+      </template>
+    </PageHeader>
 
-    <el-form inline style="margin-bottom:16px">
-      <el-form-item label="分类">
-        <el-select
-          v-model="query.category"
-          clearable
-          placeholder="全部"
-          style="width: 140px"
-          @change="handleSearch"
-        >
-          <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
-        </el-select>
-      </el-form-item>
+    <FilterBar>
+      <el-form inline>
+        <el-form-item label="分类">
+          <el-select v-model="query.category" clearable placeholder="全部" style="width: 170px" @change="handleSearch">
+            <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+        </el-form-item>
+      </el-form>
+    </FilterBar>
 
-      <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-      </el-form-item>
-    </el-form>
+    <DataPanel title="文档列表">
+      <el-table :data="list" v-loading="loading" stripe>
+        <el-table-column prop="title" label="文档标题" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="category" label="分类" width="140" />
+        <el-table-column prop="fileSize" label="大小" width="120">
+          <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
+        </el-table-column>
+        <el-table-column prop="downloadCount" label="下载次数" width="110" />
+        <el-table-column prop="createdAt" label="上传时间" width="180" />
+        <el-table-column label="操作" width="240" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="download(row)">下载</el-button>
+            <el-button link type="success" :loading="indexingId === row.id" @click="indexDocument(row)">向量入库</el-button>
+            <el-popconfirm title="确定删除该文档吗？" @confirm="handleDelete(row.id)">
+              <template #reference><el-button link type="danger">删除</el-button></template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+    </DataPanel>
 
-    <el-table :data="list" v-loading="loading" border stripe>
-      <el-table-column prop="title" label="文档标题" min-width="220" show-overflow-tooltip />
-      <el-table-column prop="category" label="分类" width="140" />
-      <el-table-column prop="fileSize" label="大小" width="120">
-        <template #default="{ row }">
-          {{ formatSize(row.fileSize) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="downloadCount" label="下载次数" width="120" />
-      <el-table-column prop="createdAt" label="上传时间" width="180" />
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="download(row)">下载</el-button>
-          <el-popconfirm title="确定删除该文档吗？" @confirm="handleDelete(row.id)">
-            <template #reference>
-              <el-button link type="danger">删除</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <el-dialog v-model="dialogVisible" title="上传政策文档" width="520px">
+    <el-dialog v-model="dialogVisible" title="上传政策文档" width="540px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="文档标题" required>
           <el-input v-model="form.title" placeholder="请输入文档标题" />
         </el-form-item>
-
         <el-form-item label="分类" required>
           <el-select v-model="form.category" placeholder="请选择分类" style="width: 100%">
             <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
-
         <el-form-item label="选择文件" required>
-          <el-upload
-            action=""
-            :auto-upload="false"
-            :limit="1"
-            :on-change="handleFileChange"
-            :on-remove="handleFileRemove"
-            :file-list="fileList"
-          >
+          <el-upload action="" :auto-upload="false" :limit="1" :on-change="handleFileChange" :on-remove="handleFileRemove" :file-list="fileList">
             <el-button>选择文件</el-button>
-            <template #tip>
-              <div style="font-size:12px;color:#909399;margin-top:6px">
-                文件大小不超过 30MB
-              </div>
-            </template>
+            <template #tip><div class="upload-tip">文件大小不超过 30MB</div></template>
           </el-upload>
         </el-form-item>
       </el-form>
-
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" @click="handleUpload">
-          上传
-        </el-button>
+        <el-button type="primary" :loading="uploading" @click="handleUpload">上传</el-button>
       </template>
     </el-dialog>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
@@ -94,38 +71,29 @@ import { ElMessage } from 'element-plus'
 import { qaApi, fileApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
+import PageHeader from '@/components/common/PageHeader.vue'
+import FilterBar from '@/components/common/FilterBar.vue'
+import DataPanel from '@/components/common/DataPanel.vue'
 
 const loading = ref(false)
 const uploading = ref(false)
+const indexingId = ref(null)
 const dialogVisible = ref(false)
 const list = ref([])
 const fileList = ref([])
 const uploadFile = ref(null)
-
-const categories = ['入党', '入团', '奖学金', '日常事务', '其他']
-
-const query = reactive({
-  category: '',
-})
-
-const form = reactive({
-  title: '',
-  category: '',
-})
+const categories = ['党团流程', '学籍管理', '纪律处分', '校历安排', '入党', '入团', '奖学金', '日常事务', '其他']
+const query = reactive({ category: '' })
+const form = reactive({ title: '', category: '' })
 
 function buildQueryParams() {
   const params = {}
-
-  if (query.category) {
-    params.category = query.category
-  }
-
+  if (query.category) params.category = query.category
   return params
 }
 
 async function loadData() {
   loading.value = true
-
   try {
     const res = await qaApi.getDocumentList(buildQueryParams())
     list.value = res.data || []
@@ -147,23 +115,16 @@ function showUploadDialog() {
 }
 
 function handleFileChange(file, files) {
-  if (!file.raw) {
-    return
-  }
-
+  if (!file.raw) return
   if (file.raw.size > 30 * 1024 * 1024) {
     ElMessage.error('文件大小不能超过 30MB')
     fileList.value = []
     uploadFile.value = null
     return
   }
-
   fileList.value = files.slice(-1)
   uploadFile.value = file.raw
-
-  if (!form.title) {
-    form.title = file.name.replace(/\.[^.]+$/, '')
-  }
+  if (!form.title) form.title = file.name.replace(/\.[^.]+$/, '')
 }
 
 function handleFileRemove() {
@@ -176,26 +137,20 @@ async function handleUpload() {
     ElMessage.warning('请输入文档标题')
     return
   }
-
   if (!form.category) {
     ElMessage.warning('请选择分类')
     return
   }
-
   if (!uploadFile.value) {
     ElMessage.warning('请选择要上传的文件')
     return
   }
-
   const uploadFormData = new FormData()
   uploadFormData.append('file', uploadFile.value)
-
   uploading.value = true
-
   try {
     const uploadRes = await fileApi.upload(uploadFormData)
     const fileInfo = uploadRes.data
-
     await qaApi.addDocument({
       title: form.title.trim(),
       category: form.category,
@@ -204,7 +159,6 @@ async function handleUpload() {
       fileSize: fileInfo.fileSize,
       fileType: uploadFile.value.type || ''
     })
-
     ElMessage.success('上传成功')
     dialogVisible.value = false
     loadData()
@@ -220,33 +174,24 @@ async function download(row) {
     router.push('/login')
     return
   }
-
-  const url = qaApi.getDocumentDownloadUrl(row.id)
-  const res = await fetch(url, {
+  const res = await fetch(qaApi.getDocumentDownloadUrl(row.id), {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${userStore.token}`,
-    },
+    headers: { Authorization: `Bearer ${userStore.token}` },
   })
-
   if (res.status === 401) {
     userStore.logout()
     ElMessage.error('登录已过期，请重新登录')
     router.push('/login')
     return
   }
-
   if (!res.ok) {
     ElMessage.error('下载失败')
     return
   }
-
   const blob = await res.blob()
   const objectUrl = URL.createObjectURL(blob)
-
   const disposition = res.headers.get('content-disposition') || ''
   const filename = parseDownloadFilename(disposition) || `${row.title || 'document'}`
-
   const link = document.createElement('a')
   link.href = objectUrl
   link.download = filename
@@ -263,6 +208,16 @@ async function handleDelete(id) {
   loadData()
 }
 
+async function indexDocument(row) {
+  indexingId.value = row.id
+  try {
+    const res = await qaApi.indexDocument(row.id)
+    ElMessage.success(`向量入库完成，共 ${res.data?.chunks || 0} 个片段`)
+  } finally {
+    indexingId.value = null
+  }
+}
+
 function formatSize(bytes) {
   if (!bytes) return '-'
   if (bytes < 1024) return bytes + 'B'
@@ -274,14 +229,18 @@ function parseDownloadFilename(disposition) {
   if (!disposition) return ''
   const match = disposition.match(/filename\*\=UTF-8''([^;]+)/i)
   if (match && match[1]) {
-    try {
-      return decodeURIComponent(match[1])
-    } catch {
-      return match[1]
-    }
+    try { return decodeURIComponent(match[1]) } catch { return match[1] }
   }
   return ''
 }
 
 onMounted(loadData)
 </script>
+
+<style scoped>
+.upload-tip {
+  margin-top: 6px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+</style>
