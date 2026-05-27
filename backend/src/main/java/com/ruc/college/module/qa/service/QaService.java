@@ -55,10 +55,31 @@ public class QaService {
 
     // ==================== 智能问答 ====================
 
+    /** 每用户每天最多提问次数 (可通过 qa.chat.daily-limit 覆盖) */
+    @org.springframework.beans.factory.annotation.Value("${qa.chat.daily-limit:200}")
+    private int dailyChatLimit;
+
     /**
-     * 智能问答: 先匹配知识库 → 未命中则调 AI → 记录日志
+     * 智能问答: 先匹配知识库 → 未命中则调 AI → 记录日志.
+     * 每用户每自然日提问数受 qa.chat.daily-limit 限制 (默认 200), 超过抛业务异常.
      */
     public Map<String, Object> chat(String question) {
+        // 0. 每日提问次数限流
+        Long userId = com.ruc.college.common.security.UserContext.getUserId();
+        if (userId != null && dailyChatLimit > 0) {
+            java.time.LocalDateTime dayStart = java.time.LocalDate.now().atStartOfDay();
+            Long todayCount = chatLogMapper.selectCount(
+                    new LambdaQueryWrapper<com.ruc.college.module.qa.entity.QaChatLog>()
+                            .eq(com.ruc.college.module.qa.entity.QaChatLog::getUserId, userId)
+                            .ge(com.ruc.college.module.qa.entity.QaChatLog::getCreatedAt, dayStart));
+            if (todayCount != null && todayCount >= dailyChatLimit) {
+                throw new com.ruc.college.common.exception.BusinessException(
+                        429,
+                        "今日提问已达上限 (" + dailyChatLimit + " 次), 请明日再试"
+                );
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
 
         // 1. 关键词匹配知识库

@@ -61,6 +61,11 @@ ai:
   model: ${AI_MODEL:}
   timeout-ms: ${AI_TIMEOUT_MS:5000}
 
+# 智能问答限流
+qa:
+  chat:
+    daily-limit: ${QA_DAILY_LIMIT:200}   # 每用户每自然日最多提问次数; 0 表示不限
+
 # RAG / 向量检索配置
 # 已切换至 BGE-small-zh-v1.5（中文专项，512维）通过 TEI HTTP 服务调用
 rag:
