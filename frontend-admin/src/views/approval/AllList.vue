@@ -25,14 +25,21 @@
 
     <DataPanel title="申请记录">
       <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column prop="appNo" label="申请编号" min-width="190" show-overflow-tooltip />
-        <el-table-column prop="userId" label="申请人ID" width="110" />
-        <el-table-column prop="typeId" label="类型ID" width="100" />
-        <el-table-column prop="status" label="状态" width="130">
+        <el-table-column prop="appNo" label="申请编号" min-width="180" show-overflow-tooltip />
+        <el-table-column label="申请人" width="160">
+          <template #default="{ row }">
+            <span>{{ row.userName || '-' }}</span>
+            <span class="cell-sub">{{ row.studentId || row.userId }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="证明类型 / 模板" width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.templateName || row.typeName || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="110">
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="提交时间" width="180" />
-        <el-table-column prop="updatedAt" label="更新时间" width="180" />
+        <el-table-column prop="createdAt" label="提交时间" width="170" />
+        <el-table-column prop="updatedAt" label="更新时间" width="170" />
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewDetail(row)">详情</el-button>
@@ -71,10 +78,13 @@
 
       <el-descriptions :column="1" border>
         <el-descriptions-item label="申请编号">{{ detail.appNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="申请人ID">{{ detail.userId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="类型ID">{{ detail.typeId || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="申请人">
+          {{ detail.userName || '-' }}
+          <span class="cell-sub">{{ detail.studentId || detail.userId }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="证明类型 / 模板">{{ detail.templateName || detail.typeName || `类型 ${detail.typeId}` }}</el-descriptions-item>
         <el-descriptions-item label="状态"><StatusTag :status="detail.status" /></el-descriptions-item>
-        <el-descriptions-item label="当前审批层级">{{ detail.currentApproverLevel || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="当前审批层级">L{{ detail.currentApproverLevel || '-' }}</el-descriptions-item>
         <el-descriptions-item label="下载时间">{{ detail.downloadedAt || '-' }}</el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ detail.createdAt || '-' }}</el-descriptions-item>
       </el-descriptions>
@@ -164,6 +174,14 @@ onMounted(loadData)
 <style scoped>
 .lock-alert {
   margin-bottom: 14px;
+}
+
+.cell-sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .detail-section {

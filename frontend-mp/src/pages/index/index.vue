@@ -54,12 +54,13 @@
     <view class="notice-panel">
       <view v-if="notifications.length" class="notify-list">
         <view v-for="n in notifications" :key="n.id" class="notice-item" @click="goNotify">
-          <view class="notice-dot" />
-          <view class="notice-content">
-            <text class="notice-title">{{ n.title }}</text>
-            <text class="notice-time">{{ n.createdAt }}</text>
+            <view class="notice-dot" />
+            <view class="notice-content">
+              <text class="notice-title">{{ n.title }}</text>
+              <text class="notice-summary">{{ n.content }}</text>
+              <text class="notice-time">{{ formatTime(n.createdAt) }}</text>
+            </view>
           </view>
-        </view>
       </view>
       <EmptyState v-else title="暂无通知" description="审批提醒和系统消息会显示在这里。" />
     </view>
@@ -134,6 +135,19 @@ function navigateTo(url) {
 
 function goNotify() {
   uni.navigateTo({ url: '/pages/notify/index' })
+}
+
+function formatTime(value) {
+  if (!value) return ''
+  const text = String(value).replace('T', ' ')
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/)
+  if (!match) return text.split('.')[0]
+  const now = new Date()
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const prefix = now.getFullYear() === year ? `${month}-${day}` : `${year}-${month}-${day}`
+  return `${prefix} ${match[4]}:${match[5]}`
 }
 
 onMounted(async () => {
@@ -362,6 +376,18 @@ onMounted(async () => {
   color: var(--mp-text-main);
   font-size: 26rpx;
   line-height: 1.45;
+  font-weight: 750;
+}
+
+.notice-summary {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--mp-text-regular);
+  font-size: 23rpx;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notice-time {

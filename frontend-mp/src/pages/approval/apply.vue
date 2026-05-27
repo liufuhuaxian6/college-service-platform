@@ -3,84 +3,97 @@
     <view class="hero">
       <view class="hero-badge">证明申请</view>
       <text class="hero-title">发起证明申请</text>
-      <text class="hero-desc">确认申请用途、份数和备注后提交，申请将进入审批流程。</text>
+      <text class="hero-desc">选择证明模板并补充必要信息，审批通过后系统会自动生成对应证明 PDF。</text>
     </view>
 
     <view class="section-head">
-      <text class="section-title">类型选择</text>
-      <text class="section-desc">请选择本次需要开具的证明类型</text>
+      <text class="section-title">选择证明模板</text>
+      <text class="section-desc">模板正文已由系统固化，提交时只需补充缺失字段</text>
     </view>
 
     <view class="type-list">
       <view
-        v-for="t in types"
+        v-for="t in templates"
         :key="t.id"
         class="type-item"
-        :class="{ selected: selectedType === t.id }"
-        @click="selectType(t.id)"
+        :class="{ selected: selectedTemplate === t.id }"
+        @click="selectTemplate(t.id)"
       >
-        <view class="type-icon">{{ getTypeInitial(t.name) }}</view>
+        <view class="type-icon">{{ getTemplateInitial(t.title) }}</view>
         <view class="type-content">
-          <text class="type-name">{{ t.name }}</text>
-          <text class="type-desc">{{ t.description }}</text>
+          <text class="type-name">{{ t.title }}</text>
+          <text class="type-desc">{{ t.description || t.category || '办公证明模板' }}</text>
         </view>
         <view class="type-check">
-          <text v-if="selectedType === t.id">✓</text>
+          <text v-if="selectedTemplate === t.id">✓</text>
         </view>
+      </view>
+
+      <view v-if="!templates.length" class="empty-hint">
+        <text>暂无可用模板，请联系管理员上传办公模板。</text>
       </view>
     </view>
 
     <view class="section-head">
       <text class="section-title">申请表单</text>
-      <text class="section-desc">用途和份数会进入审批记录</text>
+      <text class="section-desc">姓名、学号等基础信息会从个人档案自动带入</text>
     </view>
 
     <view class="form">
       <view class="form-summary">
-        <text class="summary-label">当前类型</text>
-        <text class="summary-value">{{ selectedTypeName || '未选择' }}</text>
+        <text class="summary-label">已选模板</text>
+        <text class="summary-value">{{ selectedTemplateName || '未选择' }}</text>
       </view>
 
-      <view class="field">
-        <text class="label">申请用途</text>
-        <view class="input-wrap">
-          <input v-model="formData.purpose" class="input" placeholder="如：考研、实习、就业材料" />
+      <view v-if="profileItems.length" class="profile-panel">
+        <view v-for="item in profileItems" :key="item.label" class="profile-item">
+          <text class="profile-label">{{ item.label }}</text>
+          <text class="profile-value">{{ item.value }}</text>
         </view>
       </view>
 
-      <view class="field">
-        <text class="label">申请份数</text>
-        <view class="stepper">
-          <button
-            class="step-btn"
-            :class="{ disabled: formData.copies <= 1 }"
-            :disabled="formData.copies <= 1"
-            @click="changeCopies(-1)"
-          >
-            -
-          </button>
-          <view class="step-value-wrap">
-            <text class="step-value">{{ formData.copies }}</text>
-            <text class="step-unit">份</text>
+      <view v-if="loadingFields" class="loading-fields">
+        <text>正在读取模板字段...</text>
+      </view>
+
+      <view v-for="field in fields" :key="field.key" class="field">
+        <view class="label-row">
+          <text class="label">{{ field.label }}</text>
+          <text v-if="field.required" class="required">必填</text>
+        </view>
+
+        <picker
+          v-if="field.type === 'select'"
+          :range="field.options || []"
+          @change="onSelectField(field, $event)"
+        >
+          <view class="input-wrap picker-wrap">
+            <text :class="formData[field.key] ? 'input-text' : 'placeholder'">
+              {{ formData[field.key] || field.placeholder || '请选择' }}
+            </text>
+            <text class="picker-arrow">›</text>
           </view>
-          <button
-            class="step-btn"
-            :class="{ disabled: formData.copies >= 99 }"
-            :disabled="formData.copies >= 99"
-            @click="changeCopies(1)"
-          >
-            +
-          </button>
-        </view>
-      </view>
+        </picker>
 
-      <view class="field">
-        <text class="label">备注说明</text>
-        <view class="input-wrap textarea-wrap">
-          <textarea
-            v-model="formData.remark"
-            class="textarea"
-            placeholder="如需补充说明，可在此填写（可选）"
+        <picker
+          v-else-if="field.type === 'date'"
+          mode="date"
+          @change="onDateField(field, $event)"
+        >
+          <view class="input-wrap picker-wrap">
+            <text :class="formData[field.key] ? 'input-text' : 'placeholder'">
+              {{ formData[field.key] || field.placeholder || '请选择日期' }}
+            </text>
+            <text class="picker-arrow">›</text>
+          </view>
+        </picker>
+
+        <view v-else class="input-wrap">
+          <input
+            v-model="formData[field.key]"
+            class="input"
+            :type="field.type === 'number' ? 'number' : 'text'"
+            :placeholder="field.placeholder || '请输入'"
           />
         </view>
       </view>
@@ -104,51 +117,70 @@
 import { computed, ref, reactive, onMounted } from 'vue'
 import { approvalApi } from '@/api'
 
-const types = ref([])
-const selectedType = ref(null)
+const templates = ref([])
+const fields = ref([])
+const profileValues = ref({})
+const selectedTemplate = ref(null)
+const loadingFields = ref(false)
 const submitting = ref(false)
-const formData = reactive({ purpose: '', copies: 1, remark: '' })
+const formData = reactive({})
 
-const selectedTypeName = computed(() => types.value.find((item) => item.id === selectedType.value)?.name || '')
-const canSubmit = computed(() => !!selectedType.value && !!formData.purpose.trim())
+const selectedTemplateName = computed(
+  () => templates.value.find((item) => item.id === selectedTemplate.value)?.title || ''
+)
+const profileItems = computed(() =>
+  Object.entries(profileValues.value || {}).map(([label, value]) => ({ label, value }))
+)
+const canSubmit = computed(() =>
+  !!selectedTemplate.value &&
+  fields.value.every((field) => !field.required || String(formData[field.key] || '').trim())
+)
 
-onMounted(loadTypes)
+onMounted(loadTemplates)
 
-async function loadTypes() {
+async function loadTemplates() {
   try {
-    const res = await approvalApi.getTypes()
-    types.value = res.data || []
+    const res = await approvalApi.getTemplates()
+    templates.value = res.data || []
   } catch (e) {
-    types.value = []
-  }
-  if (!types.value.length) {
-    types.value = [
-      { id: 1, name: '在读证明', description: '用于证明当前在校就读状态' },
-      { id: 2, name: '成绩证明', description: '用于证明课程成绩与学业情况' },
-      { id: 3, name: '政审证明', description: '开具政审相关证明，需院领导审批' },
-      { id: 4, name: '离校证明', description: '用于证明毕业或离校相关事项' },
-    ]
+    templates.value = []
   }
 }
 
-function selectType(id) {
-  selectedType.value = id
+async function selectTemplate(id) {
+  selectedTemplate.value = id
+  fields.value = []
+  profileValues.value = {}
+  Object.keys(formData).forEach((key) => delete formData[key])
+  loadingFields.value = true
+  try {
+    const res = await approvalApi.getTemplateFields(id)
+    fields.value = res.data?.inputs || []
+    profileValues.value = res.data?.profileValues || {}
+  } finally {
+    loadingFields.value = false
+  }
 }
 
-function getTypeInitial(name) {
-  return String(name || '证').slice(0, 1)
+function getTemplateInitial(title) {
+  const text = String(title || '证').replace('证明模板', '').replace('证明', '')
+  return text.slice(0, 1) || '证'
 }
 
-function changeCopies(delta) {
-  const next = Number(formData.copies || 1) + delta
-  formData.copies = Math.min(99, Math.max(1, next))
+function onSelectField(field, event) {
+  const index = Number(event.detail.value)
+  formData[field.key] = field.options?.[index] || ''
+}
+
+function onDateField(field, event) {
+  formData[field.key] = event.detail.value || ''
 }
 
 function confirmSubmit() {
   return new Promise((resolve) => {
     uni.showModal({
       title: '确认提交',
-      content: '确定提交该证明申请吗？',
+      content: '确定提交该证明申请吗？审批通过后将自动生成 PDF。',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false),
     })
@@ -156,12 +188,13 @@ function confirmSubmit() {
 }
 
 async function submitApply() {
-  if (!selectedType.value) {
-    uni.showToast({ title: '请选择类型', icon: 'none' })
+  if (!selectedTemplate.value) {
+    uni.showToast({ title: '请选择模板', icon: 'none' })
     return
   }
-  if (!formData.purpose.trim()) {
-    uni.showToast({ title: '请填写申请用途', icon: 'none' })
+  const missing = fields.value.find((field) => field.required && !String(formData[field.key] || '').trim())
+  if (missing) {
+    uni.showToast({ title: `请填写${missing.label}`, icon: 'none' })
     return
   }
   const ok = await confirmSubmit()
@@ -170,12 +203,8 @@ async function submitApply() {
   submitting.value = true
   try {
     await approvalApi.apply({
-      typeId: selectedType.value,
-      formData: {
-        purpose: formData.purpose,
-        copies: Number(formData.copies || 1),
-        remark: formData.remark,
-      },
+      templateDocId: selectedTemplate.value,
+      formData: { ...formData },
     })
     uni.showModal({
       title: '提交成功',
@@ -195,8 +224,7 @@ async function submitApply() {
 .page {
   min-height: 100vh;
   padding: 24rpx 24rpx calc(156rpx + env(safe-area-inset-bottom));
-  background:
-    linear-gradient(180deg, #FBF7F5 0%, #F6F4F2 340rpx, #F6F4F2 100%);
+  background: linear-gradient(180deg, #FBF7F5 0%, #F6F4F2 340rpx, #F6F4F2 100%);
   box-sizing: border-box;
 }
 
@@ -329,6 +357,15 @@ async function submitApply() {
   opacity: 1;
 }
 
+.empty-hint {
+  padding: 32rpx;
+  text-align: center;
+  color: #86909C;
+  background: #FFFFFF;
+  border-radius: 22rpx;
+  font-size: 24rpx;
+}
+
 .form {
   padding: 24rpx;
   background: #FFFFFF;
@@ -341,13 +378,14 @@ async function submitApply() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24rpx;
+  margin-bottom: 20rpx;
   padding: 20rpx 22rpx;
   border-radius: 18rpx;
   background: #F7F8FA;
 }
 
-.summary-label {
+.summary-label,
+.profile-label {
   color: #86909C;
   font-size: 23rpx;
 }
@@ -358,6 +396,38 @@ async function submitApply() {
   font-weight: 800;
 }
 
+.profile-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-bottom: 24rpx;
+}
+
+.profile-item {
+  padding: 16rpx;
+  border-radius: 16rpx;
+  background: #FAFAFB;
+}
+
+.profile-label,
+.profile-value {
+  display: block;
+}
+
+.profile-value {
+  margin-top: 6rpx;
+  color: #1F2329;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.loading-fields {
+  padding: 28rpx 0;
+  text-align: center;
+  color: #86909C;
+  font-size: 24rpx;
+}
+
 .field {
   margin-bottom: 24rpx;
 }
@@ -366,12 +436,25 @@ async function submitApply() {
   margin-bottom: 0;
 }
 
-.label {
-  display: block;
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12rpx;
+}
+
+.label {
   color: #1F2329;
   font-size: 26rpx;
   font-weight: 750;
+}
+
+.required {
+  padding: 4rpx 10rpx;
+  border-radius: 999rpx;
+  color: #9B2C36;
+  background: #F7EDEF;
+  font-size: 20rpx;
 }
 
 .input-wrap {
@@ -392,66 +475,23 @@ async function submitApply() {
   color: #1F2329;
 }
 
-.textarea-wrap {
-  min-height: 178rpx;
-  align-items: flex-start;
-  padding-top: 20rpx;
-  padding-bottom: 20rpx;
-}
-
-.textarea {
-  width: 100%;
-  height: 138rpx;
-  font-size: 27rpx;
-  color: #1F2329;
-  line-height: 1.5;
-}
-
-.stepper {
-  height: 88rpx;
-  display: flex;
-  align-items: center;
+.picker-wrap {
   justify-content: space-between;
-  padding: 0 10rpx;
-  border-radius: 18rpx;
-  background: #FAFAFB;
-  border: 1rpx solid rgba(31, 35, 41, 0.08);
 }
 
-.step-btn {
-  width: 76rpx;
-  height: 64rpx;
-  line-height: 64rpx;
-  padding: 0;
-  border-radius: 18rpx;
-  background: #FFFFFF;
-  color: #9B2C36;
-  border: 1rpx solid rgba(155, 44, 54, 0.14);
-  font-size: 34rpx;
-  font-weight: 800;
-}
-
-.step-btn.disabled {
-  color: #C9CDD4;
-  background: #F0F1F3;
-  border-color: #F0F1F3;
-}
-
-.step-value-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 8rpx;
-}
-
-.step-value {
+.input-text {
   color: #1F2329;
-  font-size: 34rpx;
-  font-weight: 800;
+  font-size: 27rpx;
 }
 
-.step-unit {
-  color: #86909C;
-  font-size: 22rpx;
+.placeholder {
+  color: #A8ABB2;
+  font-size: 27rpx;
+}
+
+.picker-arrow {
+  color: #C0C4CC;
+  font-size: 40rpx;
 }
 
 .footer {

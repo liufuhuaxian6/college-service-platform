@@ -11,19 +11,19 @@
 |---|---|---|
 | 通用框架（Result、异常、JWT、@RequireRole、@OperationLog、AES 工具） | ✅ 已完成 | A |
 | 认证（登录/注册/个人资料读写/改密码） | ✅ 已完成 | A |
-| 用户管理（CRUD、设置角色、Dashboard 统计） | 🟡 EasyExcel 批量导入 / 导出待补 | A |
+| 用户管理（CRUD、设置角色、Dashboard 统计） | ✅ 已完成（含 EasyExcel 导入 / 导出 / 前端模板下载） | A |
 | 操作日志（@OperationLog AOP + 查询接口） | ✅ 已完成 | A |
 | 文件服务（通用上传 30MB / 下载） | ✅ 已完成 | A |
 | 通知消息（站内 / 未读数 / tag 筛选 / 标记已读） | ✅ 已完成 | A |
 | **信息精准推送（模块三）** — 群发 + 邮件 + 24h 撤回 + 标签筛选 | ✅ 已完成（E2E 通过） | A |
-| 智能问答（关键词匹配 + RAG + AI 抽象层） | ✅ 已完成（AI 默认 Noop，AI 接入待补） | B |
-| RAG（BGE-small-zh-v1.5 / TEI / pgvector 512 维 / 重排） | ✅ 已完成 | B |
+| 智能问答（标准知识库 + RAG + AI 抽象层） | ✅ 已完成（AI 默认 Noop，AI 接入待补） | B |
+| RAG（BGE-small-zh-v1.5 / TEI / pgvector 512 维 / 查询扩展 / 重排） | ✅ 已完成 | B |
 | 政策文档管理 + 重新索引触发 | ✅ 已完成 | B |
 | 办公模板模块（`doc_type=template`） | ✅ 已完成 | B/C |
-| 党团流程（模板 CRUD / 实例推进 / 暂停） | 🟡 到期提醒定时任务待补 | B |
-| 审批流程（状态机 / 多级链 / 下载即锁定） | 🟡 PDF 证明模板填充待完善 | B |
-| 学生画像（个人信息 / 荣誉 / 数据隔离） | 🟡 管理端详情弹窗待补 | B/C |
-| PC 管理端 | 🟡 流程模板编辑弹窗、Dashboard ECharts 图表待补 | C |
+| 党团流程（模板 CRUD / 实例推进 / 暂停 / 到期提醒定时任务） | ✅ 已完成 | B |
+| 审批流程（状态机 / 多级链 / 固定证明模板 / 下载即锁定） | ✅ 已完成（党员/团员证明模板已固化；PDF 优先嵌入本机中文字体，找不到字体时降级） | B |
+| 学生画像（个人信息 / 邮箱 / 荣誉 / 数据隔离） | ✅ 已完成（管理端 el-drawer 含 4 块汇总，列表显示邮箱） | B/C |
+| PC 管理端 | 🟡 Dashboard 图表仍可继续增强，核心页面已完成暗红主题改版 | C |
 | 小程序端 | ✅ 全页面 UI 完成；TabBar 图标资源已替换 | D |
 | 离线部署（5 容器 + 一键脚本对） | ✅ 已完成 | A |
 
@@ -71,6 +71,8 @@
 - 修复 RAG 无关问题误命中（语义假阳性）：抽取式置信度阈值 + 边界片段裁剪
 - 办公模板模块（`doc_type` 字段切分政策 / 模板）
 - 离线一键部署脚本对（A）
+- 证明申请模板从“运行时解析 docx”改为“离线读模板、代码中固化生成结构”，避免部署环境缺模板或 docx 解析差异导致申请失败
+- 小程序提交申请页改为按后端字段动态渲染；管理端学生/用户列表补充邮箱列；消息中心标签和最新通知展示修复
 
 ---
 
@@ -78,18 +80,19 @@
 
 ### P0 — 演示/答辩必须
 
-- [ ] 管理端：流程模板编辑弹窗（动态增删步骤）
-- [ ] 管理端：Dashboard ECharts 图表
-- [ ] 管理端：学生详情弹窗（荣誉 + 流程 + 申请汇总）
-- [ ] 审批：PDF 证明模板填充（已通过 → 学生下载真实 PDF）
+- [x] ~~管理端：流程模板编辑弹窗（动态增删步骤）~~ —— 已实现, 见 [TemplateList.vue](../frontend-admin/src/views/party/TemplateList.vue) 第 36-74 行
+- [x] ~~管理端：学生详情弹窗（荣誉 + 流程 + 申请汇总）~~ —— 已实现 el-drawer, 见 [StudentList.vue](../frontend-admin/src/views/student/StudentList.vue) 第 49-99 行
+- [ ] **管理端：Dashboard 图表增强** —— 当前基础统计和待办区可用，后续可补充趋势图、业务分布图
+- [x] ~~审批：固定证明模板字段与正文生成~~ —— 已完成，见 [CertTemplateRegistry.java](../backend/src/main/java/com/ruc/college/module/approval/service/CertTemplateRegistry.java)
+- [x] ~~审批：PDF 证明中文支持基础方案~~ —— 已完成，PDFBox 优先加载系统中文字体；无字体时安全降级，见 [ApprovalService.java](../backend/src/main/java/com/ruc/college/module/approval/service/ApprovalService.java)
 - [ ] 答辩 PPT + 演示脚本
 
 ### P1 — 完整性
 
-- [ ] EasyExcel 批量导入学生名单 + 导出
-- [ ] 党团流程到期提醒定时任务（@Scheduled 扫描 → 调用 sendNotification）
+- [x] ~~EasyExcel 批量导入学生名单 + 导出~~ —— 已完成 (UserList 前端含下载模板/导入结果明细/筛选导出)
+- [x] ~~党团流程到期提醒定时任务~~ —— PartyReminderJob, 每天 09:00 cron, 含 24h 防重 + `POST /party/reminder/run` 手动触发接口
 - [ ] 接入真实 AI 模型（实现 `WenxinAiProvider` 或 `QianfanAiProvider`）
-- [ ] 审批通过/驳回后给学生发通知（站内 + 邮件可选）
+- [ ] 审批通过/驳回后给学生发**邮件**通知（站内通知已在，邮件群发通道已可复用）
 
 ### P2 — 可选优化
 
@@ -111,7 +114,8 @@
 | `MAIL_AUTH_CODE` 必须与 `MAIL_USERNAME` 同一邮箱服务商，跨厂商授权码不通用 | 文档化 | README + DEPLOYMENT 已说明，运维注意 |
 | 邮件批量发送目前是同步 + 节流 100ms，5000 人群发耗时 ~ 1-2 分钟 | 可接受 | 答辩规模够用；若放大可切到 `sendBatch()` @Async + MQ |
 | BGE 模型未入 Git（`.gitignore`），新成员需手动下载 | 文档化 | DEPLOYMENT §12.2 给了一键下载脚本 |
-| 学校 `ruc.edu.cn` 邮箱托管在网易，真实生产想用学校邮箱作发件人，需重新生成网易客户端授权码 | 待定 | 当前 demo 用 QQ 邮箱作发件人即可 |
+| 学校 `ruc.edu.cn` 邮箱托管在网易，真实生产想用学校邮箱作发件人，需重新生成网易客户端授权码 | 已验证 | README / DEPLOYMENT 已记录 `smtphz.qiye.163.com:465 SSL` |
+| PDF 中文字体依赖运行环境 | 已知 | Windows 本机通常可加载系统中文字体；Linux 生产建议安装 Noto CJK 或把字体随部署包放入容器 |
 
 ---
 

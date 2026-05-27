@@ -46,7 +46,7 @@
     >
       <view class="app-top">
         <view class="app-main">
-          <text class="app-title">{{ app.typeName || '证明申请' }}</text>
+          <text class="app-title">{{ app.templateName || app.typeName || '证明申请' }}</text>
           <text class="app-no">{{ app.appNo || '暂无编号' }}</text>
         </view>
         <StatusPill :status="normalizedStatus(app)" />
@@ -75,6 +75,13 @@
 
       <view class="app-actions" v-if="app.status === 'approved' || app.status === 'pending' || isLocked(app)">
         <view
+          v-if="app.status === 'approved' || isLocked(app)"
+          class="action-btn ghost"
+          @click.stop="handlePreview(app.id)"
+        >
+          预览
+        </view>
+        <view
           v-if="app.status === 'approved' && !isLocked(app)"
           class="action-btn primary"
           @click.stop="handleDownload(app.id)"
@@ -86,7 +93,7 @@
           class="action-btn ghost"
           @click.stop="handleWithdraw(app.id)"
         >
-          撤回重批
+          {{ app.status === 'pending' ? '撤回申请' : '撤回重批' }}
         </view>
         <view v-if="isLocked(app)" class="action-btn disabled">锁定归档</view>
       </view>
@@ -158,10 +165,14 @@ async function viewDetail(id) {
     const app = res.data?.application || res.data
     const records = res.data?.records || []
     const latestRecord = records.length ? records[records.length - 1] : null
+    const formText = formatFormData(app.formData)
     const lines = [
       `编号：${app.appNo || '-'}`,
+      `类型：${app.typeName || '证明申请'}`,
       `状态：${statusLabel(normalizedStatus(app))}`,
+      app.currentApproverLevel ? `当前审批：L${app.currentApproverLevel}` : '',
       `提交时间：${app.createdAt || '-'}`,
+      formText ? `表单：${formText}` : '',
       isLocked(app) ? '该申请已下载并锁定归档，不能撤回或重新审批。' : '',
       latestRecord?.comment ? `审批意见：${latestRecord.comment}` : '',
     ].filter(Boolean)
@@ -169,6 +180,19 @@ async function viewDetail(id) {
   } catch (e) {
     // request helper already shows the error toast
   }
+}
+
+function formatFormData(formData) {
+  if (!formData) return ''
+  let obj = formData
+  if (typeof formData === 'string') {
+    try { obj = JSON.parse(formData) } catch (_) { return formData }
+  }
+  if (typeof obj !== 'object') return String(obj)
+  return Object.entries(obj)
+    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ')
 }
 
 async function handleDownload(id) {
@@ -179,30 +203,39 @@ async function handleDownload(id) {
     title: '确认下载',
     content: '下载后申请将归档锁定，不能再撤回或修改，确定下载吗？',
     success: (res) => {
-      if (res.confirm) downloadFile(id)
+      if (res.confirm) downloadFile(id, false)
     },
   })
 }
 
-function downloadFile(id) {
+function handlePreview(id) {
+  // 预览不锁定状态, 可反复调用
+  downloadFile(id, true)
+}
+
+function downloadFile(id, preview) {
   const token = uni.getStorageSync('token') || ''
-  uni.showLoading({ title: '下载中' })
+  uni.showLoading({ title: preview ? '加载中' : '下载中' })
   uni.downloadFile({
-    url: approvalApi.downloadFileUrl(id),
+    url: approvalApi.downloadFileUrl(id, preview),
     header: token ? { Authorization: `Bearer ${token}` } : {},
     success: (res) => {
       if (res.statusCode !== 200) {
-        uni.showToast({ title: '下载失败', icon: 'none' })
+        uni.showToast({ title: preview ? '预览失败' : '下载失败', icon: 'none' })
         return
       }
       uni.openDocument({
         filePath: res.tempFilePath,
+        fileType: 'pdf',
         showMenu: true,
-        complete: loadApplications,
+        complete: () => {
+          // 下载操作回来后刷新状态 (会变成 downloaded), 预览不需要刷新
+          if (!preview) loadApplications()
+        },
       })
     },
     fail: () => {
-      uni.showToast({ title: '下载失败', icon: 'none' })
+      uni.showToast({ title: preview ? '预览失败' : '下载失败', icon: 'none' })
     },
     complete: () => {
       uni.hideLoading()

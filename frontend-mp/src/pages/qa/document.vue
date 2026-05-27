@@ -115,11 +115,21 @@ function download(doc) {
         uni.showToast({ title: '下载失败', icon: 'none' })
         return
       }
+      const ext = fileExt(doc).toLowerCase()
+      // uni.openDocument 支持: doc/docx/xls/xlsx/ppt/pptx/pdf
+      const supported = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf']
+      const openParams = { filePath: res.tempFilePath, showMenu: true }
+      if (supported.includes(ext)) openParams.fileType = ext
+
       uni.openDocument({
-        filePath: res.tempFilePath,
-        showMenu: true,
-        fail: () => {
-          uni.showToast({ title: '打开文件失败', icon: 'none' })
+        ...openParams,
+        fail: (err) => {
+          // 微信内嵌预览失败时, 仍保留临时文件并提示用户改成另存
+          uni.showModal({
+            title: '提示',
+            content: `当前环境不支持直接预览 ${ext || '该格式'} 文件, 请点击右上 ··· 选择"用其他应用打开"或保存到手机.`,
+            showCancel: false,
+          })
         },
       })
     },

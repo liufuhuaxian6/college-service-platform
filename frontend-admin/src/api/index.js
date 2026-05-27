@@ -15,6 +15,10 @@ export const systemApi = {
   importUsers: (formData) => request.post('/system/user/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
+  exportStudents: (params) => request.get('/system/user/export', {
+    params,
+    responseType: 'blob',
+  }),
   getDashboard: () => request.get('/system/dashboard'),
 }
 

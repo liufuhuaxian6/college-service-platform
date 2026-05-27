@@ -19,7 +19,7 @@ spring:
   mail:
     host: ${MAIL_HOST:smtphz.qiye.163.com}
     port: ${MAIL_PORT:465}
-    username: ${MAIL_USERNAME:2024201564@ruc.edu.cn}
+    username: ${MAIL_USERNAME:}
     password: ${MAIL_AUTH_CODE:}
     protocol: smtp
     default-encoding: UTF-8
@@ -55,10 +55,16 @@ jwt:
 
 # AI 配置 (预留, 后续填入具体模型)
 ai:
-  provider: none  # none / http / wenxin / qianfan / openai
-  api-key: ""
-  api-url: ""
-  timeout-ms: 5000
+  provider: ${AI_PROVIDER:none}  # none / http / wenxin / qianfan / openai
+  api-key: ${AI_API_KEY:}
+  api-url: ${AI_API_URL:}
+  model: ${AI_MODEL:}
+  timeout-ms: ${AI_TIMEOUT_MS:5000}
+
+# 智能问答限流
+qa:
+  chat:
+    daily-limit: ${QA_DAILY_LIMIT:200}   # 每用户每自然日最多提问次数; 0 表示不限
 
 # RAG / 向量检索配置
 # 已切换至 BGE-small-zh-v1.5（中文专项，512维）通过 TEI HTTP 服务调用
@@ -82,6 +88,12 @@ rag:
     timeout-ms: 8000
     # BGE 系列模型推荐对 query 加前缀以提升检索召回率
     query-prefix: "为这个句子生成表示以用于检索相关文章："
+
+# 党团流程到期提醒 (定时任务 PartyReminderJob)
+party:
+  reminder:
+    cron: "0 0 9 * * ?"         # Quartz cron, 每天 09:00 触发; 演示时可改 "0 */5 * * * ?" 每 5 分钟
+    before-days: 7              # 距当前步骤预期完成日 N 天内开始提醒
 
 # 通知群发
 notify:

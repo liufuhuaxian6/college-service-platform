@@ -271,7 +271,8 @@ CREATE TABLE approval_application (
     id                      BIGSERIAL PRIMARY KEY,
     app_no                  VARCHAR(50) UNIQUE NOT NULL,
     user_id                 BIGINT NOT NULL REFERENCES sys_user(id),
-    type_id                 BIGINT NOT NULL REFERENCES approval_type(id),
+    type_id                 BIGINT REFERENCES approval_type(id),
+    template_doc_id         BIGINT REFERENCES qa_document(id),
     form_data               JSONB,
     status                  VARCHAR(20) NOT NULL DEFAULT 'draft',
     current_approver_level  SMALLINT,
@@ -286,9 +287,12 @@ COMMENT ON TABLE approval_application IS '审批申请表';
 COMMENT ON COLUMN approval_application.status IS '状态: draft/pending/approved/rejected/withdrawn/downloaded';
 COMMENT ON COLUMN approval_application.downloaded_at IS '下载时间（非空=已锁定，严禁撤回）';
 COMMENT ON COLUMN approval_application.withdraw_deadline IS '撤回截止时间（通过后1-2天）';
+COMMENT ON COLUMN approval_application.template_doc_id IS '模板 (qa_document.id, doc_type=template), 通过后用此模板生成 PDF';
+COMMENT ON COLUMN approval_application.type_id IS '旧的审批类型 ID (保留兼容), 新申请用 template_doc_id';
 CREATE INDEX idx_app_user ON approval_application(user_id);
 CREATE INDEX idx_app_status ON approval_application(status);
 CREATE INDEX idx_app_type ON approval_application(type_id);
+CREATE INDEX idx_app_template ON approval_application(template_doc_id);
 
 -- 审批记录表
 CREATE TABLE approval_record (
@@ -325,9 +329,13 @@ CREATE INDEX idx_honor_user ON student_honor(user_id);
 
 -- ==================== 初始数据 ====================
 
--- 默认管理员账号 (密码: admin123, BCrypt 哈希)
-INSERT INTO sys_user (student_id, name, password, role_level, status)
-VALUES ('admin', '系统管理员', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 1, 1);
+-- 默认初始账号 (密码均为: admin123, BCrypt 哈希)
+-- 邮箱和手机号为演示用虚构信息, 部署后请在管理端修改密码
+INSERT INTO sys_user (student_id, name, password, role_level, grade, major, class_name, phone, email, status)
+VALUES
+('admin', '系统管理员', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 1, NULL, NULL, NULL, '13800000001', 'admin.demo@example.edu', 1),
+('20240001', '测试学生', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 4, '2024', '计算机科学与技术', '2024级1班', '13800000002', 'student.demo@example.edu', 1)
+ON CONFLICT (student_id) DO NOTHING;
 
 -- 默认审批类型
 INSERT INTO approval_type (name, description, approval_chain) VALUES

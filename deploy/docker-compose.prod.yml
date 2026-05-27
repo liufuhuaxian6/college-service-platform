@@ -1,8 +1,6 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: ${DB_NAME:-college_service}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -29,12 +27,8 @@ services:
       - ./models/bge-small-zh-v1.5:/models/bge-small-zh-v1.5:ro
       - tei-data:/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+    # 注: TEI 1.5 镜像基于 distroless, 不带 wget/curl, 无法自带 healthcheck.
+    # 服务实际就绪以日志里 "Ready" 为准; backend depends_on 用 service_started 即可.
 
   redis:
     image: redis:7-alpine
@@ -65,12 +59,17 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET}
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      AI_API_URL: ${AI_API_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
       RAG_EMBEDDING_API_URL: http://embedding:80/v1/embeddings
       # 邮件 SMTP (模块三): 通过 .env 注入授权码, 缺失则自动降级为 email_sim
-      # 默认 RUC 学校邮箱 (网易企业邮杭州节点, 已实测), 详见 deploy/.env.prod
+      # 邮箱配置从 .env 注入; MAIL_USERNAME / MAIL_AUTH_CODE 留空时自动降级为 email_sim
       MAIL_HOST: ${MAIL_HOST:-smtphz.qiye.163.com}
       MAIL_PORT: ${MAIL_PORT:-465}
-      MAIL_USERNAME: ${MAIL_USERNAME:-2024201564@ruc.edu.cn}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_AUTH_CODE: ${MAIL_AUTH_CODE:-}
     depends_on:
       postgres:
@@ -78,16 +77,12 @@ services:
       redis:
         condition: service_healthy
       embedding:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - upload-data:/app/uploads
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/auth/login"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # backend healthcheck 注: /api/auth/login 是 POST, wget GET 拿 405 会退出非零判 unhealthy.
+    # 这里干脆不做 in-container healthcheck, deploy.sh 启动后会跑 curl 冒烟测试登录端点.
 
   nginx:
     image: nginx:alpine

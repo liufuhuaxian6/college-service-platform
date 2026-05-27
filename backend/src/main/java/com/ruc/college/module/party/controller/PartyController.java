@@ -7,6 +7,7 @@ import com.ruc.college.common.security.RequireRole;
 import com.ruc.college.module.party.entity.PartyProcessInstance;
 import com.ruc.college.module.party.entity.PartyProcessStep;
 import com.ruc.college.module.party.entity.PartyProcessTemplate;
+import com.ruc.college.module.party.job.PartyReminderJob;
 import com.ruc.college.module.party.service.PartyService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class PartyController {
 
     private final PartyService partyService;
+    private final PartyReminderJob reminderJob;
 
     // ==================== 学生端 ====================
 
@@ -123,5 +125,16 @@ public class PartyController {
     @Data
     public static class RemarkRequest {
         private String remark;
+    }
+
+    // ==================== 调试 / 运维 ====================
+
+    /** 手动触发一次到期提醒扫描 (定时任务每天 09:00 自动跑, 此接口供管理端临时催办或演示用) */
+    @PostMapping("/reminder/run")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "党团流程", action = "手动触发到期提醒")
+    public Result<Map<String, Object>> runReminder() {
+        int sent = reminderJob.scanAndNotify();
+        return Result.ok(Map.of("sent", sent));
     }
 }

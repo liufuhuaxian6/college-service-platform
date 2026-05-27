@@ -49,11 +49,19 @@ else
     fail 'docker compose / docker-compose 都没装'
 fi
 
-# 是否需要 sudo
-if [ "$EUID" -ne 0 ] && ! groups | grep -qw docker; then
-    SUDO=sudo
+# 权限拆分:
+# - /opt/college-service 属于系统目录, 非 root 总是需要 sudo 写入
+# - Docker 命令只有在用户不属于 docker 组时才需要 sudo
+if [ "$EUID" -ne 0 ]; then
+    FS_SUDO=sudo
+    if groups | grep -qw docker; then
+        DOCKER_SUDO=
+    else
+        DOCKER_SUDO=sudo
+    fi
 else
-    SUDO=
+    FS_SUDO=
+    DOCKER_SUDO=
 fi
 
 # ---------- 0) 前置检查 ----------
@@ -61,7 +69,7 @@ step '0/6 环境检查'
 for f in docker-compose.yml .env nginx.conf schema.sql images models admin; do
     [ -e "$PKG_DIR/$f" ] || fail "缺少 $f, 部署包不完整"
 done
-ok "部署包结构完整 ($DC, sudo=${SUDO:-no})"
+ok "部署包结构完整 ($DC, fs_sudo=${FS_SUDO:-no}, docker_sudo=${DOCKER_SUDO:-no})"
 
 # ---------- 1) 决定模式 ----------
 step '1/6 判定部署模式'
@@ -72,9 +80,9 @@ if [ "$MODE" = fresh ]; then
     read -p '确定吗? [y/N] ' yn
     [ "$yn" = y ] || [ "$yn" = Y ] || fail '用户取消'
     if [ -d "$DEPLOY_DIR" ]; then
-        (cd "$DEPLOY_DIR" && $SUDO $DC down -v 2>/dev/null) || true
+        (cd "$DEPLOY_DIR" && $DOCKER_SUDO $DC down -v 2>/dev/null) || true
     fi
-elif [ ! -d "$DEPLOY_DIR" ] || [ -z "$($SUDO ls -A "$DEPLOY_DIR" 2>/dev/null || true)" ]; then
+elif [ ! -d "$DEPLOY_DIR" ] || [ -z "$($FS_SUDO ls -A "$DEPLOY_DIR" 2>/dev/null || true)" ]; then
     FRESH=1
     ok '目标目录不存在或为空 → 全新部署'
 elif [ "$MODE" = restart ]; then
@@ -89,7 +97,7 @@ if [ "$MODE" != restart ]; then
     for tar in "$PKG_DIR/images"/*.tar; do
         name=$(basename "$tar")
         echo "  $name"
-        $SUDO docker load -i "$tar" >/dev/null
+        $DOCKER_SUDO docker load -i "$tar" >/dev/null
         ok "$name"
     done
 else
@@ -99,15 +107,15 @@ fi
 # ---------- 3) 同步配置 / 静态文件 / 模型 ----------
 if [ "$MODE" != restart ]; then
     step '3/6 同步配置 + 静态文件 + 模型'
-    $SUDO mkdir -p "$DEPLOY_DIR"/{sql,admin,models}
-    $SUDO cp "$PKG_DIR/docker-compose.yml" "$DEPLOY_DIR/"
-    $SUDO cp "$PKG_DIR/.env" "$DEPLOY_DIR/"
-    $SUDO cp "$PKG_DIR/nginx.conf" "$DEPLOY_DIR/"
-    $SUDO cp "$PKG_DIR/schema.sql" "$DEPLOY_DIR/sql/"
-    $SUDO rsync -a --delete "$PKG_DIR/admin/" "$DEPLOY_DIR/admin/" 2>/dev/null \
-        || $SUDO cp -r "$PKG_DIR/admin/." "$DEPLOY_DIR/admin/"
-    $SUDO rsync -a --delete "$PKG_DIR/models/" "$DEPLOY_DIR/models/" 2>/dev/null \
-        || $SUDO cp -r "$PKG_DIR/models/." "$DEPLOY_DIR/models/"
+    $FS_SUDO mkdir -p "$DEPLOY_DIR"/{sql,admin,models}
+    $FS_SUDO cp "$PKG_DIR/docker-compose.yml" "$DEPLOY_DIR/"
+    $FS_SUDO cp "$PKG_DIR/.env" "$DEPLOY_DIR/"
+    $FS_SUDO cp "$PKG_DIR/nginx.conf" "$DEPLOY_DIR/"
+    $FS_SUDO cp "$PKG_DIR/schema.sql" "$DEPLOY_DIR/sql/"
+    $FS_SUDO rsync -a --delete "$PKG_DIR/admin/" "$DEPLOY_DIR/admin/" 2>/dev/null \
+        || $FS_SUDO cp -r "$PKG_DIR/admin/." "$DEPLOY_DIR/admin/"
+    $FS_SUDO rsync -a --delete "$PKG_DIR/models/" "$DEPLOY_DIR/models/" 2>/dev/null \
+        || $FS_SUDO cp -r "$PKG_DIR/models/." "$DEPLOY_DIR/models/"
     ok 'docker-compose.yml + .env + nginx.conf + schema.sql + admin/ + models/'
 else
     skip '3/6 仅重启模式跳过文件同步'
@@ -117,14 +125,14 @@ fi
 step '4/6 启动容器'
 cd "$DEPLOY_DIR"
 if [ "$FRESH" = 1 ]; then
-    $SUDO $DC up -d
+    $DOCKER_SUDO $DC up -d
     ok '所有容器已启动 (首次启动 embedding 加载模型约 30 秒)'
 elif [ "$MODE" = restart ]; then
-    $SUDO $DC restart
+    $DOCKER_SUDO $DC restart
     ok '所有容器已重启'
 else
     # 增量: 后端镜像变了一定要 down + up 才能用新 image
-    $SUDO $DC up -d --remove-orphans
+    $DOCKER_SUDO $DC up -d --remove-orphans
     ok '增量启动 (有镜像变更的容器会被重建)'
 fi
 
@@ -135,10 +143,10 @@ required_services="postgres redis embedding backend nginx"
 while [ "$(date +%s)" -lt "$deadline" ]; do
     all_healthy=1
     for svc in $required_services; do
-        cid=$($SUDO $DC ps -q "$svc" 2>/dev/null || true)
+        cid=$($DOCKER_SUDO $DC ps -q "$svc" 2>/dev/null || true)
         [ -z "$cid" ] && { all_healthy=0; break; }
         # 有 healthcheck 用 health, 没有就看 running
-        state=$($SUDO docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || echo unknown)
+        state=$($DOCKER_SUDO docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || echo unknown)
         case "$state" in
             healthy|running) ;;
             *) all_healthy=0; break ;;
@@ -152,11 +160,11 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     printf '.'
 done
 echo
-$SUDO $DC ps
+$DOCKER_SUDO $DC ps
 
 # ---------- 6) 冒烟测试 ----------
 step '6/6 冒烟测试'
-embed_resp=$($SUDO $DC exec -T embedding wget -qO- --post-data='{"input":"测试"}' \
+embed_resp=$($DOCKER_SUDO $DC exec -T embedding wget -qO- --post-data='{"input":"测试"}' \
     --header='Content-Type: application/json' \
     http://localhost:80/v1/embeddings 2>/dev/null | head -c 50 || true)
 if echo "$embed_resp" | grep -q embedding; then

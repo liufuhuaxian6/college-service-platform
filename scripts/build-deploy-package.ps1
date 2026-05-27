@@ -172,8 +172,18 @@ if (-not $SkipFrontend) {
     Ok 'admin/'
 }
 
-# 模型
-Copy-Item -Recurse -Force $BgeDir (Join-Path $DeployPkg 'models')
+# 模型: 保持部署包内目录为 models/bge-small-zh-v1.5/
+# TEI 容器的启动参数固定读取 /models/bge-small-zh-v1.5/config.json。
+$modelsRoot = Join-Path $DeployPkg 'models'
+$bgeDest = Join-Path $modelsRoot 'bge-small-zh-v1.5'
+New-Item -ItemType Directory -Force -Path $bgeDest | Out-Null
+Copy-Item -Recurse -Force (Join-Path $BgeDir '*') $bgeDest
+if (-not (Test-Path (Join-Path $bgeDest 'config.json'))) {
+    throw '模型装配失败: deploy-package/models/bge-small-zh-v1.5/config.json 不存在'
+}
+if (-not (Test-Path (Join-Path $bgeDest 'onnx/model.onnx'))) {
+    throw '模型装配失败: deploy-package/models/bge-small-zh-v1.5/onnx/model.onnx 不存在'
+}
 Ok 'models/bge-small-zh-v1.5/'
 
 # 配置文件
