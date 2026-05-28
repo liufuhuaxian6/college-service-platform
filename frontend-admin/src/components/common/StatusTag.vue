@@ -23,6 +23,8 @@ const normalized = computed(() => {
     active: 'active',
     completed: 'completed',
     suspended: 'suspended',
+    online: 'completed',
+    placeholder: 'draft',
     1: 'active',
     0: 'disabled',
   }
@@ -40,6 +42,8 @@ const computedLabel = computed(() => {
     active: '进行中',
     completed: '已完成',
     suspended: '已暂停',
+    online: '已上线',
+    placeholder: '待补传',
     1: '启用',
     0: '停用',
   }
