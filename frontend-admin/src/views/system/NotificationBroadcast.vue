@@ -154,7 +154,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { notifyApi } from '@/api'
+import { notifyApi, systemApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
@@ -164,9 +164,23 @@ const activeTab = ref('compose')
 // ===== Compose =====
 const commonTags = ['就业', '实习', '奖学金', '入党', '入团', '校历', '后勤', '安全', '学籍', '计算机类']
 const sourceOptions = ['学院', '就业办', '后勤处', '保卫处', '教务处', '研究生院', '团委', '其他']
-const gradeOptions = ['2022', '2023', '2024', '2025']
-const majorOptions = ['计算机科学', '软件工程', '人工智能', '数据科学']
-const classOptions = ['2024级1班', '2024级2班', '2025级1班']
+// 年级/专业/班级选项: onMounted 时从真实学生数据里抽 distinct, 而不是硬编码
+// 这样不会出现"前端写了'计算机科学'但 DB 里是'计算机科学与技术'对不上"导致预览 0 人的坑
+const gradeOptions = ref([])
+const majorOptions = ref([])
+const classOptions = ref([])
+
+async function loadDimensions() {
+  try {
+    const res = await systemApi.getUserPage({ page: 1, size: 500 })
+    const students = (res.data?.records || []).filter(u => u.roleLevel === 4)
+    gradeOptions.value = [...new Set(students.map(s => s.grade).filter(Boolean))].sort()
+    majorOptions.value = [...new Set(students.map(s => s.major).filter(Boolean))].sort()
+    classOptions.value = [...new Set(students.map(s => s.className).filter(Boolean))].sort()
+  } catch (e) {
+    // 失败时留空, 用户仍可手动 allow-create
+  }
+}
 
 const form = reactive({
   title: '',
@@ -284,6 +298,7 @@ async function handleWithdraw(id) {
 
 onMounted(() => {
   loadHistory()
+  loadDimensions()
 })
 </script>
 
