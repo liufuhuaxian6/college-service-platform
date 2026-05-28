@@ -51,7 +51,7 @@ export const qaApi = {
 
   getDocumentList: (params) => request.get('/qa/document/list', { params }),
   addDocument: (data) => request.post('/qa/document', data),
-  indexDocument: (id) => request.post(`/qa/document/${id}/index`),
+  indexDocument: (id) => request.post(`/qa/document/${id}/index`, null, { timeout: 600000 }),
   searchDocumentChunks: (params) => request.get('/qa/document/chunk/search', { params }),
   deleteDocument: (id) => request.delete(`/qa/document/${id}`),
   getDocumentDownloadUrl: (id) => `/api/qa/document/${id}/download`,
