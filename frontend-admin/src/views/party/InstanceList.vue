@@ -59,10 +59,16 @@
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
         <el-table-column prop="startDate" label="开始日期" width="140" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" :disabled="row.status !== 'active'" @click="advance(row)">推进</el-button>
-            <el-button link type="warning" :disabled="row.status !== 'active'" @click="suspend(row)">暂停</el-button>
+            <template v-if="row.status === 'active'">
+              <el-button link type="primary" @click="advance(row)">推进</el-button>
+              <el-button link type="warning" @click="suspend(row)">暂停</el-button>
+            </template>
+            <template v-else-if="row.status === 'suspended'">
+              <el-button link type="success" @click="resume(row)">恢复</el-button>
+            </template>
+            <el-button link type="danger" @click="removeInstance(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -238,6 +244,32 @@ async function suspend(row) {
     })
     await partyApi.suspendInstance(row.id, { remark: value || '' })
     ElMessage.success('已暂停')
+    loadData()
+  } catch (error) { /* user cancelled */ }
+}
+
+async function removeInstance(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除「${getStudentLabel(row.userId)}」的流程「${getTemplateName(row.templateId)}」吗?\n此操作会同时清空该流程的所有步骤记录, 不可恢复.`,
+      '删除流程',
+      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await partyApi.deleteInstance(row.id)
+    ElMessage.success('已删除')
+    loadData()
+  } catch (error) { /* user cancelled */ }
+}
+
+async function resume(row) {
+  try {
+    const { value } = await ElMessageBox.prompt(`确定恢复流程「${getTemplateName(row.templateId)}」吗？恢复后可继续推进步骤。`, '恢复流程', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPlaceholder: '恢复备注，可不填',
+    })
+    await partyApi.resumeInstance(row.id, { remark: value || '' })
+    ElMessage.success('已恢复, 当前步骤可继续推进')
     loadData()
   } catch (error) { /* user cancelled */ }
 }

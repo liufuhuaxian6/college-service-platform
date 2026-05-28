@@ -73,6 +73,8 @@ export const partyApi = {
   createInstance: (data) => request.post('/party/instance', data),
   advanceStep: (id, data) => request.put(`/party/instance/${id}/advance`, data),
   suspendInstance: (id, data) => request.put(`/party/instance/${id}/suspend`, data),
+  resumeInstance: (id, data) => request.put(`/party/instance/${id}/resume`, data),
+  deleteInstance: (id) => request.delete(`/party/instance/${id}`),
 }
 
 // ==================== 审批管理 ====================
