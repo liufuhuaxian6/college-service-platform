@@ -145,10 +145,12 @@ CREATE TABLE qa_document (
     status         SMALLINT NOT NULL DEFAULT 1,
     created_by     BIGINT,
     description    VARCHAR(500),
-    created_at     TIMESTAMP DEFAULT NOW()
+    created_at     TIMESTAMP DEFAULT NOW(),
+    updated_at     TIMESTAMP DEFAULT NOW()
 );
 
 COMMENT ON TABLE qa_document IS '政策文档与办公模板（≤30MB下载）';
+COMMENT ON COLUMN qa_document.updated_at IS '最近更新时间（替换文件、修改元信息时刷新）';
 COMMENT ON COLUMN qa_document.doc_type IS '文档类型: policy=政策文件, template=办公模板';
 COMMENT ON COLUMN qa_document.file_path IS '文件相对路径; 空字符串表示模板占位记录, 待管理员补传';
 COMMENT ON COLUMN qa_document.description IS '简要描述（适用范围 / 填写说明）';
