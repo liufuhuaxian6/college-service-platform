@@ -115,10 +115,14 @@ public class StudentService {
                     .map(PartyProcessInstance::getTemplateId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
-            List<PartyProcessTemplate> templates = partyTemplateMapper.selectBatchIds(templateIds);
-            templateMap = templates.stream()
-                    .filter(t -> t.getId() != null)
-                    .collect(Collectors.toMap(PartyProcessTemplate::getId, Function.identity(), (a, b) -> a));
+            if (templateIds.isEmpty()) {
+                templateMap = Map.of();
+            } else {
+                List<PartyProcessTemplate> templates = partyTemplateMapper.selectBatchIds(templateIds);
+                templateMap = templates.stream()
+                        .filter(t -> t.getId() != null)
+                        .collect(Collectors.toMap(PartyProcessTemplate::getId, Function.identity(), (a, b) -> a));
+            }
         } else {
             templateMap = Map.of();
         }
@@ -149,10 +153,14 @@ public class StudentService {
                     .map(ApprovalApplication::getTypeId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
-            List<ApprovalType> types = approvalTypeMapper.selectBatchIds(typeIds);
-            typeMap = types.stream()
-                    .filter(t -> t.getId() != null)
-                    .collect(Collectors.toMap(ApprovalType::getId, Function.identity(), (a, b) -> a));
+            if (typeIds.isEmpty()) {
+                typeMap = Map.of();
+            } else {
+                List<ApprovalType> types = approvalTypeMapper.selectBatchIds(typeIds);
+                typeMap = types.stream()
+                        .filter(t -> t.getId() != null)
+                        .collect(Collectors.toMap(ApprovalType::getId, Function.identity(), (a, b) -> a));
+            }
         } else {
             typeMap = Map.of();
         }
