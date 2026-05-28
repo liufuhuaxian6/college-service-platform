@@ -80,8 +80,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { approvalApi } from '@/api'
+
+const route = useRoute()
+const router = useRouter()
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
@@ -168,7 +172,21 @@ function formatFormData(formData) {
   return JSON.stringify(formData, null, 2)
 }
 
-onMounted(loadData)
+onMounted(async () => {
+  await loadData()
+  // 由数据概览跳过来时, URL 带 ?openId=X 自动打开该条详情抽屉
+  const openId = Number(route.query.openId)
+  if (openId) {
+    const target = list.value.find(r => r.id === openId)
+    if (target) {
+      viewDetail(target)
+    } else {
+      ElMessage.info('该申请已不在待审批列表 (可能已处理), 请到"全部申请"查看')
+    }
+    // 清掉 query, 避免刷新一直自动弹
+    router.replace({ path: '/approval/pending' })
+  }
+})
 </script>
 
 <style scoped>

@@ -42,7 +42,7 @@
       <el-col :span="8">
         <DataPanel title="待审批 (最新 5 条)" description="点击进入审批管理处理">
           <div v-if="todo.length" class="todo-list">
-            <div v-for="item in todo" :key="item.id" class="todo-item" @click="goPending">
+            <div v-for="item in todo" :key="item.id" class="todo-item" @click="goPendingDetail(item.id)">
               <div class="todo-line1">
                 <strong>{{ item.appNo }}</strong>
                 <el-tag size="small" type="warning">L{{ item.currentApproverLevel || '-' }}</el-tag>
@@ -223,6 +223,10 @@ function formatTime(t) {
 
 function goPending() {
   router.push('/approval/pending')
+}
+
+function goPendingDetail(id) {
+  router.push({ path: '/approval/pending', query: { openId: id } })
 }
 
 onMounted(async () => {
