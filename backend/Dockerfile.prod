@@ -1,5 +1,7 @@
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
+# 中文字体 (font-noto-cjk ≈ 60MB), PDFBox 生成证明 PDF 需要; tzdata 让 TZ=Asia/Shanghai 生效
+RUN apk add --no-cache font-noto-cjk fontconfig tzdata && fc-cache -f
 COPY target/college-service-platform-1.0.0-SNAPSHOT.jar app.jar
 RUN mkdir -p /app/uploads
 EXPOSE 8080
