@@ -62,6 +62,7 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { systemApi } from '@/api'
+import { formatRelativeTime } from '@/utils/time'
 import PageHeader from '@/components/common/PageHeader.vue'
 import MetricCard from '@/components/common/MetricCard.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
@@ -210,16 +211,7 @@ function handleResize() {
   chartInstances.forEach((c) => c && c.resize())
 }
 
-function formatTime(t) {
-  if (!t) return ''
-  const d = new Date(t)
-  if (isNaN(d.getTime())) return String(t)
-  const now = new Date()
-  const mins = Math.floor((now - d) / 60000)
-  if (mins < 60) return `${mins} 分钟前`
-  if (mins < 1440) return `${Math.floor(mins / 60)} 小时前`
-  return d.toLocaleDateString()
-}
+const formatTime = formatRelativeTime
 
 function goPending() {
   router.push('/approval/pending')

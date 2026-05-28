@@ -98,7 +98,7 @@
       <el-tab-pane label="广播历史" name="history">
         <DataPanel title="历史记录">
           <el-table :data="historyList" v-loading="historyLoading" stripe>
-            <el-table-column prop="createdAt" label="时间" width="170" />
+            <el-table-column label="时间" width="150" :formatter="row => formatDateTime(row.createdAt)" />
             <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
             <el-table-column label="标签" width="200" show-overflow-tooltip>
               <template #default="{ row }">
@@ -155,6 +155,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { notifyApi, systemApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 import PageHeader from '@/components/common/PageHeader.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
 import StatusTag from '@/components/common/StatusTag.vue'

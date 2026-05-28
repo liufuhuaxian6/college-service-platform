@@ -35,7 +35,7 @@
         <el-table-column label="当前层级" width="100">
           <template #default="{ row }">L{{ row.currentApproverLevel || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="提交时间" width="170" />
+        <el-table-column label="提交时间" width="150" :formatter="row => formatDateTime(row.createdAt)" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="viewDetail(row)">详情</el-button>
@@ -66,8 +66,8 @@
         <el-descriptions-item label="证明类型 / 模板">{{ detail.templateName || detail.typeName || `类型 ${detail.typeId}` }}</el-descriptions-item>
         <el-descriptions-item label="状态"><StatusTag :status="detail.status" /></el-descriptions-item>
         <el-descriptions-item label="当前审批层级">L{{ detail.currentApproverLevel || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="提交时间">{{ detail.createdAt || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ detail.updatedAt || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="提交时间">{{ formatDateTime(detail.createdAt) }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updatedAt) }}</el-descriptions-item>
       </el-descriptions>
 
       <div class="detail-section">
@@ -83,6 +83,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { approvalApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 
 const route = useRoute()
 const router = useRouter()
