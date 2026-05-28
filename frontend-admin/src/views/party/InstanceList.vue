@@ -20,8 +20,22 @@
             <el-option label="已暂停" value="suspended" />
           </el-select>
         </el-form-item>
-        <el-form-item label="学生ID">
-          <el-input v-model="query.userId" clearable placeholder="输入学生用户ID" style="width: 170px" @keyup.enter="handleSearch" />
+        <el-form-item label="学生">
+          <el-select
+            v-model="query.userId"
+            clearable
+            filterable
+            placeholder="输入学号 / 姓名筛选"
+            style="width: 260px"
+            @change="handleSearch"
+          >
+            <el-option
+              v-for="s in students"
+              :key="s.id"
+              :label="`${s.studentId} ${s.name}${s.className ? ' · ' + s.className : ''}`"
+              :value="s.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -32,7 +46,11 @@
     <DataPanel title="流程列表">
       <el-table :data="list" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="userId" label="学生ID" width="110" />
+        <el-table-column label="学生" min-width="200">
+          <template #default="{ row }">
+            <span>{{ getStudentLabel(row.userId) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="流程模板" min-width="170">
           <template #default="{ row }">{{ getTemplateName(row.templateId) }}</template>
         </el-table-column>
@@ -60,10 +78,22 @@
       </div>
     </DataPanel>
 
-    <el-dialog v-model="dialogVisible" title="创建学生流程" width="540px">
+    <el-dialog v-model="dialogVisible" title="创建学生流程" width="560px">
       <el-form :model="form" label-width="100px">
-        <el-form-item label="学生用户ID" required>
-          <el-input v-model="form.userId" placeholder="请输入学生用户ID，例如 2" />
+        <el-form-item label="学生" required>
+          <el-select
+            v-model="form.userId"
+            filterable
+            placeholder="输入学号 / 姓名搜索"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="s in students"
+              :key="s.id"
+              :label="`${s.studentId} ${s.name}${s.className ? ' · ' + s.className : ''}${s.major ? ' · ' + s.major : ''}`"
+              :value="s.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="流程模板" required>
           <el-select v-model="form.templateId" placeholder="请选择流程模板" style="width: 100%">
@@ -85,7 +115,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { partyApi } from '@/api'
+import { partyApi, systemApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
@@ -97,8 +127,24 @@ const dialogVisible = ref(false)
 const list = ref([])
 const total = ref(0)
 const templates = ref([])
-const query = reactive({ page: 1, size: 20, templateId: null, status: '', userId: '' })
-const form = reactive({ userId: '', templateId: null, startDate: '' })
+const students = ref([])
+const query = reactive({ page: 1, size: 20, templateId: null, status: '', userId: null })
+const form = reactive({ userId: null, templateId: null, startDate: '' })
+
+async function loadStudents() {
+  // 一次拉所有 4 级学生 (一般 < 500), 由 el-select filterable 在前端过滤学号/姓名
+  try {
+    const res = await systemApi.getUserPage({ page: 1, size: 500 })
+    students.value = (res.data?.records || []).filter(u => u.roleLevel === 4)
+  } catch (e) {
+    students.value = []
+  }
+}
+
+function getStudentLabel(userId) {
+  const s = students.value.find(x => x.id === userId)
+  return s ? `${s.studentId} ${s.name}` : `用户 ${userId}`
+}
 
 function buildQueryParams() {
   const params = { page: query.page, size: query.size }
@@ -130,7 +176,7 @@ function handleSearch() {
 }
 
 function showCreateDialog() {
-  form.userId = ''
+  form.userId = null
   form.templateId = null
   form.startDate = new Date().toISOString().slice(0, 10)
   dialogVisible.value = true
@@ -138,11 +184,7 @@ function showCreateDialog() {
 
 function validateCreateForm() {
   if (!form.userId) {
-    ElMessage.warning('请输入学生用户ID')
-    return false
-  }
-  if (Number.isNaN(Number(form.userId))) {
-    ElMessage.warning('学生用户ID必须是数字')
+    ElMessage.warning('请选择学生')
     return false
   }
   if (!form.templateId) {
@@ -207,9 +249,9 @@ function getTemplateName(templateId) {
 
 onMounted(async () => {
   try {
-    await loadTemplates()
+    await Promise.all([loadTemplates(), loadStudents()])
   } catch (error) {
-    ElMessage.warning('流程模板加载失败')
+    ElMessage.warning('基础数据加载失败')
   }
   loadData()
 })
