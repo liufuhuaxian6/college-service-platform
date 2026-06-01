@@ -35,8 +35,9 @@ public class SystemController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
-            @RequestParam(required = false) String className) {
-        return Result.ok(systemService.getUserPage(page, size, grade, major, className));
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Integer roleLevel) {
+        return Result.ok(systemService.getUserPage(page, size, grade, major, className, roleLevel));
     }
 
     @GetMapping("/system/user/{id}")
@@ -81,8 +82,9 @@ public class SystemController {
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
             @RequestParam(required = false) String className,
+            @RequestParam(required = false) Integer roleLevel,
             HttpServletResponse response) {
-        systemService.exportStudents(grade, major, className, response);
+        systemService.exportStudents(grade, major, className, roleLevel, response);
     }
 
     @GetMapping("/system/dashboard")

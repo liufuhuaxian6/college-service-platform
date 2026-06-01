@@ -4,6 +4,12 @@
 
     <FilterBar>
       <el-form inline>
+        <el-form-item label="身份">
+          <el-select v-model="query.roleLevel" clearable placeholder="全部" style="width: 130px" @change="handleSearch">
+            <el-option label="普通学生" :value="4" />
+            <el-option label="学生骨干" :value="3" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="年级">
           <el-select v-model="query.grade" clearable filterable placeholder="全部年级" style="width: 140px" @change="handleSearch">
             <el-option v-for="g in dimensions.grades" :key="g" :label="g" :value="g" />
@@ -159,7 +165,7 @@ const honors = ref([])
 const processes = ref([])
 const approvals = ref([])
 const currentStudentId = ref(null)
-const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '' })
+const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '', roleLevel: null })
 const dimensions = reactive({ grades: [], majors: [], classNames: [] })
 const honorForm = reactive({ honorName: '', honorLevel: '', awardDate: '', certFile: '' })
 
@@ -168,6 +174,7 @@ function buildQueryParams() {
   if (query.grade) params.grade = query.grade
   if (query.major) params.major = query.major
   if (query.className) params.className = query.className
+  if (query.roleLevel != null) params.roleLevel = query.roleLevel
   return params
 }
 
@@ -200,6 +207,7 @@ function resetQuery() {
   query.grade = ''
   query.major = ''
   query.className = ''
+  query.roleLevel = null
   query.page = 1
   loadData()
 }

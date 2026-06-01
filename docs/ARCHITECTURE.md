@@ -573,7 +573,7 @@ approval_type (审批类型)
 | id | BIGSERIAL PK | |
 | title / content | — | 群发原文 |
 | tags / source / source_url | — | 同 sys_notification |
-| target_filter | TEXT | 目标筛选 JSON：`{roleLevel, grades, majors, classNames}` |
+| target_filter | TEXT | 目标筛选 JSON：`{roles:[4,3,2,1], grades, majors, classNames}`（年级/专业/班级仅对学生类 4/3 生效） |
 | channels | VARCHAR(50) | 已选渠道列表，如 `system,email` |
 | target_count / sent_count / email_sent | INT | 命中人数 / 站内已写入 / 邮件已发送 |
 | operator_id | BIGINT | 群发操作人 |

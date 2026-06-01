@@ -60,10 +60,13 @@ public class StudentService {
 
     // ==================== 管理端 ====================
 
-    public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className) {
+    public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className, Integer roleLevel) {
         // 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并纳入学生信息
+        // roleLevel 指定时只看该身份(仅允许 3/4), 否则两类都看
+        boolean validRole = roleLevel != null && (roleLevel == 3 || roleLevel == 4);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .in(SysUser::getRoleLevel, 3, 4)
+                .eq(validRole, SysUser::getRoleLevel, roleLevel)
+                .in(!validRole, SysUser::getRoleLevel, 3, 4)
                 .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
                 .eq(StringUtils.hasText(major), SysUser::getMajor, major)
                 .eq(StringUtils.hasText(className), SysUser::getClassName, className)

@@ -158,12 +158,13 @@ A 同学 (后端基础)          B 同学 (后端业务)
 
 | 方法 | 路径 | 说明 | 权限 | 请求体/参数 | 响应 |
 |------|------|------|------|------------|------|
-| GET | `/system/user/page` | 用户分页列表 | ≤2级 | `?page=1&size=20&grade=&major=` | `PageResult<SysUser>` |
+| GET | `/system/user/page` | 用户分页列表 | ≤2级 | `?page=1&size=20&grade=&major=&className=&roleLevel=` | `PageResult<SysUser>` |
 | GET | `/system/user/{id}` | 用户详情 | ≤2级 | 无 | `SysUser` |
 | PUT | `/system/user/{id}` | 修改用户信息 | ≤2级 | `SysUser` 部分字段 | 无 |
 | PUT | `/system/user/{id}/role` | 设置角色等级 | ≤1级 | `{ roleLevel }` | 无 |
+| GET | `/system/dimensions` | 学生维度选项(年级/专业/班级 distinct) | ≤2级 | 无 | `{ grades:[], majors:[], classNames:[] }` |
 | POST | `/system/user/import` | Excel 批量导入 | ≤2级 | `multipart/form-data (file)` | `{ success: 120, fail: 3, errors: [...] }` |
-| GET | `/system/user/export` | 导出学生名单 | ≤2级 | `?grade=&major=` | Excel文件流 |
+| GET | `/system/user/export` | 导出学生名单(普通学生+骨干) | ≤2级 | `?grade=&major=&className=&roleLevel=` | Excel文件流 |
 | GET | `/system/dashboard` | 数据概览 | ≤2级 | 无 | `{ totalStudents, pendingApprovals, activeProcesses, ... }` |
 
 ### 3.3 操作日志 — `/log` (A 同学)
@@ -194,8 +195,8 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | PUT | `/notify/{id}/read` | 标记已读 | 全部角色 | 无 | 无 |
 | PUT | `/notify/read-all` | 全部标记已读 | 全部角色 | 无 | 无 |
 | **群发管理** |
-| POST | `/notify/broadcast/preview` | 预览目标人数 | ≤2级 | `{ roleLevel?, grades?, majors?, classNames? }` | `{ targetCount }` |
-| POST | `/notify/broadcast` | 信息精准推送（站内+邮件+sms_sim） | ≤2级 | `{ title, content, tags[], source?, sourceUrl?, channels[], filter }` | `{ broadcastId, targetCount, sentCount, emailSent }` |
+| POST | `/notify/broadcast/preview` | 预览目标人数(按角色拆分) | ≤2级 | `{ roles?:[4,3,2,1], grades?, majors?, classNames? }` | `{ targetCount, studentCount, cadreCount, teacherCount, leadershipCount }` |
+| POST | `/notify/broadcast` | 信息精准推送（站内+邮件+sms_sim） | ≤2级 | `{ title, content, tags[], source?, sourceUrl?, channels[], filter:{ roles[], grades?, majors?, classNames? } }` | `{ broadcastId, targetCount, sentCount, emailSent }` |
 | GET | `/notify/broadcast/page` | 群发历史列表 | ≤2级 | `?page=1&size=20` | `Page<Broadcast>` |
 | GET | `/notify/broadcast/{id}` | 群发详情 | ≤2级 | 无 | `Broadcast` |
 | DELETE | `/notify/broadcast/{id}` | 撤回（24h 内 + 仅删未读） | ≤2级 | 无 | `{ broadcastId, removedCount }` |
@@ -388,7 +389,7 @@ A 同学 (后端基础)          B 同学 (后端业务)
 | GET | `/student/profile` | 我的个人信息 | 全部角色 | 无 | `StudentProfile` |
 | GET | `/student/honors` | 我的荣誉列表 | 全部角色 | 无 | `List<Honor>` |
 | **管理端** |
-| GET | `/student/page` | 学生列表(含筛选) | ≤3级 | `?page=1&size=20&grade=&major=&className=` | `PageResult<StudentProfile>` |
+| GET | `/student/page` | 学生列表(普通学生+骨干,含筛选) | ≤3级 | `?page=1&size=20&grade=&major=&className=&roleLevel=` | `PageResult<StudentProfile>` |
 | GET | `/student/{id}/detail` | 学生详情画像 | ≤2级 | 无 | `StudentProfile` (含荣誉/流程/申请) |
 | POST | `/student/{id}/honor` | 录入荣誉 | ≤2级 | `{ honorName, honorLevel, awardDate, certFile }` | `{ id }` |
 | PUT | `/student/honor/{honorId}` | 修改荣誉 | ≤2级 | 同上 | 无 |

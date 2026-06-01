@@ -12,6 +12,14 @@
 
     <FilterBar>
       <el-form inline>
+        <el-form-item label="身份">
+          <el-select v-model="query.roleLevel" clearable placeholder="全部身份" style="width: 130px" @change="handleSearch">
+            <el-option label="院领导" :value="1" />
+            <el-option label="管理老师" :value="2" />
+            <el-option label="学生骨干" :value="3" />
+            <el-option label="普通学生" :value="4" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="年级">
           <el-select v-model="query.grade" clearable filterable placeholder="全部年级" style="width: 130px" @change="handleSearch">
             <el-option v-for="g in dimensions.grades" :key="g" :label="g" :value="g" />
@@ -129,7 +137,7 @@ const importResultVisible = ref(false)
 const importResult = ref({ success: 0, fail: 0, errors: [] })
 const list = ref([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '' })
+const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '', roleLevel: null })
 const dimensions = reactive({ grades: [], majors: [], classNames: [] })
 const editForm = reactive({
   id: null, studentId: '', name: '', grade: '', major: '',
@@ -147,6 +155,7 @@ function buildQueryParams() {
   if (query.grade) p.grade = query.grade
   if (query.major) p.major = query.major
   if (query.className) p.className = query.className
+  if (query.roleLevel != null) p.roleLevel = query.roleLevel
   return p
 }
 
@@ -177,6 +186,7 @@ function resetQuery() {
   query.grade = ''
   query.major = ''
   query.className = ''
+  query.roleLevel = null
   query.page = 1
   loadData()
 }
@@ -249,23 +259,37 @@ async function handleImport(file) {
 }
 
 async function handleExport() {
-  // 把"导出范围"讲清楚: 后端导 启用状态(status=1) 的学生(普通学生 + 学生骨干),
-  // 不含 老师/院领导, 并叠加当前的年级/专业/班级筛选条件
-  const scope = []
-  if (query.grade) scope.push(`年级 = ${query.grade}`)
-  if (query.major) scope.push(`专业 = ${query.major}`)
-  if (query.className) scope.push(`班级 = ${query.className}`)
-  const scopeText = scope.length ? scope.join('、') : '全部年级 / 专业 / 班级'
+  // 导出仅覆盖学生(普通学生4 + 学生骨干3), 不含老师/院领导, 不含已禁用账号.
+  // 身份筛选若选了 3/4 则只导对应那类; 选了老师/院领导则给出提示(导出不支持).
+  const isStudentRole = query.roleLevel === 3 || query.roleLevel === 4
+  const isStaffRole = query.roleLevel === 1 || query.roleLevel === 2
+
+  // 身份维度文案
+  let identityText
+  if (query.roleLevel === 4) identityText = '仅普通学生'
+  else if (query.roleLevel === 3) identityText = '仅学生骨干'
+  else identityText = '普通学生 + 学生骨干'
+
+  // 其它筛选维度文案
+  const dims = []
+  if (query.grade) dims.push(`年级=${query.grade}`)
+  if (query.major) dims.push(`专业=${query.major}`)
+  if (query.className) dims.push(`班级=${query.className}`)
+  const dimsText = dims.length ? dims.join('，') : '不限'
+
+  const staffWarn = isStaffRole
+    ? `<p style="color:#E6A23C;margin-top:6px">⚠ 当前“身份”筛选选了老师/院领导，但导出只支持学生，<b>该身份筛选将被忽略</b>，仍导出普通学生 + 学生骨干。</p>`
+    : ''
 
   try {
     await ElMessageBox.confirm(
       `<div style="line-height:1.9">
-        <p><b>导出内容</b>：启用状态的学生名单（含<b>普通学生</b>与<b>学生骨干</b>，用“身份”列区分）</p>
-        <p><b>筛选条件</b>：${scopeText}</p>
-        <p style="color:#909399;font-size:13px;margin-top:8px">
-          注：不包含老师、院领导，也不含已禁用账号。<br/>
-          如需缩小范围，请先在上方设置年级 / 专业 / 班级筛选后再导出。
-        </p>
+        <p>将导出一份 Excel 学生名单，范围如下：</p>
+        <p>· <b>对象</b>：${isStudentRole ? identityText : '学生（普通学生 + 学生骨干）'}，仅<b>启用状态</b>账号</p>
+        <p>· <b>筛选</b>：${dimsText}</p>
+        <p>· <b>不含</b>：老师、院领导、已禁用账号</p>
+        <p style="color:#909399;font-size:13px;margin-top:6px">表格含“身份”列，可区分普通学生与学生骨干；如需缩小范围，请先在上方设置筛选条件。</p>
+        ${staffWarn}
       </div>`,
       '导出学生名单',
       { confirmButtonText: '确认导出', cancelButtonText: '取消', dangerouslyUseHTMLString: true },
@@ -280,6 +304,7 @@ async function handleExport() {
     if (query.grade) params.grade = query.grade
     if (query.major) params.major = query.major
     if (query.className) params.className = query.className
+    if (isStudentRole) params.roleLevel = query.roleLevel   // 老师/院领导身份不传, 后端默认导学生
     const res = await systemApi.exportStudents(params)
     // res 是完整 axios response (拦截器特判 blob)
     const blob = new Blob([res.data], {
@@ -287,7 +312,7 @@ async function handleExport() {
     })
     const filename = parseFilename(res.headers['content-disposition']) || `学生名单_${todayStr()}.xlsx`
     triggerDownload(blob, filename)
-    ElMessage.success(`已导出${scope.length ? '（' + scopeText + '）' : ''}学生名单`)
+    ElMessage.success('导出成功')
   } finally {
     exporting.value = false
   }

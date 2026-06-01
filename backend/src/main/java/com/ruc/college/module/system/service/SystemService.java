@@ -85,8 +85,9 @@ public class SystemService {
                 .toList();
     }
 
-    public Page<SysUser> getUserPage(int page, int size, String grade, String major, String className) {
+    public Page<SysUser> getUserPage(int page, int size, String grade, String major, String className, Integer roleLevel) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
+                .eq(roleLevel != null, SysUser::getRoleLevel, roleLevel)
                 .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
                 .eq(StringUtils.hasText(major), SysUser::getMajor, major)
                 .eq(StringUtils.hasText(className), SysUser::getClassName, className)
@@ -214,9 +215,12 @@ public class SystemService {
      * 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并导出, 用"身份"列区分.
      * 支持按 年级 / 专业 / 班级 筛选 (空则不限), 只导启用状态.
      */
-    public void exportStudents(String grade, String major, String className, HttpServletResponse response) {
+    public void exportStudents(String grade, String major, String className, Integer roleLevel, HttpServletResponse response) {
+        // roleLevel 指定时只导该身份(仅允许 3/4), 否则普通学生+学生骨干全导
+        boolean validRole = roleLevel != null && (roleLevel == 3 || roleLevel == 4);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .in(SysUser::getRoleLevel, 3, 4)
+                .eq(validRole, SysUser::getRoleLevel, roleLevel)
+                .in(!validRole, SysUser::getRoleLevel, 3, 4)
                 .eq(SysUser::getStatus, 1)
                 .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
                 .eq(StringUtils.hasText(major), SysUser::getMajor, major)
