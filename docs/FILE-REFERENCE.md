@@ -329,7 +329,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `src/router/index.js` | 路由配置。`/login` 登录页(不需要认证)，`/` 下嵌套主布局和全部子页面。每个路由有 `meta.minRole` 控制权限。路由守卫：未登录跳 `/login`，权限不足跳 `/dashboard` |
+| `src/router/index.js` | 路由配置。`/login` 登录页(不需要认证)，`/` 下嵌套主布局和全部子页面。每个路由有 `meta.minRole` 控制权限。路由守卫：未登录跳 `/login`，权限不足时 `logout()` 并跳 `/login?reason=role`(避免与 dashboard 的 minRole 互弹死循环) |
 
 ### 4.6 布局
 
@@ -341,7 +341,7 @@
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `views/login/index.vue` | 登录页 | 学号+密码表单，低饱和暗红主题，白色表单区，调 authApi.login 后存 Store 跳转 |
+| `views/login/index.vue` | 登录页 | 学号+密码表单，低饱和暗红主题，白色表单区，调 authApi.login 后存 Store 跳转；**4 级学生直接拒绝**(提示用小程序，不写登录态)，`?reason=role` 进入时自动提示 |
 | `views/dashboard/index.vue` | 数据概览 | 四个统计卡片（在校学生/总用户/待审批/进行中流程），调 systemApi.getDashboard |
 | `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表、新增/编辑弹窗、删除确认 |
 | `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表、上传(限30MB)、下载、删除、「重新索引」触发 RAG 入库 |
@@ -381,7 +381,7 @@
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `pages/login/index.vue` | 登录页 | 暗红主题品牌区 + 白色表单卡片，密码输入隐藏，学号+密码登录后 switchTab 到首页 |
+| `pages/login/index.vue` | 登录页 | 暗红主题品牌区 + 白色表单卡片，密码输入隐藏，学号+密码登录后 switchTab 到首页；**仅学生可登**：4 级学生/3 级骨干放行，1 级院领导/2 级老师弹窗拒绝(请用管理端，不写登录态) |
 | `pages/index/index.vue` | 首页(TabBar) | 欢迎头部(姓名+学院+通知铃铛)、四宫格入口(智能问答/政策文档/党团进度/我的申请)、最新通知列表 |
 | `pages/qa/index.vue` | 智能问答(TabBar) | **移动端 AI 应用式聊天界面**。消息气泡(用户右侧暗红/系统左侧白色)、快捷问题标签、AI 回答标注"仅供参考"、官方链接可复制、底部输入框+发送按钮 |
 | `pages/qa/document.vue` | 政策文档 | 文档列表(标题/分类/大小/下载次数)、点击下载 |
