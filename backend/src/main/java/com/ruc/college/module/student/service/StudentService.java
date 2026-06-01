@@ -61,11 +61,12 @@ public class StudentService {
     // ==================== 管理端 ====================
 
     public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className) {
+        // 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并纳入学生信息
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getRoleLevel, 4)
-                .eq(grade != null, SysUser::getGrade, grade)
-                .eq(major != null, SysUser::getMajor, major)
-                .eq(className != null, SysUser::getClassName, className)
+                .in(SysUser::getRoleLevel, 3, 4)
+                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
+                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
+                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
                 .orderByAsc(SysUser::getStudentId);
 
         // 数据隔离: 3级只看本班

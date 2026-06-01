@@ -20,6 +20,7 @@ export const systemApi = {
     responseType: 'blob',
   }),
   getDashboard: () => request.get('/system/dashboard'),
+  getDimensions: () => request.get('/system/dimensions'),
 }
 
 // ==================== 操作日志 ====================

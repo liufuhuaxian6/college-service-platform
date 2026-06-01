@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -33,14 +34,21 @@ public class SystemController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String grade,
-            @RequestParam(required = false) String major) {
-        return Result.ok(systemService.getUserPage(page, size, grade, major));
+            @RequestParam(required = false) String major,
+            @RequestParam(required = false) String className) {
+        return Result.ok(systemService.getUserPage(page, size, grade, major, className));
     }
 
     @GetMapping("/system/user/{id}")
     @RequireRole(minLevel = 2)
     public Result<SysUser> userDetail(@PathVariable Long id) {
         return Result.ok(systemService.getUserDetail(id));
+    }
+
+    @GetMapping("/system/dimensions")
+    @RequireRole(minLevel = 2)
+    public Result<Map<String, List<String>>> studentDimensions() {
+        return Result.ok(systemService.getStudentDimensions());
     }
 
     @PutMapping("/system/user/{id}")
@@ -72,8 +80,9 @@ public class SystemController {
     public void exportStudents(
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
+            @RequestParam(required = false) String className,
             HttpServletResponse response) {
-        systemService.exportStudents(grade, major, response);
+        systemService.exportStudents(grade, major, className, response);
     }
 
     @GetMapping("/system/dashboard")

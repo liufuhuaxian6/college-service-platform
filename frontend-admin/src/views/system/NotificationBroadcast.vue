@@ -201,11 +201,10 @@ const classOptions = ref([])
 
 async function loadDimensions() {
   try {
-    const res = await systemApi.getUserPage({ page: 1, size: 500 })
-    const students = (res.data?.records || []).filter(u => u.roleLevel === 4)
-    gradeOptions.value = [...new Set(students.map(s => s.grade).filter(Boolean))].sort()
-    majorOptions.value = [...new Set(students.map(s => s.major).filter(Boolean))].sort()
-    classOptions.value = [...new Set(students.map(s => s.className).filter(Boolean))].sort()
+    const res = await systemApi.getDimensions()
+    gradeOptions.value = res.data?.grades || []
+    majorOptions.value = res.data?.majors || []
+    classOptions.value = res.data?.classNames || []
   } catch (e) {
     // 失败时留空, 用户仍可手动 allow-create
   }

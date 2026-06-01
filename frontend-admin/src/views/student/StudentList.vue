@@ -5,16 +5,23 @@
     <FilterBar>
       <el-form inline>
         <el-form-item label="年级">
-          <el-input v-model="query.grade" clearable placeholder="例如 2023" style="width: 140px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.grade" clearable filterable placeholder="全部年级" style="width: 140px" @change="handleSearch">
+            <el-option v-for="g in dimensions.grades" :key="g" :label="g" :value="g" />
+          </el-select>
         </el-form-item>
         <el-form-item label="专业">
-          <el-input v-model="query.major" clearable placeholder="输入专业" style="width: 180px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.major" clearable filterable placeholder="全部专业" style="width: 200px" @change="handleSearch">
+            <el-option v-for="m in dimensions.majors" :key="m" :label="m" :value="m" />
+          </el-select>
         </el-form-item>
         <el-form-item label="班级">
-          <el-input v-model="query.className" clearable placeholder="输入班级" style="width: 160px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.className" clearable filterable placeholder="全部班级" style="width: 170px" @change="handleSearch">
+            <el-option v-for="c in dimensions.classNames" :key="c" :label="c" :value="c" />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
     </FilterBar>
@@ -28,7 +35,13 @@
         <el-table-column prop="className" label="班级" width="120" />
         <el-table-column prop="phone" label="手机号" width="140" />
         <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
-        <el-table-column prop="roleLevel" label="角色等级" width="100" />
+        <el-table-column prop="roleLevel" label="身份" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.roleLevel === 3 ? 'warning' : 'info'">
+              {{ row.roleLevel === 3 ? '学生骨干' : '普通学生' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewDetail(row.id)">详情</el-button>
@@ -129,7 +142,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { studentApi } from '@/api'
+import { studentApi, systemApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
@@ -147,6 +160,7 @@ const processes = ref([])
 const approvals = ref([])
 const currentStudentId = ref(null)
 const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '' })
+const dimensions = reactive({ grades: [], majors: [], classNames: [] })
 const honorForm = reactive({ honorName: '', honorLevel: '', awardDate: '', certFile: '' })
 
 function buildQueryParams() {
@@ -168,7 +182,24 @@ async function loadData() {
   }
 }
 
+async function loadDimensions() {
+  try {
+    const res = await systemApi.getDimensions()
+    dimensions.grades = res.data?.grades || []
+    dimensions.majors = res.data?.majors || []
+    dimensions.classNames = res.data?.classNames || []
+  } catch (e) { /* 拉取失败时下拉为空, 不影响主流程 */ }
+}
+
 function handleSearch() {
+  query.page = 1
+  loadData()
+}
+
+function resetQuery() {
+  query.grade = ''
+  query.major = ''
+  query.className = ''
   query.page = 1
   loadData()
 }
@@ -235,7 +266,10 @@ async function deleteHonor(id) {
   viewDetail(currentStudentId.value)
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadDimensions()
+})
 </script>
 
 <style scoped>

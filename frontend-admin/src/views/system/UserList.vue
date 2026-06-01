@@ -1,25 +1,35 @@
 <template>
   <div class="app-page">
-    <PageHeader title="用户管理" description="维护学生与教师账号。支持 Excel 批量导入、按筛选条件导出名单。">
+    <PageHeader title="用户管理" description="维护学生与教师账号。支持 Excel 批量导入；“导出学生名单”导出启用状态的学生（含普通学生与学生骨干，不含老师 / 院领导），可按年级 / 专业 / 班级筛选。">
       <template #actions>
         <el-button @click="downloadTemplate">下载导入模板</el-button>
         <el-upload action="" :before-upload="handleImport" :show-file-list="false" accept=".xlsx,.xls">
           <el-button type="primary" :loading="importing">Excel 导入</el-button>
         </el-upload>
-        <el-button type="success" :loading="exporting" @click="handleExport">导出名单</el-button>
+        <el-button type="success" :loading="exporting" @click="handleExport">导出学生名单</el-button>
       </template>
     </PageHeader>
 
     <FilterBar>
       <el-form inline>
         <el-form-item label="年级">
-          <el-input v-model="query.grade" clearable placeholder="如 2024" style="width: 130px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.grade" clearable filterable placeholder="全部年级" style="width: 130px" @change="handleSearch">
+            <el-option v-for="g in dimensions.grades" :key="g" :label="g" :value="g" />
+          </el-select>
         </el-form-item>
         <el-form-item label="专业">
-          <el-input v-model="query.major" clearable placeholder="输入专业" style="width: 180px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.major" clearable filterable placeholder="全部专业" style="width: 200px" @change="handleSearch">
+            <el-option v-for="m in dimensions.majors" :key="m" :label="m" :value="m" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="班级">
+          <el-select v-model="query.className" clearable filterable placeholder="全部班级" style="width: 170px" @change="handleSearch">
+            <el-option v-for="c in dimensions.classNames" :key="c" :label="c" :value="c" />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
     </FilterBar>
@@ -119,7 +129,8 @@ const importResultVisible = ref(false)
 const importResult = ref({ success: 0, fail: 0, errors: [] })
 const list = ref([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, grade: '', major: '' })
+const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '' })
+const dimensions = reactive({ grades: [], majors: [], classNames: [] })
 const editForm = reactive({
   id: null, studentId: '', name: '', grade: '', major: '',
   className: '', phone: '', email: '', tutor: '', status: 1,
@@ -135,6 +146,7 @@ function buildQueryParams() {
   const p = { page: query.page, size: query.size }
   if (query.grade) p.grade = query.grade
   if (query.major) p.major = query.major
+  if (query.className) p.className = query.className
   return p
 }
 
@@ -147,7 +159,24 @@ async function loadData() {
   } finally { loading.value = false }
 }
 
+async function loadDimensions() {
+  try {
+    const res = await systemApi.getDimensions()
+    dimensions.grades = res.data?.grades || []
+    dimensions.majors = res.data?.majors || []
+    dimensions.classNames = res.data?.classNames || []
+  } catch (e) { /* 拉取失败时下拉为空, 不影响主流程 */ }
+}
+
 function handleSearch() {
+  query.page = 1
+  loadData()
+}
+
+function resetQuery() {
+  query.grade = ''
+  query.major = ''
+  query.className = ''
   query.page = 1
   loadData()
 }
@@ -212,6 +241,7 @@ async function handleImport(file) {
     }
     importResultVisible.value = true
     loadData()
+    loadDimensions()   // 导入可能引入新的年级/专业/班级, 刷新下拉项
   } finally {
     importing.value = false
   }
@@ -219,11 +249,37 @@ async function handleImport(file) {
 }
 
 async function handleExport() {
+  // 把"导出范围"讲清楚: 后端导 启用状态(status=1) 的学生(普通学生 + 学生骨干),
+  // 不含 老师/院领导, 并叠加当前的年级/专业/班级筛选条件
+  const scope = []
+  if (query.grade) scope.push(`年级 = ${query.grade}`)
+  if (query.major) scope.push(`专业 = ${query.major}`)
+  if (query.className) scope.push(`班级 = ${query.className}`)
+  const scopeText = scope.length ? scope.join('、') : '全部年级 / 专业 / 班级'
+
+  try {
+    await ElMessageBox.confirm(
+      `<div style="line-height:1.9">
+        <p><b>导出内容</b>：启用状态的学生名单（含<b>普通学生</b>与<b>学生骨干</b>，用“身份”列区分）</p>
+        <p><b>筛选条件</b>：${scopeText}</p>
+        <p style="color:#909399;font-size:13px;margin-top:8px">
+          注：不包含老师、院领导，也不含已禁用账号。<br/>
+          如需缩小范围，请先在上方设置年级 / 专业 / 班级筛选后再导出。
+        </p>
+      </div>`,
+      '导出学生名单',
+      { confirmButtonText: '确认导出', cancelButtonText: '取消', dangerouslyUseHTMLString: true },
+    )
+  } catch {
+    return // 用户取消
+  }
+
   exporting.value = true
   try {
     const params = {}
     if (query.grade) params.grade = query.grade
     if (query.major) params.major = query.major
+    if (query.className) params.className = query.className
     const res = await systemApi.exportStudents(params)
     // res 是完整 axios response (拦截器特判 blob)
     const blob = new Blob([res.data], {
@@ -231,7 +287,7 @@ async function handleExport() {
     })
     const filename = parseFilename(res.headers['content-disposition']) || `学生名单_${todayStr()}.xlsx`
     triggerDownload(blob, filename)
-    ElMessage.success('导出成功')
+    ElMessage.success(`已导出${scope.length ? '（' + scopeText + '）' : ''}学生名单`)
   } finally {
     exporting.value = false
   }
@@ -270,7 +326,10 @@ function todayStr() {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadDimensions()
+})
 </script>
 
 <style scoped>

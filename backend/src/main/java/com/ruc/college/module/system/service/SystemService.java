@@ -27,6 +27,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -57,10 +58,38 @@ public class SystemService {
 
     // ==================== 用户管理 ====================
 
-    public Page<SysUser> getUserPage(int page, int size, String grade, String major) {
+    /**
+     * 返回学生维度的可选值 (年级 / 专业 / 班级), 供前端筛选下拉框使用.
+     * 只取学生类角色 (普通学生 + 学生骨干) 且启用状态的真实数据, 去重排序,
+     * 这样筛选项与库里实际存在的值完全一致, 不会因手输错字/全半角对不上而查不到.
+     */
+    public Map<String, List<String>> getStudentDimensions() {
+        List<SysUser> students = userMapper.selectList(
+                new LambdaQueryWrapper<SysUser>()
+                        .in(SysUser::getRoleLevel, 3, 4)
+                        .eq(SysUser::getStatus, 1)
+                        .select(SysUser::getGrade, SysUser::getMajor, SysUser::getClassName)
+        );
+        Map<String, List<String>> result = new HashMap<>();
+        result.put("grades", distinctSorted(students.stream().map(SysUser::getGrade)));
+        result.put("majors", distinctSorted(students.stream().map(SysUser::getMajor)));
+        result.put("classNames", distinctSorted(students.stream().map(SysUser::getClassName)));
+        return result;
+    }
+
+    private static List<String> distinctSorted(java.util.stream.Stream<String> stream) {
+        return stream.filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    public Page<SysUser> getUserPage(int page, int size, String grade, String major, String className) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(grade != null, SysUser::getGrade, grade)
-                .eq(major != null, SysUser::getMajor, major)
+                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
+                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
+                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
                 .orderByAsc(SysUser::getStudentId);
         Page<SysUser> result = userMapper.selectPage(new Page<>(page, size), wrapper);
         result.getRecords().forEach(u -> {
@@ -181,14 +210,19 @@ public class SystemService {
     // ==================== Excel 导出 ====================
 
     /**
-     * 导出学生名单为 Excel
+     * 导出学生名单为 Excel.
+     * 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并导出, 用"身份"列区分.
+     * 支持按 年级 / 专业 / 班级 筛选 (空则不限), 只导启用状态.
      */
-    public void exportStudents(String grade, String major, HttpServletResponse response) {
+    public void exportStudents(String grade, String major, String className, HttpServletResponse response) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getRoleLevel, 4)
+                .in(SysUser::getRoleLevel, 3, 4)
                 .eq(SysUser::getStatus, 1)
-                .eq(grade != null, SysUser::getGrade, grade)
-                .eq(major != null, SysUser::getMajor, major)
+                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
+                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
+                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
+                .orderByAsc(SysUser::getGrade)
+                .orderByAsc(SysUser::getClassName)
                 .orderByAsc(SysUser::getStudentId);
 
         List<SysUser> users = userMapper.selectList(wrapper);
@@ -197,6 +231,7 @@ public class SystemService {
             StudentExportRow row = new StudentExportRow();
             row.setStudentId(u.getStudentId());
             row.setName(u.getName());
+            row.setIdentity(Integer.valueOf(3).equals(u.getRoleLevel()) ? "学生骨干" : "普通学生");
             row.setGrade(u.getGrade());
             row.setMajor(u.getMajor());
             row.setClassName(u.getClassName());
@@ -410,6 +445,8 @@ public class SystemService {
         private String studentId;
         @com.alibaba.excel.annotation.ExcelProperty("姓名")
         private String name;
+        @com.alibaba.excel.annotation.ExcelProperty("身份")
+        private String identity;
         @com.alibaba.excel.annotation.ExcelProperty("年级")
         private String grade;
         @com.alibaba.excel.annotation.ExcelProperty("专业")
