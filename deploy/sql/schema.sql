@@ -336,7 +336,15 @@ CREATE INDEX idx_honor_user ON student_honor(user_id);
 INSERT INTO sys_user (student_id, name, password, role_level, grade, major, class_name, phone, email, status)
 VALUES
 ('admin', '系统管理员', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 1, NULL, NULL, NULL, '13800000001', 'admin.demo@example.edu', 1),
-('20240001', '测试学生', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 4, '2024', '计算机科学与技术', '2024级1班', '13800000002', 'student.demo@example.edu', 1)
+('20240001', '测试学生', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 4, '2024', '计算机科学与技术', '2024级1班', '13800000002', 'student.demo@example.edu', 1),
+-- 管理老师 / 辅导员 (无年级/专业/班级)
+('T2024001', '张老师', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 2, NULL, NULL, NULL, '13800001001', 'teacher.zhang@example.edu', 1),
+('T2024002', '李老师', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 2, NULL, NULL, NULL, '13800001002', 'teacher.li@example.edu', 1),
+('T2024003', '王老师', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 2, NULL, NULL, NULL, '13800001003', 'teacher.wang@example.edu', 1),
+-- 班团骨干 (保留年级/专业/班级, 3 级数据隔离按 class_name 走)
+('L2024001', '陈骨干', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 3, '2024', '计算机科学与技术', '2024级1班', '13800002001', 'leader.chen@example.edu', 1),
+('L2024002', '刘骨干', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 3, '2024', '计算机科学与技术', '2024级2班', '13800002002', 'leader.liu@example.edu', 1),
+('L2023001', '赵骨干', '$2a$10$aCePxF.h9J7hICCzK.1PnugvDiYrSEmrLMUCRTFULFtM5YTgVnuC.', 3, '2023', '软件工程',         '2023级1班', '13800002003', 'leader.zhao@example.edu', 1)
 ON CONFLICT (student_id) DO NOTHING;
 
 -- 默认审批类型

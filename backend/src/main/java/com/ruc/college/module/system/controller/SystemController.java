@@ -125,8 +125,14 @@ public class SystemController {
     @RequireRole(minLevel = 2)
     public Result<Map<String, Object>> previewTargets(
             @RequestBody(required = false) NotificationBroadcastService.BroadcastFilter filter) {
-        int count = broadcastService.previewTargetCount(filter);
-        return Result.ok(Map.of("targetCount", count));
+        Map<String, Integer> breakdown = broadcastService.previewTargetBreakdown(filter);
+        return Result.ok(Map.of(
+                "targetCount", breakdown.getOrDefault("total", 0),
+                "studentCount", breakdown.getOrDefault("student", 0),
+                "cadreCount", breakdown.getOrDefault("cadre", 0),
+                "teacherCount", breakdown.getOrDefault("teacher", 0),
+                "leadershipCount", breakdown.getOrDefault("leadership", 0)
+        ));
     }
 
     @PostMapping("/notify/broadcast")
