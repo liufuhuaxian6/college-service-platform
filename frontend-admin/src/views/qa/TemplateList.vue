@@ -36,15 +36,14 @@
         </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <StatusTag v-if="isPlaceholder(row)" type="warning" text="待补传" />
-            <StatusTag v-else type="success" text="已上线" />
+            <StatusTag :status="isPlaceholder(row) ? 'placeholder' : 'online'" />
           </template>
         </el-table-column>
         <el-table-column prop="fileSize" label="大小" width="100">
           <template #default="{ row }">{{ row.filePath ? formatSize(row.fileSize) : '—' }}</template>
         </el-table-column>
         <el-table-column prop="downloadCount" label="下载次数" width="100" />
-        <el-table-column prop="createdAt" label="录入时间" width="170" />
+        <el-table-column label="最近更新" width="150" :formatter="row => formatDateTime(row.updatedAt || row.createdAt)" />
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button
@@ -145,6 +144,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { qaApi, fileApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 import PageHeader from '@/components/common/PageHeader.vue'

@@ -48,7 +48,7 @@
       <el-table-column prop="module" label="模块" width="130" />
       <el-table-column prop="action" label="操作" min-width="220" show-overflow-tooltip />
       <el-table-column prop="ip" label="IP" width="150" />
-      <el-table-column prop="createdAt" label="时间" width="180" />
+      <el-table-column label="时间" width="150" :formatter="row => formatDateTime(row.createdAt)" />
     </el-table>
 
     <el-pagination
@@ -65,6 +65,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { logApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 
 const loading = ref(false)
 const list = ref([])

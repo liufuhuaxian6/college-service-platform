@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -33,14 +34,22 @@ public class SystemController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String grade,
-            @RequestParam(required = false) String major) {
-        return Result.ok(systemService.getUserPage(page, size, grade, major));
+            @RequestParam(required = false) String major,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Integer roleLevel) {
+        return Result.ok(systemService.getUserPage(page, size, grade, major, className, roleLevel));
     }
 
     @GetMapping("/system/user/{id}")
     @RequireRole(minLevel = 2)
     public Result<SysUser> userDetail(@PathVariable Long id) {
         return Result.ok(systemService.getUserDetail(id));
+    }
+
+    @GetMapping("/system/dimensions")
+    @RequireRole(minLevel = 2)
+    public Result<Map<String, List<String>>> studentDimensions() {
+        return Result.ok(systemService.getStudentDimensions());
     }
 
     @PutMapping("/system/user/{id}")
@@ -72,8 +81,10 @@ public class SystemController {
     public void exportStudents(
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Integer roleLevel,
             HttpServletResponse response) {
-        systemService.exportStudents(grade, major, response);
+        systemService.exportStudents(grade, major, className, roleLevel, response);
     }
 
     @GetMapping("/system/dashboard")
@@ -125,8 +136,14 @@ public class SystemController {
     @RequireRole(minLevel = 2)
     public Result<Map<String, Object>> previewTargets(
             @RequestBody(required = false) NotificationBroadcastService.BroadcastFilter filter) {
-        int count = broadcastService.previewTargetCount(filter);
-        return Result.ok(Map.of("targetCount", count));
+        Map<String, Integer> breakdown = broadcastService.previewTargetBreakdown(filter);
+        return Result.ok(Map.of(
+                "targetCount", breakdown.getOrDefault("total", 0),
+                "studentCount", breakdown.getOrDefault("student", 0),
+                "cadreCount", breakdown.getOrDefault("cadre", 0),
+                "teacherCount", breakdown.getOrDefault("teacher", 0),
+                "leadershipCount", breakdown.getOrDefault("leadership", 0)
+        ));
     }
 
     @PostMapping("/notify/broadcast")

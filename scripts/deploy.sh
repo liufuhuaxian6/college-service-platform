@@ -109,7 +109,12 @@ if [ "$MODE" != restart ]; then
     step '3/6 同步配置 + 静态文件 + 模型'
     $FS_SUDO mkdir -p "$DEPLOY_DIR"/{sql,admin,models}
     $FS_SUDO cp "$PKG_DIR/docker-compose.yml" "$DEPLOY_DIR/"
-    $FS_SUDO cp "$PKG_DIR/.env" "$DEPLOY_DIR/"
+    if [ -f "$DEPLOY_DIR/.env" ]; then
+        skip ".env 已存在于服务器, 保留现有配置 (要重置请手动删除 $DEPLOY_DIR/.env)"
+    else
+        $FS_SUDO cp "$PKG_DIR/.env" "$DEPLOY_DIR/"
+        warn ".env 是首次部署 (用默认值), 请编辑 $DEPLOY_DIR/.env 填入实际密钥后重启 backend"
+    fi
     $FS_SUDO cp "$PKG_DIR/nginx.conf" "$DEPLOY_DIR/"
     $FS_SUDO cp "$PKG_DIR/schema.sql" "$DEPLOY_DIR/sql/"
     $FS_SUDO rsync -a --delete "$PKG_DIR/admin/" "$DEPLOY_DIR/admin/" 2>/dev/null \

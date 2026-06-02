@@ -109,6 +109,22 @@ public class PartyController {
         return Result.ok();
     }
 
+    @PutMapping("/instance/{id}/resume")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "党团流程", action = "恢复流程")
+    public Result<Void> resume(@PathVariable Long id, @RequestBody(required = false) RemarkRequest request) {
+        partyService.resumeInstance(id, request != null ? request.getRemark() : null);
+        return Result.ok();
+    }
+
+    @DeleteMapping("/instance/{id}")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "党团流程", action = "删除流程")
+    public Result<Void> deleteInstance(@PathVariable Long id) {
+        partyService.deleteInstance(id);
+        return Result.ok();
+    }
+
     @Data
     public static class CreateTemplateRequest {
         private PartyProcessTemplate template;

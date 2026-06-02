@@ -597,7 +597,13 @@ public class ApprovalService {
                     "C:/Windows/Fonts/msyh.ttc",       // 微软雅黑
                     "C:/Windows/Fonts/simsun.ttc",     // 宋体
                     "C:/Windows/Fonts/simhei.ttf",     // 黑体
-                    // Linux (Ubuntu/Debian 安装 fonts-noto-cjk / fonts-wqy 后)
+                    // Linux Alpine (apk add font-wqy-zenhei) - TrueType, 优先
+                    "/usr/share/fonts/wenquanyi/wqy-zenhei/wqy-zenhei.ttc",
+                    "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc",
+                    // Linux Alpine (apk add font-noto-cjk) - OpenType/CFF, 兜底
+                    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+                    "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
+                    // Linux Ubuntu/Debian (apt install fonts-noto-cjk / fonts-wqy)
                     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
                     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
                     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
@@ -615,6 +621,10 @@ public class ApprovalService {
                     break;
                 }
             }
+            // 兜底: 已知路径都没命中时, 递归扫描 /usr/share/fonts 找含 CJK/noto/wqy 关键字的 ttc/otf
+            if (CJK_FONT_FILE == null) {
+                CJK_FONT_FILE = scanFontsDir(new File("/usr/share/fonts"));
+            }
             CJK_FONT_LOOKED_UP = true;
             if (CJK_FONT_FILE == null) {
                 log.warn("未在常见路径找到中文字体, PDF 证明将退化为 ASCII (中文显示为 ?). 服务器请安装 fonts-noto-cjk");
@@ -623,6 +633,27 @@ public class ApprovalService {
             }
             return CJK_FONT_FILE;
         }
+    }
+
+    private static File scanFontsDir(File root) {
+        if (root == null || !root.isDirectory()) return null;
+        File[] children = root.listFiles();
+        if (children == null) return null;
+        for (File f : children) {
+            if (f.isDirectory()) {
+                File found = scanFontsDir(f);
+                if (found != null) return found;
+            } else {
+                String n = f.getName().toLowerCase();
+                boolean cjkLike = n.contains("cjk") || n.contains("noto") || n.contains("wqy")
+                        || n.contains("source") || n.contains("hei") || n.contains("song");
+                if (cjkLike && (n.endsWith(".ttc") || n.endsWith(".otf") || n.endsWith(".ttf"))
+                        && f.length() > 0) {
+                    return f;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -700,6 +731,11 @@ public class ApprovalService {
      */
     private static PDFont loadCjkFont(PDDocument doc, File file) throws Exception {
         String name = file.getName().toLowerCase();
+        // NotoSansCJK 是 OpenType/CFF, PDFBox 3.0 子集嵌入只支持 TrueType 的 glyf 表,
+        // OTF/CFF 走子集会抛 "OTF fonts do not have a glyf table". 这里靠文件名判:
+        // - .ttc/.ttf → embedSubset=true (体积小, ~50KB)
+        // - .otf 或文件名含 CJK → embedSubset=false (嵌全字体, ~20MB, 但能用)
+        boolean canSubset = !name.endsWith(".otf");
         if (name.endsWith(".ttc")) {
             try (TrueTypeCollection ttc = new TrueTypeCollection(file)) {
                 final PDFont[] result = new PDFont[1];
@@ -707,7 +743,9 @@ public class ApprovalService {
                 ttc.processAllFonts(ttf -> {
                     if (result[0] != null) return;
                     try {
-                        result[0] = PDType0Font.load(doc, ttf, true);
+                        // TTC 内可能是 OpenTypeFont, 检测一下避免抛 glyf 异常
+                        boolean isOtf = ttf instanceof org.apache.fontbox.ttf.OpenTypeFont;
+                        result[0] = PDType0Font.load(doc, ttf, !isOtf);
                     } catch (Exception ex) {
                         err[0] = ex;
                     }
@@ -717,7 +755,9 @@ public class ApprovalService {
             }
         }
         // 单字体 (.ttf / .otf)
-        return PDType0Font.load(doc, file);
+        try (java.io.InputStream is = new java.io.FileInputStream(file)) {
+            return PDType0Font.load(doc, is, canSubset);
+        }
     }
 
     /** 没有 CJK 字体时把非 ASCII 字符替换成 ?, 防止 Helvetica 抛 IllegalArgumentException. */

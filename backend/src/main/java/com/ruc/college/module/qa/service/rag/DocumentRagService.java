@@ -58,7 +58,20 @@ public class DocumentRagService {
     @Value("${rag.enabled:true}")
     private boolean enabled;
 
-    private static final Pattern ARTICLE_PATTERN = Pattern.compile("(?m)(?=^\\s*第[一二三四五六七八九十百千万零〇0-9]+[章节条]\\s*)");
+    /**
+     * 切片边界识别. 命中以下任一格式即作为新章节起点:
+     *   - 第X章/节/条 (法规体, 如《学籍管理规定》)
+     *   - （一）/（1）/(一)/(1) 中文或半角括号 + 中文/阿拉伯数字 (培养方案"（一）培养目标"这类)
+     *   - 一、/1、/二、 中文/阿拉伯数字 + 顿号 (常用条目编号)
+     */
+    private static final Pattern ARTICLE_PATTERN = Pattern.compile(
+            "(?m)(?=^\\s*(?:" +
+                    "第[一二三四五六七八九十百千万零〇0-9]+[章节条]" +
+                    "|[（(][一二三四五六七八九十0-9]+[）)]" +
+                    "|[一二三四五六七八九十0-9]+、" +
+                    ")\\s*)"
+    );
+    /** 父级标题: 仅 第X章/节 是 "容器"标题, 会被挂到后续 chunk; 第X条 / （X）/ X、 是叶子级条目, 自己成 chunk */
     private static final Pattern CHAPTER_HEADING_PATTERN = Pattern.compile("^\\s*第[一二三四五六七八九十百千万零〇0-9]+[章节]\\s+.*", Pattern.DOTALL);
 
     public Map<String, Object> indexDocument(Long documentId) {

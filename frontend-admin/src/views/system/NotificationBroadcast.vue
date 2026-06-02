@@ -49,26 +49,48 @@
 
         <DataPanel title="目标受众" style="margin-top: 16px">
           <el-form :model="form.filter" label-width="100px" label-position="right">
-            <el-form-item label="角色">
-              <el-radio-group v-model="form.filter.roleLevel">
-                <el-radio :value="4">仅学生</el-radio>
-                <el-radio :value="null">全部 (含老师/骨干)</el-radio>
-              </el-radio-group>
+            <el-form-item label="接收对象" required>
+              <el-checkbox-group v-model="form.filter.roles" class="role-group">
+                <div class="role-col">
+                  <div class="role-col__title">学生</div>
+                  <el-checkbox :value="4">普通学生</el-checkbox>
+                  <el-checkbox :value="3">学生骨干</el-checkbox>
+                </div>
+                <div class="role-col">
+                  <div class="role-col__title">教职工</div>
+                  <el-checkbox :value="2">老师 / 辅导员</el-checkbox>
+                  <el-checkbox :value="1">院领导</el-checkbox>
+                </div>
+              </el-checkbox-group>
             </el-form-item>
-            <el-form-item label="年级">
-              <el-select v-model="form.filter.grades" multiple filterable allow-create placeholder="留空 = 不限" style="width: 100%">
-                <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="专业">
-              <el-select v-model="form.filter.majors" multiple filterable allow-create placeholder="留空 = 不限" style="width: 100%">
-                <el-option v-for="m in majorOptions" :key="m" :label="m" :value="m" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="班级">
-              <el-select v-model="form.filter.classNames" multiple filterable allow-create placeholder="留空 = 不限" style="width: 100%">
-                <el-option v-for="c in classOptions" :key="c" :label="c" :value="c" />
-              </el-select>
+            <el-alert
+              v-if="hasStaffRole && hasStudentDimFilter"
+              type="info"
+              show-icon
+              :closable="false"
+              style="margin: 0 0 16px 100px; width: calc(100% - 100px)"
+              title="年级 / 专业 / 班级是学生属性, 仅对“普通学生 / 学生骨干”生效; 老师与院领导没有这些字段, 一旦勾选即整组接收本次通知"
+            />
+
+            <template v-if="hasStudentRole">
+              <el-form-item label="年级">
+                <el-select v-model="form.filter.grades" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
+                  <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="专业">
+                <el-select v-model="form.filter.majors" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
+                  <el-option v-for="m in majorOptions" :key="m" :label="m" :value="m" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="班级">
+                <el-select v-model="form.filter.classNames" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
+                  <el-option v-for="c in classOptions" :key="c" :label="c" :value="c" />
+                </el-select>
+              </el-form-item>
+            </template>
+            <el-form-item v-else label="年级/专业/班级">
+              <span class="dim-disabled-tip">当前只选了教职工, 年级 / 专业 / 班级筛选不适用</span>
             </el-form-item>
             <el-form-item label="发送渠道">
               <el-checkbox-group v-model="form.channels">
@@ -80,8 +102,14 @@
             <el-form-item>
               <div class="preview-row">
                 <el-button @click="previewCount" :loading="previewing">预览目标人数</el-button>
-                <span v-if="previewResult !== null" class="preview-tip">
-                  按当前筛选, 共匹配 <b>{{ previewResult }}</b> 人
+                <span v-if="previewResult" class="preview-tip">
+                  按当前筛选, 共匹配 <b>{{ previewResult.targetCount }}</b> 人
+                  <span class="preview-breakdown">
+                    (<template v-if="previewResult.studentCount">普通学生 <b>{{ previewResult.studentCount }}</b></template>
+                    <template v-if="previewResult.cadreCount"> / 学生骨干 <b>{{ previewResult.cadreCount }}</b></template>
+                    <template v-if="previewResult.teacherCount"> / 老师 <b>{{ previewResult.teacherCount }}</b></template>
+                    <template v-if="previewResult.leadershipCount"> / 院领导 <b>{{ previewResult.leadershipCount }}</b></template>)
+                  </span>
                 </span>
               </div>
             </el-form-item>
@@ -98,7 +126,7 @@
       <el-tab-pane label="广播历史" name="history">
         <DataPanel title="历史记录">
           <el-table :data="historyList" v-loading="historyLoading" stripe>
-            <el-table-column prop="createdAt" label="时间" width="170" />
+            <el-table-column label="时间" width="150" :formatter="row => formatDateTime(row.createdAt)" />
             <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
             <el-table-column label="标签" width="200" show-overflow-tooltip>
               <template #default="{ row }">
@@ -152,9 +180,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { notifyApi } from '@/api'
+import { notifyApi, systemApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 import PageHeader from '@/components/common/PageHeader.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
@@ -164,9 +193,22 @@ const activeTab = ref('compose')
 // ===== Compose =====
 const commonTags = ['就业', '实习', '奖学金', '入党', '入团', '校历', '后勤', '安全', '学籍', '计算机类']
 const sourceOptions = ['学院', '就业办', '后勤处', '保卫处', '教务处', '研究生院', '团委', '其他']
-const gradeOptions = ['2022', '2023', '2024', '2025']
-const majorOptions = ['计算机科学', '软件工程', '人工智能', '数据科学']
-const classOptions = ['2024级1班', '2024级2班', '2025级1班']
+// 年级/专业/班级选项: onMounted 时从真实学生数据里抽 distinct, 而不是硬编码
+// 这样不会出现"前端写了'计算机科学'但 DB 里是'计算机科学与技术'对不上"导致预览 0 人的坑
+const gradeOptions = ref([])
+const majorOptions = ref([])
+const classOptions = ref([])
+
+async function loadDimensions() {
+  try {
+    const res = await systemApi.getDimensions()
+    gradeOptions.value = res.data?.grades || []
+    majorOptions.value = res.data?.majors || []
+    classOptions.value = res.data?.classNames || []
+  } catch (e) {
+    // 失败时留空, 用户仍可手动 allow-create
+  }
+}
 
 const form = reactive({
   title: '',
@@ -176,7 +218,7 @@ const form = reactive({
   sourceUrl: '',
   channels: ['system'],
   filter: {
-    roleLevel: 4,
+    roles: [4],         // 角色等级: 4=普通学生, 3=学生骨干, 2=老师, 1=院领导
     grades: [],
     majors: [],
     classNames: [],
@@ -187,22 +229,48 @@ const previewResult = ref(null)
 const previewing = ref(false)
 const submitting = ref(false)
 
+// 学生类角色 (普通学生/学生骨干) 才有年级/专业/班级属性
+const hasStudentRole = computed(() => form.filter.roles.some(r => r === 3 || r === 4))
+const hasStaffRole = computed(() => form.filter.roles.some(r => r === 1 || r === 2))
+const hasStudentDimFilter = computed(() =>
+  (form.filter.grades?.length || 0) > 0 ||
+  (form.filter.majors?.length || 0) > 0 ||
+  (form.filter.classNames?.length || 0) > 0
+)
+
 watch(
-  () => [form.filter.roleLevel, form.filter.grades, form.filter.majors, form.filter.classNames],
+  () => [form.filter.roles, form.filter.grades, form.filter.majors, form.filter.classNames],
   () => { previewResult.value = null },
   { deep: true },
 )
 
+// 选了纯教职工时, 清掉残留的学生维度筛选, 避免随请求误发
+watch(hasStudentRole, (has) => {
+  if (!has) {
+    form.filter.grades = []
+    form.filter.majors = []
+    form.filter.classNames = []
+  }
+})
+
 async function previewCount() {
+  if (!form.filter.roles.length) { ElMessage.warning('请至少选择一个接收对象'); return }
   previewing.value = true
   try {
     const res = await notifyApi.previewTargets({
-      roleLevel: form.filter.roleLevel,
+      roles: form.filter.roles,
       grades: form.filter.grades,
       majors: form.filter.majors,
       classNames: form.filter.classNames,
     })
-    previewResult.value = res.data?.targetCount || 0
+    const d = res.data || {}
+    previewResult.value = {
+      targetCount: d.targetCount || 0,
+      studentCount: d.studentCount || 0,
+      cadreCount: d.cadreCount || 0,
+      teacherCount: d.teacherCount || 0,
+      leadershipCount: d.leadershipCount || 0,
+    }
   } finally {
     previewing.value = false
   }
@@ -211,6 +279,7 @@ async function previewCount() {
 async function handleSubmit() {
   if (!form.title.trim()) { ElMessage.warning('请填写通知标题'); return }
   if (!form.content.trim()) { ElMessage.warning('请填写通知正文'); return }
+  if (!form.filter.roles.length) { ElMessage.warning('请至少选择一个接收对象'); return }
 
   submitting.value = true
   try {
@@ -240,7 +309,7 @@ function resetForm() {
   form.source = ''
   form.sourceUrl = ''
   form.channels = ['system']
-  form.filter.roleLevel = 4
+  form.filter.roles = [4]
   form.filter.grades = []
   form.filter.majors = []
   form.filter.classNames = []
@@ -284,6 +353,7 @@ async function handleWithdraw(id) {
 
 onMounted(() => {
   loadHistory()
+  loadDimensions()
 })
 </script>
 
@@ -305,6 +375,27 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 700;
   margin: 0 2px;
+}
+.preview-breakdown {
+  margin-left: 4px;
+}
+.role-group {
+  display: flex;
+  gap: 48px;
+}
+.role-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.role-col__title {
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  margin-bottom: 2px;
+}
+.dim-disabled-tip {
+  color: var(--app-text-secondary);
+  font-size: 13px;
 }
 .action-row {
   margin-top: 16px;

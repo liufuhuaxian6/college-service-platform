@@ -25,8 +25,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -51,32 +54,59 @@ public class NotificationBroadcastService {
     @Value("${notify.broadcast.max-targets:5000}")
     private int maxTargets;
 
+    // 角色分组: 学生类 (含学生骨干) 拥有年级/专业/班级, 受这些维度约束; 教职工类没有这些字段.
+    private static final Set<Integer> STUDENT_ROLES = Set.of(3, 4); // 3=学生骨干, 4=普通学生
+    private static final Set<Integer> STAFF_ROLES = Set.of(1, 2);   // 1=院领导, 2=老师/辅导员
+
+    /**
+     * 解析本次群发要发给哪些角色. 兼容旧字段 roleLevel:
+     *  - roles 非空 -> 用 roles
+     *  - roles 空但 roleLevel 有值 -> [roleLevel]
+     *  - 都空 -> 默认普通学生 [4]
+     */
+    private static Set<Integer> effectiveRoles(BroadcastFilter filter) {
+        if (filter != null && filter.getRoles() != null && !filter.getRoles().isEmpty()) {
+            return filter.getRoles().stream().filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+        if (filter != null && filter.getRoleLevel() != null) {
+            return Set.of(filter.getRoleLevel());
+        }
+        return Set.of(4);
+    }
+
     /**
      * 按筛选条件查目标用户列表.
+     *
+     * 语义: 年级/专业/班级是学生属性, 只对学生类角色 (普通学生 + 学生骨干) 生效;
+     * 教职工类角色 (老师/院领导) 没有这些字段, 一旦被勾选就整组接收, 不受年级/专业/班级影响.
      */
     public List<SysUser> resolveTargets(BroadcastFilter filter) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getStatus, 1);
 
-        if (filter != null) {
-            if (filter.getRoleLevel() != null) {
-                wrapper.eq(SysUser::getRoleLevel, filter.getRoleLevel());
-            } else {
-                // 默认只面向学生
-                wrapper.eq(SysUser::getRoleLevel, 4);
-            }
-            if (notEmpty(filter.getGrades())) {
-                wrapper.in(SysUser::getGrade, filter.getGrades());
-            }
-            if (notEmpty(filter.getMajors())) {
-                wrapper.in(SysUser::getMajor, filter.getMajors());
-            }
-            if (notEmpty(filter.getClassNames())) {
-                wrapper.in(SysUser::getClassName, filter.getClassNames());
-            }
-        } else {
-            wrapper.eq(SysUser::getRoleLevel, 4);
+        Set<Integer> roles = effectiveRoles(filter);
+        Set<Integer> studentRoles = roles.stream().filter(STUDENT_ROLES::contains).collect(Collectors.toSet());
+        Set<Integer> staffRoles = roles.stream().filter(STAFF_ROLES::contains).collect(Collectors.toSet());
+
+        if (studentRoles.isEmpty() && staffRoles.isEmpty()) {
+            // 角色都不合法, 返回空集而不是全表
+            wrapper.eq(SysUser::getId, -1L);
+            return userMapper.selectList(wrapper);
         }
+
+        wrapper.and(outer -> {
+            if (!studentRoles.isEmpty()) {
+                outer.or(s -> {
+                    s.in(SysUser::getRoleLevel, studentRoles);
+                    if (notEmpty(filter.getGrades())) s.in(SysUser::getGrade, filter.getGrades());
+                    if (notEmpty(filter.getMajors())) s.in(SysUser::getMajor, filter.getMajors());
+                    if (notEmpty(filter.getClassNames())) s.in(SysUser::getClassName, filter.getClassNames());
+                });
+            }
+            if (!staffRoles.isEmpty()) {
+                outer.or(s -> s.in(SysUser::getRoleLevel, staffRoles));
+            }
+        });
         return userMapper.selectList(wrapper);
     }
 
@@ -85,6 +115,33 @@ public class NotificationBroadcastService {
      */
     public int previewTargetCount(BroadcastFilter filter) {
         return resolveTargets(filter).size();
+    }
+
+    /**
+     * 预览目标按角色拆分, 帮助操作者确认每个角色实际命中多少人.
+     * key: total / student(普通学生) / cadre(学生骨干) / teacher(老师) / leadership(院领导)
+     */
+    public Map<String, Integer> previewTargetBreakdown(BroadcastFilter filter) {
+        List<SysUser> targets = resolveTargets(filter);
+        Map<String, Integer> map = new LinkedHashMap<>();
+        int student = 0, cadre = 0, teacher = 0, leadership = 0;
+        for (SysUser u : targets) {
+            Integer lv = u.getRoleLevel();
+            if (lv == null) continue;
+            switch (lv) {
+                case 4 -> student++;
+                case 3 -> cadre++;
+                case 2 -> teacher++;
+                case 1 -> leadership++;
+                default -> { }
+            }
+        }
+        map.put("total", targets.size());
+        map.put("student", student);
+        map.put("cadre", cadre);
+        map.put("teacher", teacher);
+        map.put("leadership", leadership);
+        return map;
     }
 
     /**
@@ -299,6 +356,10 @@ public class NotificationBroadcastService {
 
     @Data
     public static class BroadcastFilter {
+        /** 目标角色 (可多选): 4=普通学生, 3=学生骨干, 2=老师, 1=院领导. 为空时默认 [4]. */
+        private List<Integer> roles;
+        /** @deprecated 旧的单选字段, 仅作向后兼容, 新前端用 roles. */
+        @Deprecated
         private Integer roleLevel;
         private List<String> grades;
         private List<String> majors;

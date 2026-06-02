@@ -41,8 +41,9 @@ public class StudentController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
-            @RequestParam(required = false) String className) {
-        return Result.ok(studentService.getStudentPage(page, size, grade, major, className));
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Integer roleLevel) {
+        return Result.ok(studentService.getStudentPage(page, size, grade, major, className, roleLevel));
     }
 
     @GetMapping("/{id}/detail")

@@ -253,6 +253,7 @@ public class QaService {
         if (StringUtils.hasText(fileInfo.getFileType())) {
             existing.setFileType(fileInfo.getFileType());
         }
+        existing.setUpdatedAt(LocalDateTime.now());
         documentMapper.updateById(existing);
     }
 

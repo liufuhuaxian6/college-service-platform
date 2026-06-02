@@ -1,25 +1,43 @@
 <template>
   <div class="app-page">
-    <PageHeader title="用户管理" description="维护学生与教师账号。支持 Excel 批量导入、按筛选条件导出名单。">
+    <PageHeader title="用户管理" description="维护学生与教师账号。支持 Excel 批量导入；“导出学生名单”导出启用状态的学生（含普通学生与学生骨干，不含老师 / 院领导），可按年级 / 专业 / 班级筛选。">
       <template #actions>
         <el-button @click="downloadTemplate">下载导入模板</el-button>
         <el-upload action="" :before-upload="handleImport" :show-file-list="false" accept=".xlsx,.xls">
           <el-button type="primary" :loading="importing">Excel 导入</el-button>
         </el-upload>
-        <el-button type="success" :loading="exporting" @click="handleExport">导出名单</el-button>
+        <el-button type="success" :loading="exporting" @click="handleExport">导出学生名单</el-button>
       </template>
     </PageHeader>
 
     <FilterBar>
       <el-form inline>
+        <el-form-item label="身份">
+          <el-select v-model="query.roleLevel" clearable placeholder="全部身份" style="width: 130px" @change="handleSearch">
+            <el-option label="院领导" :value="1" />
+            <el-option label="管理老师" :value="2" />
+            <el-option label="学生骨干" :value="3" />
+            <el-option label="普通学生" :value="4" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="年级">
-          <el-input v-model="query.grade" clearable placeholder="如 2024" style="width: 130px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.grade" clearable filterable placeholder="全部年级" style="width: 130px" @change="handleSearch">
+            <el-option v-for="g in dimensions.grades" :key="g" :label="g" :value="g" />
+          </el-select>
         </el-form-item>
         <el-form-item label="专业">
-          <el-input v-model="query.major" clearable placeholder="输入专业" style="width: 180px" @keyup.enter="handleSearch" />
+          <el-select v-model="query.major" clearable filterable placeholder="全部专业" style="width: 200px" @change="handleSearch">
+            <el-option v-for="m in dimensions.majors" :key="m" :label="m" :value="m" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="班级">
+          <el-select v-model="query.className" clearable filterable placeholder="全部班级" style="width: 170px" @change="handleSearch">
+            <el-option v-for="c in dimensions.classNames" :key="c" :label="c" :value="c" />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
     </FilterBar>
@@ -119,7 +137,8 @@ const importResultVisible = ref(false)
 const importResult = ref({ success: 0, fail: 0, errors: [] })
 const list = ref([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, grade: '', major: '' })
+const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '', roleLevel: null })
+const dimensions = reactive({ grades: [], majors: [], classNames: [] })
 const editForm = reactive({
   id: null, studentId: '', name: '', grade: '', major: '',
   className: '', phone: '', email: '', tutor: '', status: 1,
@@ -135,6 +154,8 @@ function buildQueryParams() {
   const p = { page: query.page, size: query.size }
   if (query.grade) p.grade = query.grade
   if (query.major) p.major = query.major
+  if (query.className) p.className = query.className
+  if (query.roleLevel != null) p.roleLevel = query.roleLevel
   return p
 }
 
@@ -147,7 +168,25 @@ async function loadData() {
   } finally { loading.value = false }
 }
 
+async function loadDimensions() {
+  try {
+    const res = await systemApi.getDimensions()
+    dimensions.grades = res.data?.grades || []
+    dimensions.majors = res.data?.majors || []
+    dimensions.classNames = res.data?.classNames || []
+  } catch (e) { /* 拉取失败时下拉为空, 不影响主流程 */ }
+}
+
 function handleSearch() {
+  query.page = 1
+  loadData()
+}
+
+function resetQuery() {
+  query.grade = ''
+  query.major = ''
+  query.className = ''
+  query.roleLevel = null
   query.page = 1
   loadData()
 }
@@ -212,6 +251,7 @@ async function handleImport(file) {
     }
     importResultVisible.value = true
     loadData()
+    loadDimensions()   // 导入可能引入新的年级/专业/班级, 刷新下拉项
   } finally {
     importing.value = false
   }
@@ -219,11 +259,52 @@ async function handleImport(file) {
 }
 
 async function handleExport() {
+  // 导出仅覆盖学生(普通学生4 + 学生骨干3), 不含老师/院领导, 不含已禁用账号.
+  // 身份筛选若选了 3/4 则只导对应那类; 选了老师/院领导则给出提示(导出不支持).
+  const isStudentRole = query.roleLevel === 3 || query.roleLevel === 4
+  const isStaffRole = query.roleLevel === 1 || query.roleLevel === 2
+
+  // 身份维度文案
+  let identityText
+  if (query.roleLevel === 4) identityText = '仅普通学生'
+  else if (query.roleLevel === 3) identityText = '仅学生骨干'
+  else identityText = '普通学生 + 学生骨干'
+
+  // 其它筛选维度文案
+  const dims = []
+  if (query.grade) dims.push(`年级=${query.grade}`)
+  if (query.major) dims.push(`专业=${query.major}`)
+  if (query.className) dims.push(`班级=${query.className}`)
+  const dimsText = dims.length ? dims.join('，') : '不限'
+
+  const staffWarn = isStaffRole
+    ? `<p style="color:#E6A23C;margin-top:6px">⚠ 当前“身份”筛选选了老师/院领导，但导出只支持学生，<b>该身份筛选将被忽略</b>，仍导出普通学生 + 学生骨干。</p>`
+    : ''
+
+  try {
+    await ElMessageBox.confirm(
+      `<div style="line-height:1.9">
+        <p>将导出一份 Excel 学生名单，范围如下：</p>
+        <p>· <b>对象</b>：${isStudentRole ? identityText : '学生（普通学生 + 学生骨干）'}，仅<b>启用状态</b>账号</p>
+        <p>· <b>筛选</b>：${dimsText}</p>
+        <p>· <b>不含</b>：老师、院领导、已禁用账号</p>
+        <p style="color:#909399;font-size:13px;margin-top:6px">表格含“身份”列，可区分普通学生与学生骨干；如需缩小范围，请先在上方设置筛选条件。</p>
+        ${staffWarn}
+      </div>`,
+      '导出学生名单',
+      { confirmButtonText: '确认导出', cancelButtonText: '取消', dangerouslyUseHTMLString: true },
+    )
+  } catch {
+    return // 用户取消
+  }
+
   exporting.value = true
   try {
     const params = {}
     if (query.grade) params.grade = query.grade
     if (query.major) params.major = query.major
+    if (query.className) params.className = query.className
+    if (isStudentRole) params.roleLevel = query.roleLevel   // 老师/院领导身份不传, 后端默认导学生
     const res = await systemApi.exportStudents(params)
     // res 是完整 axios response (拦截器特判 blob)
     const blob = new Blob([res.data], {
@@ -270,7 +351,10 @@ function todayStr() {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadDimensions()
+})
 </script>
 
 <style scoped>
