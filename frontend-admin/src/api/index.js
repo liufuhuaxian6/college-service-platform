@@ -20,6 +20,7 @@ export const systemApi = {
     responseType: 'blob',
   }),
   getDashboard: () => request.get('/system/dashboard'),
+  getDimensions: () => request.get('/system/dimensions'),
 }
 
 // ==================== 操作日志 ====================
@@ -51,7 +52,7 @@ export const qaApi = {
 
   getDocumentList: (params) => request.get('/qa/document/list', { params }),
   addDocument: (data) => request.post('/qa/document', data),
-  indexDocument: (id) => request.post(`/qa/document/${id}/index`),
+  indexDocument: (id) => request.post(`/qa/document/${id}/index`, null, { timeout: 600000 }),
   searchDocumentChunks: (params) => request.get('/qa/document/chunk/search', { params }),
   deleteDocument: (id) => request.delete(`/qa/document/${id}`),
   getDocumentDownloadUrl: (id) => `/api/qa/document/${id}/download`,
@@ -73,6 +74,8 @@ export const partyApi = {
   createInstance: (data) => request.post('/party/instance', data),
   advanceStep: (id, data) => request.put(`/party/instance/${id}/advance`, data),
   suspendInstance: (id, data) => request.put(`/party/instance/${id}/suspend`, data),
+  resumeInstance: (id, data) => request.put(`/party/instance/${id}/resume`, data),
+  deleteInstance: (id) => request.delete(`/party/instance/${id}`),
 }
 
 // ==================== 审批管理 ====================

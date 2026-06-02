@@ -262,7 +262,26 @@ public class PartyService {
         PartyProcessInstance instance = instanceMapper.selectById(instanceId);
         if (instance == null) throw new BusinessException("流程实例不存在");
         if ("completed".equals(instance.getStatus())) throw new BusinessException("流程已完成，不能暂停");
+        if ("suspended".equals(instance.getStatus())) throw new BusinessException("流程已是暂停状态");
         instance.setStatus("suspended");
         instanceMapper.updateById(instance);
+    }
+
+    public void resumeInstance(Long instanceId, String remark) {
+        PartyProcessInstance instance = instanceMapper.selectById(instanceId);
+        if (instance == null) throw new BusinessException("流程实例不存在");
+        if (!"suspended".equals(instance.getStatus())) throw new BusinessException("仅暂停中的流程可恢复");
+        instance.setStatus("active");
+        instanceMapper.updateById(instance);
+    }
+
+    @Transactional
+    public void deleteInstance(Long instanceId) {
+        PartyProcessInstance instance = instanceMapper.selectById(instanceId);
+        if (instance == null) throw new BusinessException("流程实例不存在");
+        stepRecordMapper.delete(
+                new LambdaQueryWrapper<PartyStepRecord>().eq(PartyStepRecord::getInstanceId, instanceId)
+        );
+        instanceMapper.deleteById(instanceId);
     }
 }

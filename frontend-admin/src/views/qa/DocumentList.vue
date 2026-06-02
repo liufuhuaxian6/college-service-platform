@@ -27,7 +27,7 @@
           <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
         </el-table-column>
         <el-table-column prop="downloadCount" label="下载次数" width="110" />
-        <el-table-column prop="createdAt" label="上传时间" width="180" />
+        <el-table-column label="最近更新" width="150" :formatter="row => formatDateTime(row.updatedAt || row.createdAt)" />
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="download(row)">下载</el-button>
@@ -69,6 +69,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { qaApi, fileApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -210,6 +211,7 @@ async function handleDelete(id) {
 
 async function indexDocument(row) {
   indexingId.value = row.id
+  ElMessage.info('向量入库已开始, 大文件可能需要 1-5 分钟, 请勿关闭页面')
   try {
     const res = await qaApi.indexDocument(row.id)
     ElMessage.success(`向量入库完成，共 ${res.data?.chunks || 0} 个片段`)

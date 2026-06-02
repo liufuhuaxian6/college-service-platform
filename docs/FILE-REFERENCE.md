@@ -233,7 +233,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `service/StudentService.java` | 学生端：`getMyProfile()` 获取个人信息、`getMyHonors()` 获取荣誉列表。管理端：`getStudentPage()` 学生分页列表(**含数据隔离**：3级只看本班、脱敏处理)、`getStudentDetail()` 学生画像详情(含荣誉)、荣誉 CRUD(仅管理员可操作) |
+| `service/StudentService.java` | 学生端：`getMyProfile()` 获取个人信息、`getMyHonors()` 获取荣誉列表。管理端：`getStudentPage()` 学生分页列表(**普通学生+学生骨干**, 支持身份/年级/专业/班级筛选; **含数据隔离**：3级只看本班、脱敏处理)、`getStudentDetail()` 学生画像详情(含荣誉)、荣誉 CRUD(仅管理员可操作) |
 
 #### Controller 层
 
@@ -260,15 +260,15 @@
 
 | 文件 | 用途 |
 |------|------|
-| `service/SystemService.java` | 综合 Service：用户管理(分页/详情/修改/设置角色/改密码)、Dashboard 统计、操作日志查询、通知消息(列表 / 未读数 / 标签聚合 / 标记已读 / 全部已读)、`sendNotification()` 供其他模块调用 |
+| `service/SystemService.java` | 综合 Service：用户管理(分页[支持身份/年级/专业/班级筛选]/详情/修改/设置角色/改密码)、`getStudentDimensions()` 返回年级/专业/班级 distinct 选项供前端下拉、`exportStudents()` 导出学生名单(普通学生+骨干, 含身份列, 支持按身份/年级/专业/班级)、Dashboard 统计、操作日志查询、通知消息(列表 / 未读数 / 标签聚合 / 标记已读 / 全部已读)、`sendNotification()` 供其他模块调用 |
 | `service/EmailService.java` | 邮件发送服务。`resolveEmail(user)` 派生邮箱（user.email ?? 学号@ruc.edu.cn）；`isAvailable()` 判断 SMTP 是否可用（mailSender bean + fromAddress）；`sendBatch()` `@Async` 批量发送（节流 100ms/N 封）；`sendOne()` 同步单封用于精确统计 emailSent。**鉴权失败仅 warn，不抛异常，由 broadcast 决定降级** |
-| `service/NotificationBroadcastService.java` | 模块三核心。`broadcast()` 一个事务内完成：筛选目标 → 写 broadcast 记录 → 批量写站内通知 → 真实发邮件（或降级 email_sim）→ 回写 emailSent；`previewTargetCount()` 预览人数；`withdraw()` 24h 内撤回（按 broadcast_id 删除未读通知）；`distinctTags()` 标签聚合 |
+| `service/NotificationBroadcastService.java` | 模块三核心。`resolveTargets()` 按 `roles[]`(多选 4/3/2/1) 解析目标——年级/专业/班级只对学生类(普通学生4+骨干3)生效, 老师/院领导(1/2)整组接收; `broadcast()` 一个事务内完成：筛选目标 → 写 broadcast 记录 → 批量写站内通知 → 真实发邮件（或降级 email_sim）→ 回写 emailSent；`previewTargetBreakdown()` 预览并按角色拆分人数(学生/骨干/老师/院领导)；`withdraw()` 24h 内撤回（按 broadcast_id 删除未读通知）；`distinctTags()` 标签聚合 |
 
 #### Controller 层
 
 | 文件 | 用途 |
 |------|------|
-| `controller/SystemController.java` | `/system/user/*`（≤2级）、`/system/dashboard`（≤2级）、`/auth/password`（全部）、`/log/page`（≤1级）、`/notify/*` 通知列表 / 未读数 / 标签 / 群发预览 / 群发 / 群发历史 / 撤回 |
+| `controller/SystemController.java` | `/system/user/*`（≤2级）、`/system/dimensions`（≤2级, 年级/专业/班级下拉选项）、`/system/dashboard`（≤2级）、`/auth/password`（全部）、`/log/page`（≤1级）、`/notify/*` 通知列表 / 未读数 / 标签 / 群发预览 / 群发 / 群发历史 / 撤回 |
 | `controller/FileController.java` | `POST /file/upload` 通用文件上传（≤30MB，限定到配置的 upload-path）、`GET /file/download/{fileId}` 文件下载 |
 
 ---
@@ -285,7 +285,8 @@
 
 | 文件 | 用途 |
 |------|------|
-| `schema.sql` | 完整的建表脚本（兼容 PostgreSQL 和 Kingbase）。**16 张表**：14 张业务 + `qa_document_chunk`（RAG 向量切片，依赖 pgvector）+ `sys_notification_broadcast`（群发记录）。包含索引、中文注释、初始数据（admin/admin123 + 4 种审批类型 + 入党/入团流程模板） |
+| `schema.sql` | 完整的建表脚本（兼容 PostgreSQL 和 Kingbase）。**16 张表**：14 张业务 + `qa_document_chunk`（RAG 向量切片，依赖 pgvector）+ `sys_notification_broadcast`（群发记录）。包含索引、中文注释、初始数据（admin + 3 老师 + 3 骨干 + 测试学生, 密码均 admin123 + 4 种审批类型 + 入党/入团流程模板） |
+| `seed_teacher_leader.sql` | 老师(2级)/骨干(3级)种子数据增量脚本。已并入 `schema.sql` 初始数据, 旧库可单独执行补种(幂等 `ON CONFLICT DO NOTHING`) |
 | `rag_pgvector.sql` | RAG 增量迁移：创建 `vector` 扩展和 `qa_document_chunk` 表 + ivfflat 索引 |
 | `rag_migrate_384_to_512.sql` | 384 → 512 维向量迁移（从 local-hash 切到 BGE）。TRUNCATE 现有切片 + 改列类型 + 重建索引，迁移后需在管理端「重新索引」所有文档 |
 | `qa_template_migrate.sql` | qa_document 增量迁移：增加 `doc_type` 与 `description` 字段，已有数据回填为 `policy` |
@@ -328,7 +329,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `src/router/index.js` | 路由配置。`/login` 登录页(不需要认证)，`/` 下嵌套主布局和全部子页面。每个路由有 `meta.minRole` 控制权限。路由守卫：未登录跳 `/login`，权限不足跳 `/dashboard` |
+| `src/router/index.js` | 路由配置。`/login` 登录页(不需要认证)，`/` 下嵌套主布局和全部子页面。每个路由有 `meta.minRole` 控制权限。路由守卫：未登录跳 `/login`，权限不足时 `logout()` 并跳 `/login?reason=role`(避免与 dashboard 的 minRole 互弹死循环) |
 
 ### 4.6 布局
 
@@ -340,7 +341,7 @@
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `views/login/index.vue` | 登录页 | 学号+密码表单，低饱和暗红主题，白色表单区，调 authApi.login 后存 Store 跳转 |
+| `views/login/index.vue` | 登录页 | 学号+密码表单，低饱和暗红主题，白色表单区，调 authApi.login 后存 Store 跳转；**4 级学生直接拒绝**(提示用小程序，不写登录态)，`?reason=role` 进入时自动提示 |
 | `views/dashboard/index.vue` | 数据概览 | 四个统计卡片（在校学生/总用户/待审批/进行中流程），调 systemApi.getDashboard |
 | `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表、新增/编辑弹窗、删除确认 |
 | `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表、上传(限30MB)、下载、删除、「重新索引」触发 RAG 入库 |
@@ -349,10 +350,10 @@
 | `views/party/InstanceList.vue` | 学生流程管理 | 按模板/状态筛选、表格列表、推进(弹窗填备注)/暂停操作 |
 | `views/approval/PendingList.vue` | 待审批列表 | 申请编号/申请人/类型/时间、通过(填意见)/驳回(必填原因)/查看详情 |
 | `views/approval/AllList.vue` | 全部申请 | 按状态筛选(6种)、状态标签颜色区分、管理员撤回(仅 approved 且未下载)、已锁定显示标签 |
-| `views/student/StudentList.vue` | 学生信息 | 年级/专业/班级筛选、表格列表(学号/姓名/年级/专业/班级/手机/邮箱)、查看详情抽屉（画像、荣誉、流程、申请汇总） |
-| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色、邮箱列)、Excel 导入按钮、编辑用户基础信息和邮箱、设置角色(1-4) |
+| `views/student/StudentList.vue` | 学生信息 | 身份(普通学生/骨干)+年级/专业/班级**下拉筛选**、表格列表(学号/姓名/身份标签/年级/专业/班级/手机/邮箱)、查看详情抽屉（画像、荣誉、流程、申请汇总） |
+| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色、邮箱列)、身份+年级/专业/班级**下拉筛选**、Excel 导入按钮、**导出学生名单**(弹确认框说明范围, 普通学生+骨干, 含身份列)、编辑用户基础信息和邮箱、设置角色(1-4) |
 | `views/system/LogList.vue` | 操作日志 | 按模块/时间范围筛选、表格列表(操作人/模块/操作/IP/时间) |
-| `views/system/NotificationBroadcast.vue` | 通知群发 | 双 tab：**群发新通知**（标题/正文/标签/来源/链接 + 角色/年级/专业/班级筛选 + 渠道勾选 + 预览目标人数）；**广播历史**（命中/已读/邮件数 + 状态徽标 + 24h 内撤回按钮） |
+| `views/system/NotificationBroadcast.vue` | 通知群发 | 双 tab：**群发新通知**（标题/正文/标签/来源/链接 + 接收对象多选[普通学生/骨干/老师/院领导] + 年级/专业/班级下拉[仅对学生生效] + 渠道勾选 + 预览目标人数[按角色拆分]）；**广播历史**（命中/已读/邮件数 + 状态徽标 + 24h 内撤回按钮） |
 
 ---
 
@@ -380,7 +381,7 @@
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `pages/login/index.vue` | 登录页 | 暗红主题品牌区 + 白色表单卡片，密码输入隐藏，学号+密码登录后 switchTab 到首页 |
+| `pages/login/index.vue` | 登录页 | 暗红主题品牌区 + 白色表单卡片，密码输入隐藏，学号+密码登录后 switchTab 到首页；**仅学生可登**：4 级学生/3 级骨干放行，1 级院领导/2 级老师弹窗拒绝(请用管理端，不写登录态) |
 | `pages/index/index.vue` | 首页(TabBar) | 欢迎头部(姓名+学院+通知铃铛)、四宫格入口(智能问答/政策文档/党团进度/我的申请)、最新通知列表 |
 | `pages/qa/index.vue` | 智能问答(TabBar) | **移动端 AI 应用式聊天界面**。消息气泡(用户右侧暗红/系统左侧白色)、快捷问题标签、AI 回答标注"仅供参考"、官方链接可复制、底部输入框+发送按钮 |
 | `pages/qa/document.vue` | 政策文档 | 文档列表(标题/分类/大小/下载次数)、点击下载 |

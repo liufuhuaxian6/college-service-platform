@@ -35,13 +35,20 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { authApi } from '@/api'
 
 const router = useRouter()
+const route = useRoute()
+
+onMounted(() => {
+  if (route.query.reason === 'role') {
+    ElMessage.warning('该账号为学生角色, 请使用微信小程序登录')
+  }
+})
 const userStore = useUserStore()
 const formRef = ref()
 const loading = ref(false)
@@ -57,6 +64,11 @@ async function handleLogin() {
   loading.value = true
   try {
     const res = await authApi.login(form)
+    // 4 级学生不允许进管理端 (路由守卫会一直拦, 这里提前拒绝并清掉登录态)
+    if (Number(res.data?.roleLevel) >= 4) {
+      ElMessage.error('该账号为学生角色, 请使用微信小程序登录, 管理端仅限教师/院领导')
+      return
+    }
     userStore.setLoginInfo(res.data)
     ElMessage.success('登录成功')
     router.push('/dashboard')

@@ -42,7 +42,7 @@
       <el-col :span="8">
         <DataPanel title="待审批 (最新 5 条)" description="点击进入审批管理处理">
           <div v-if="todo.length" class="todo-list">
-            <div v-for="item in todo" :key="item.id" class="todo-item" @click="goPending">
+            <div v-for="item in todo" :key="item.id" class="todo-item" @click="goPendingDetail(item.id)">
               <div class="todo-line1">
                 <strong>{{ item.appNo }}</strong>
                 <el-tag size="small" type="warning">L{{ item.currentApproverLevel || '-' }}</el-tag>
@@ -62,6 +62,7 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { systemApi } from '@/api'
+import { formatRelativeTime } from '@/utils/time'
 import PageHeader from '@/components/common/PageHeader.vue'
 import MetricCard from '@/components/common/MetricCard.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
@@ -210,19 +211,14 @@ function handleResize() {
   chartInstances.forEach((c) => c && c.resize())
 }
 
-function formatTime(t) {
-  if (!t) return ''
-  const d = new Date(t)
-  if (isNaN(d.getTime())) return String(t)
-  const now = new Date()
-  const mins = Math.floor((now - d) / 60000)
-  if (mins < 60) return `${mins} 分钟前`
-  if (mins < 1440) return `${Math.floor(mins / 60)} 小时前`
-  return d.toLocaleDateString()
-}
+const formatTime = formatRelativeTime
 
 function goPending() {
   router.push('/approval/pending')
+}
+
+function goPendingDetail(id) {
+  router.push({ path: '/approval/pending', query: { openId: id } })
 }
 
 onMounted(async () => {

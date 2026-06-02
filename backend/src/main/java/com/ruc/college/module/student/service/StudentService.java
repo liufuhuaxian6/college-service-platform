@@ -60,12 +60,16 @@ public class StudentService {
 
     // ==================== 管理端 ====================
 
-    public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className) {
+    public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className, Integer roleLevel) {
+        // 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并纳入学生信息
+        // roleLevel 指定时只看该身份(仅允许 3/4), 否则两类都看
+        boolean validRole = roleLevel != null && (roleLevel == 3 || roleLevel == 4);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getRoleLevel, 4)
-                .eq(grade != null, SysUser::getGrade, grade)
-                .eq(major != null, SysUser::getMajor, major)
-                .eq(className != null, SysUser::getClassName, className)
+                .eq(validRole, SysUser::getRoleLevel, roleLevel)
+                .in(!validRole, SysUser::getRoleLevel, 3, 4)
+                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
+                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
+                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
                 .orderByAsc(SysUser::getStudentId);
 
         // 数据隔离: 3级只看本班
@@ -115,10 +119,14 @@ public class StudentService {
                     .map(PartyProcessInstance::getTemplateId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
-            List<PartyProcessTemplate> templates = partyTemplateMapper.selectBatchIds(templateIds);
-            templateMap = templates.stream()
-                    .filter(t -> t.getId() != null)
-                    .collect(Collectors.toMap(PartyProcessTemplate::getId, Function.identity(), (a, b) -> a));
+            if (templateIds.isEmpty()) {
+                templateMap = Map.of();
+            } else {
+                List<PartyProcessTemplate> templates = partyTemplateMapper.selectBatchIds(templateIds);
+                templateMap = templates.stream()
+                        .filter(t -> t.getId() != null)
+                        .collect(Collectors.toMap(PartyProcessTemplate::getId, Function.identity(), (a, b) -> a));
+            }
         } else {
             templateMap = Map.of();
         }
@@ -149,10 +157,14 @@ public class StudentService {
                     .map(ApprovalApplication::getTypeId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
-            List<ApprovalType> types = approvalTypeMapper.selectBatchIds(typeIds);
-            typeMap = types.stream()
-                    .filter(t -> t.getId() != null)
-                    .collect(Collectors.toMap(ApprovalType::getId, Function.identity(), (a, b) -> a));
+            if (typeIds.isEmpty()) {
+                typeMap = Map.of();
+            } else {
+                List<ApprovalType> types = approvalTypeMapper.selectBatchIds(typeIds);
+                typeMap = types.stream()
+                        .filter(t -> t.getId() != null)
+                        .collect(Collectors.toMap(ApprovalType::getId, Function.identity(), (a, b) -> a));
+            }
         } else {
             typeMap = Map.of();
         }

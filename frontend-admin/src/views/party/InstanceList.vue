@@ -20,8 +20,22 @@
             <el-option label="已暂停" value="suspended" />
           </el-select>
         </el-form-item>
-        <el-form-item label="学生ID">
-          <el-input v-model="query.userId" clearable placeholder="输入学生用户ID" style="width: 170px" @keyup.enter="handleSearch" />
+        <el-form-item label="学生">
+          <el-select
+            v-model="query.userId"
+            clearable
+            filterable
+            placeholder="输入学号 / 姓名筛选"
+            style="width: 260px"
+            @change="handleSearch"
+          >
+            <el-option
+              v-for="s in students"
+              :key="s.id"
+              :label="`${s.studentId} ${s.name}${s.className ? ' · ' + s.className : ''}`"
+              :value="s.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -32,7 +46,11 @@
     <DataPanel title="流程列表">
       <el-table :data="list" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="userId" label="学生ID" width="110" />
+        <el-table-column label="学生" min-width="200">
+          <template #default="{ row }">
+            <span>{{ getStudentLabel(row.userId) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="流程模板" min-width="170">
           <template #default="{ row }">{{ getTemplateName(row.templateId) }}</template>
         </el-table-column>
@@ -41,10 +59,16 @@
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
         <el-table-column prop="startDate" label="开始日期" width="140" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" :disabled="row.status !== 'active'" @click="advance(row)">推进</el-button>
-            <el-button link type="warning" :disabled="row.status !== 'active'" @click="suspend(row)">暂停</el-button>
+            <template v-if="row.status === 'active'">
+              <el-button link type="primary" @click="advance(row)">推进</el-button>
+              <el-button link type="warning" @click="suspend(row)">暂停</el-button>
+            </template>
+            <template v-else-if="row.status === 'suspended'">
+              <el-button link type="success" @click="resume(row)">恢复</el-button>
+            </template>
+            <el-button link type="danger" @click="removeInstance(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -60,10 +84,22 @@
       </div>
     </DataPanel>
 
-    <el-dialog v-model="dialogVisible" title="创建学生流程" width="540px">
+    <el-dialog v-model="dialogVisible" title="创建学生流程" width="560px">
       <el-form :model="form" label-width="100px">
-        <el-form-item label="学生用户ID" required>
-          <el-input v-model="form.userId" placeholder="请输入学生用户ID，例如 2" />
+        <el-form-item label="学生" required>
+          <el-select
+            v-model="form.userId"
+            filterable
+            placeholder="输入学号 / 姓名搜索"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="s in students"
+              :key="s.id"
+              :label="`${s.studentId} ${s.name}${s.className ? ' · ' + s.className : ''}${s.major ? ' · ' + s.major : ''}`"
+              :value="s.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="流程模板" required>
           <el-select v-model="form.templateId" placeholder="请选择流程模板" style="width: 100%">
@@ -85,7 +121,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { partyApi } from '@/api'
+import { partyApi, systemApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
 import DataPanel from '@/components/common/DataPanel.vue'
@@ -97,8 +133,24 @@ const dialogVisible = ref(false)
 const list = ref([])
 const total = ref(0)
 const templates = ref([])
-const query = reactive({ page: 1, size: 20, templateId: null, status: '', userId: '' })
-const form = reactive({ userId: '', templateId: null, startDate: '' })
+const students = ref([])
+const query = reactive({ page: 1, size: 20, templateId: null, status: '', userId: null })
+const form = reactive({ userId: null, templateId: null, startDate: '' })
+
+async function loadStudents() {
+  // 一次拉所有 4 级学生 (一般 < 500), 由 el-select filterable 在前端过滤学号/姓名
+  try {
+    const res = await systemApi.getUserPage({ page: 1, size: 500 })
+    students.value = (res.data?.records || []).filter(u => u.roleLevel === 4)
+  } catch (e) {
+    students.value = []
+  }
+}
+
+function getStudentLabel(userId) {
+  const s = students.value.find(x => x.id === userId)
+  return s ? `${s.studentId} ${s.name}` : `用户 ${userId}`
+}
 
 function buildQueryParams() {
   const params = { page: query.page, size: query.size }
@@ -130,7 +182,7 @@ function handleSearch() {
 }
 
 function showCreateDialog() {
-  form.userId = ''
+  form.userId = null
   form.templateId = null
   form.startDate = new Date().toISOString().slice(0, 10)
   dialogVisible.value = true
@@ -138,11 +190,7 @@ function showCreateDialog() {
 
 function validateCreateForm() {
   if (!form.userId) {
-    ElMessage.warning('请输入学生用户ID')
-    return false
-  }
-  if (Number.isNaN(Number(form.userId))) {
-    ElMessage.warning('学生用户ID必须是数字')
+    ElMessage.warning('请选择学生')
     return false
   }
   if (!form.templateId) {
@@ -200,6 +248,32 @@ async function suspend(row) {
   } catch (error) { /* user cancelled */ }
 }
 
+async function removeInstance(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除「${getStudentLabel(row.userId)}」的流程「${getTemplateName(row.templateId)}」吗?\n此操作会同时清空该流程的所有步骤记录, 不可恢复.`,
+      '删除流程',
+      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await partyApi.deleteInstance(row.id)
+    ElMessage.success('已删除')
+    loadData()
+  } catch (error) { /* user cancelled */ }
+}
+
+async function resume(row) {
+  try {
+    const { value } = await ElMessageBox.prompt(`确定恢复流程「${getTemplateName(row.templateId)}」吗？恢复后可继续推进步骤。`, '恢复流程', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPlaceholder: '恢复备注，可不填',
+    })
+    await partyApi.resumeInstance(row.id, { remark: value || '' })
+    ElMessage.success('已恢复, 当前步骤可继续推进')
+    loadData()
+  } catch (error) { /* user cancelled */ }
+}
+
 function getTemplateName(templateId) {
   const template = templates.value.find(item => item.id === templateId)
   return template ? template.name : templateId
@@ -207,9 +281,9 @@ function getTemplateName(templateId) {
 
 onMounted(async () => {
   try {
-    await loadTemplates()
+    await Promise.all([loadTemplates(), loadStudents()])
   } catch (error) {
-    ElMessage.warning('流程模板加载失败')
+    ElMessage.warning('基础数据加载失败')
   }
   loadData()
 })

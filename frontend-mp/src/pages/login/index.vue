@@ -80,6 +80,17 @@ async function handleLogin() {
       studentId: form.studentId.trim(),
       password: form.password,
     })
+    // 小程序只面向学生(含学生骨干): roleLevel 4=普通学生 / 3=学生骨干 放行;
+    // 1=院领导 / 2=老师 属管理端角色, 拒绝并提示去管理端 (不写登录态)
+    if (Number(res.data?.roleLevel) < 3) {
+      uni.showModal({
+        title: '无法登录',
+        content: '该账号为教师/院领导角色, 请使用 PC 管理端登录, 小程序仅限学生使用',
+        showCancel: false,
+        confirmText: '知道了',
+      })
+      return
+    }
     userStore.setLoginInfo(res.data)
     uni.showToast({ title: '登录成功', icon: 'success' })
     uni.switchTab({ url: '/pages/index/index' })

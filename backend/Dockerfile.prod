@@ -1,5 +1,10 @@
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
+# 中文字体: PDFBox 3.0 子集嵌入只支持 TrueType, 不支持 OpenType/CFF.
+# Noto Sans CJK (.ttc) 是 OTF, 子集会抛 "OTF fonts do not have a glyf table".
+# 改用 wqy-zenhei (TrueType), PDF 体积小 (~50KB), Noto 仅作兜底.
+# tzdata 让 TZ=Asia/Shanghai 生效.
+RUN apk add --no-cache font-wqy-zenhei font-noto-cjk fontconfig tzdata && fc-cache -f
 COPY target/college-service-platform-1.0.0-SNAPSHOT.jar app.jar
 RUN mkdir -p /app/uploads
 EXPOSE 8080

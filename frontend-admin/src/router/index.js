@@ -113,9 +113,10 @@ router.beforeEach((to, from, next) => {
     }
   }
 
-  // 权限检查
+  // 权限检查: 角色等级不够时, 清登录态踢回 login 避免和 dashboard 的 minRole 互相弹形成死循环
   if (to.meta.minRole && userStore.roleLevel > to.meta.minRole) {
-    return next('/dashboard')
+    userStore.logout()
+    return next({ path: '/login', query: { reason: 'role' } })
   }
 
   next()

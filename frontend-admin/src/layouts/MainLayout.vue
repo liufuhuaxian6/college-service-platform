@@ -81,13 +81,33 @@
       </el-main>
     </el-container>
   </el-container>
+
+  <!-- 修改密码 -->
+  <el-dialog v-model="pwdVisible" title="修改密码" width="440px">
+    <el-form :model="pwdForm" label-width="86px">
+      <el-form-item label="原密码" required>
+        <el-input v-model="pwdForm.oldPassword" type="password" show-password placeholder="请输入当前密码" />
+      </el-form-item>
+      <el-form-item label="新密码" required>
+        <el-input v-model="pwdForm.newPassword" type="password" show-password placeholder="至少 6 位" />
+      </el-form-item>
+      <el-form-item label="确认新密码" required>
+        <el-input v-model="pwdForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="pwdVisible = false">取消</el-button>
+      <el-button type="primary" :loading="pwdSubmitting" @click="submitPassword">确定</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { notifyApi } from '@/api'
+import { notifyApi, authApi } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -132,10 +152,45 @@ const menuItems = [
   },
 ]
 
+const pwdVisible = ref(false)
+const pwdSubmitting = ref(false)
+const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
 function handleCommand(cmd) {
   if (cmd === 'logout') {
     userStore.logout()
     router.push('/login')
+  } else if (cmd === 'password') {
+    pwdForm.oldPassword = ''
+    pwdForm.newPassword = ''
+    pwdForm.confirmPassword = ''
+    pwdVisible.value = true
+  }
+}
+
+async function submitPassword() {
+  if (!pwdForm.oldPassword) { ElMessage.warning('请输入原密码'); return }
+  if (!pwdForm.newPassword || pwdForm.newPassword.length < 6) {
+    ElMessage.warning('新密码至少 6 位'); return
+  }
+  if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+    ElMessage.warning('两次输入的新密码不一致'); return
+  }
+  if (pwdForm.oldPassword === pwdForm.newPassword) {
+    ElMessage.warning('新密码不能与原密码相同'); return
+  }
+  pwdSubmitting.value = true
+  try {
+    await authApi.changePassword({
+      oldPassword: pwdForm.oldPassword,
+      newPassword: pwdForm.newPassword,
+    })
+    ElMessage.success('密码已修改, 请用新密码重新登录')
+    pwdVisible.value = false
+    userStore.logout()
+    router.push('/login')
+  } finally {
+    pwdSubmitting.value = false
   }
 }
 
