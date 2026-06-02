@@ -30,7 +30,7 @@
 ### 1.2 微信小程序（学生）
 
 <p align="center">
-  <img src="images/mp-trial-qr.png" alt="软工导大作业体验版" width="240"/><br/>
+  <img src="images/软工导大作业体验版（6月8日前有效）.png" alt="软工导大作业体验版" width="240"/><br/>
   <b>软工导大作业 · 体验版</b><br/>
   <sub>有效期至 <b>2026-06-03</b></sub>
 </p>
