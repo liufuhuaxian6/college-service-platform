@@ -48,7 +48,7 @@ public class SystemController {
 
     @GetMapping("/system/dimensions")
     @RequireRole(minLevel = 2)
-    public Result<Map<String, List<String>>> studentDimensions() {
+    public Result<Map<String, Object>> studentDimensions() {
         return Result.ok(systemService.getStudentDimensions());
     }
 
