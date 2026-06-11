@@ -138,10 +138,10 @@ const query = reactive({ page: 1, size: 20, templateId: null, status: '', userId
 const form = reactive({ userId: null, templateId: null, startDate: '' })
 
 async function loadStudents() {
-  // 一次拉所有 4 级学生 (一般 < 500), 由 el-select filterable 在前端过滤学号/姓名
+  // 一次拉所有学生 (含学生骨干, 一般 < 500), 由 el-select filterable 在前端过滤学号/姓名
   try {
     const res = await systemApi.getUserPage({ page: 1, size: 500 })
-    students.value = (res.data?.records || []).filter(u => u.roleLevel === 4)
+    students.value = (res.data?.records || []).filter(u => u.roleLevel === 3 || u.roleLevel === 4)
   } catch (e) {
     students.value = []
   }

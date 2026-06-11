@@ -63,17 +63,31 @@ public class SystemService {
      * 只取学生类角色 (普通学生 + 学生骨干) 且启用状态的真实数据, 去重排序,
      * 这样筛选项与库里实际存在的值完全一致, 不会因手输错字/全半角对不上而查不到.
      */
-    public Map<String, List<String>> getStudentDimensions() {
+    public Map<String, Object> getStudentDimensions() {
         List<SysUser> students = userMapper.selectList(
                 new LambdaQueryWrapper<SysUser>()
                         .in(SysUser::getRoleLevel, 3, 4)
                         .eq(SysUser::getStatus, 1)
                         .select(SysUser::getGrade, SysUser::getMajor, SysUser::getClassName)
         );
-        Map<String, List<String>> result = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
         result.put("grades", distinctSorted(students.stream().map(SysUser::getGrade)));
         result.put("majors", distinctSorted(students.stream().map(SysUser::getMajor)));
         result.put("classNames", distinctSorted(students.stream().map(SysUser::getClassName)));
+        // combos: 年级-专业-班级的真实组合, 供前端做级联筛选 (选了年级后, 班级只显示该年级下的)
+        List<Map<String, String>> combos = students.stream()
+                .filter(s -> StringUtils.hasText(s.getClassName()))
+                .map(s -> {
+                    Map<String, String> m = new LinkedHashMap<>();
+                    m.put("grade", s.getGrade() == null ? "" : s.getGrade().trim());
+                    m.put("major", s.getMajor() == null ? "" : s.getMajor().trim());
+                    m.put("className", s.getClassName().trim());
+                    return m;
+                })
+                .distinct()
+                .sorted((a, b) -> a.get("className").compareTo(b.get("className")))
+                .toList();
+        result.put("combos", combos);
         return result;
     }
 
@@ -263,7 +277,7 @@ public class SystemService {
 
         // ---- 基础数字卡片 ----
         data.put("totalStudents", userMapper.selectCount(
-                new LambdaQueryWrapper<SysUser>().eq(SysUser::getRoleLevel, 4).eq(SysUser::getStatus, 1)));
+                new LambdaQueryWrapper<SysUser>().in(SysUser::getRoleLevel, 3, 4).eq(SysUser::getStatus, 1)));
         data.put("totalUsers", userMapper.selectCount(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getStatus, 1)));
         data.put("pendingApprovals", approvalApplicationMapper.selectCount(

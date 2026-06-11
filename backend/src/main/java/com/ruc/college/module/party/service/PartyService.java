@@ -34,6 +34,15 @@ public class PartyService {
         );
     }
 
+    /** 学生端: 按模板查官方节点列表 (与"我的流程"同源于 DB, 避免小程序端硬编码导致节点数对不上) */
+    public List<PartyProcessStep> getTemplateSteps(Long templateId) {
+        return stepMapper.selectList(
+                new LambdaQueryWrapper<PartyProcessStep>()
+                        .eq(PartyProcessStep::getTemplateId, templateId)
+                        .orderByAsc(PartyProcessStep::getStepOrder)
+        );
+    }
+
     public List<Map<String, Object>> getMyProgress() {
         Long userId = UserContext.getUserId();
         List<PartyProcessInstance> instances = instanceMapper.selectList(
