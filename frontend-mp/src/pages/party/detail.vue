@@ -123,7 +123,8 @@ function formatDateTime(value) {
   return String(value).replace('T', ' ').slice(0, 16)
 }
 
-function buildTemplateDetail(id, name) {
+// 兜底: 后端取不到节点时才用本地硬编码 (正常情况下都以 DB 为准, 保证模板预览与"我的流程"节点数一致)
+function buildFallbackTemplateDetail(id, name) {
   const isLeague = Number(id) === 2 || name.includes('团')
   const source = isLeague ? leagueTemplateSteps : partyTemplateSteps
   return {
@@ -140,6 +141,32 @@ function buildTemplateDetail(id, name) {
   }
 }
 
+async function buildTemplateDetail(id, name) {
+  // 优先读 DB 真实节点, 与"我的流程"同源, 避免节点数对不上 (如模板 29 步但实例显示 11 步)
+  try {
+    const res = await partyApi.getTemplateSteps(id)
+    const rows = res.data || []
+    if (rows.length) {
+      return {
+        templateName: name || '',
+        status: '',
+        currentStep: 0,
+        steps: rows.map((s) => ({
+          stepOrder: s.stepOrder,
+          stage: s.description,
+          name: s.name,
+          description: s.description,
+          durationDays: s.durationDays,
+          completed: false,
+        })),
+      }
+    }
+  } catch (e) {
+    // 落到本地兜底
+  }
+  return buildFallbackTemplateDetail(id, name)
+}
+
 onMounted(async () => {
   const pages = getCurrentPages()
   const page = pages[pages.length - 1]
@@ -147,7 +174,7 @@ onMounted(async () => {
   mode.value = options.mode || 'progress'
 
   if (mode.value === 'template') {
-    detail.value = buildTemplateDetail(options.id, decodeURIComponent(options.name || ''))
+    detail.value = await buildTemplateDetail(options.id, decodeURIComponent(options.name || ''))
     return
   }
 

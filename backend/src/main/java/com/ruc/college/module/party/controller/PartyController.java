@@ -32,6 +32,11 @@ public class PartyController {
         return Result.ok(partyService.getAllTemplates());
     }
 
+    @GetMapping("/templates/{id}/steps")
+    public Result<List<PartyProcessStep>> templateSteps(@PathVariable Long id) {
+        return Result.ok(partyService.getTemplateSteps(id));
+    }
+
     @GetMapping("/my-progress")
     public Result<List<Map<String, Object>>> myProgress() {
         return Result.ok(partyService.getMyProgress());

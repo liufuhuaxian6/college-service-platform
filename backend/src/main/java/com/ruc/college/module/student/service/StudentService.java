@@ -86,8 +86,12 @@ public class StudentService {
             u.setPassword(null);
             u.setEmail(emailService.resolveEmail(u));
             if (u.getIdCardEnc() != null) {
-                String decrypted = EncryptUtil.decrypt(u.getIdCardEnc());
-                u.setIdCardEnc(EncryptUtil.desensitize(decrypted, 3, 4));
+                try {
+                    String decrypted = EncryptUtil.decrypt(u.getIdCardEnc());
+                    u.setIdCardEnc(EncryptUtil.desensitize(decrypted, 3, 4));
+                } catch (Exception e) {
+                    u.setIdCardEnc("******");
+                }
             }
             u.setOriginEnc(null); // 管理端也脱敏
         });
@@ -190,6 +194,13 @@ public class StudentService {
     }
 
     public Long addHonor(Long userId, StudentHonor honor) {
+        if (honor == null) throw new BusinessException("荣誉信息不能为空");
+        if (!StringUtils.hasText(honor.getHonorName())) throw new BusinessException("荣誉名称不能为空");
+        if (honor.getAwardDate() == null) throw new BusinessException("获奖日期不能为空");
+        // 获奖日期不能晚于今天 (防止录入 2035 等未来时间)
+        if (honor.getAwardDate().isAfter(java.time.LocalDate.now())) {
+            throw new BusinessException("获奖日期不能晚于当前日期");
+        }
         honor.setUserId(userId);
         honor.setCreatedBy(UserContext.getUserId());
         honorMapper.insert(honor);
@@ -199,6 +210,9 @@ public class StudentService {
     public void updateHonor(Long honorId, StudentHonor honor) {
         StudentHonor existing = honorMapper.selectById(honorId);
         if (existing == null) throw new BusinessException("荣誉记录不存在");
+        if (honor != null && honor.getAwardDate() != null && honor.getAwardDate().isAfter(java.time.LocalDate.now())) {
+            throw new BusinessException("获奖日期不能晚于当前日期");
+        }
         honor.setId(honorId);
         honorMapper.updateById(honor);
     }
@@ -223,8 +237,13 @@ public class StudentService {
         profile.put("roleLevel", user.getRoleLevel());
 
         if (showSensitive && user.getIdCardEnc() != null) {
-            String decrypted = EncryptUtil.decrypt(user.getIdCardEnc());
-            profile.put("idCard", EncryptUtil.desensitize(decrypted, 3, 4));
+            // 个别历史数据可能不是合法密文 (手工导入/换过密钥), 解密失败时降级显示, 不让详情接口 500
+            try {
+                String decrypted = EncryptUtil.decrypt(user.getIdCardEnc());
+                profile.put("idCard", EncryptUtil.desensitize(decrypted, 3, 4));
+            } catch (Exception e) {
+                profile.put("idCard", "******");
+            }
         }
         return profile;
     }
