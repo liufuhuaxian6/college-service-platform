@@ -60,6 +60,7 @@ export const qaApi = {
 // ==================== 党团 ====================
 export const partyApi = {
   getTemplates: () => request({ url: '/party/templates' }),
+  getTemplateSteps: (id) => request({ url: `/party/templates/${id}/steps` }),
   getMyProgress: () => request({ url: '/party/my-progress' }),
   getProgressDetail: (id) => request({ url: `/party/my-progress/${id}` }),
 }

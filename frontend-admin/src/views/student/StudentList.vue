@@ -133,7 +133,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="获奖日期" required>
-          <el-date-picker v-model="honorForm.awardDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择获奖日期" style="width: 100%" />
+          <el-date-picker v-model="honorForm.awardDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择获奖日期" style="width: 100%" :disabled-date="disableFutureDate" />
         </el-form-item>
         <el-form-item label="证书文件"><el-input v-model="honorForm.certFile" placeholder="可填写证书文件路径或编号" /></el-form-item>
       </el-form>
@@ -228,6 +228,11 @@ function showHonorDialog() {
   honorForm.awardDate = ''
   honorForm.certFile = ''
   honorVisible.value = true
+}
+
+// 禁止选择未来日期 (获奖日期不能晚于今天)
+function disableFutureDate(date) {
+  return date.getTime() > Date.now()
 }
 
 function validateHonorForm() {

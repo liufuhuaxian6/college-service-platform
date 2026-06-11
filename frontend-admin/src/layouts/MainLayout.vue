@@ -50,14 +50,18 @@
           <el-button text class="collapse-btn" @click="isCollapse = !isCollapse">
             <el-icon><Fold v-if="!isCollapse" /><Expand v-else /></el-icon>
           </el-button>
-          <div class="route-title">
-            <span>{{ $route.meta.title || '工作台' }}</span>
-            <small>学院学生综合服务与党团管理平台</small>
-          </div>
+          <el-button v-if="$route.path !== '/dashboard'" text class="back-btn" @click="goBack">
+            <el-icon><Back /></el-icon>返回
+          </el-button>
+          <el-breadcrumb separator="/" class="crumb">
+            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="breadcrumb.group">{{ breadcrumb.group }}</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ breadcrumb.current }}</el-breadcrumb-item>
+          </el-breadcrumb>
         </div>
         <div class="header-right">
           <el-badge :value="unreadCount" :hidden="!unreadCount" class="notify-badge">
-            <el-button text circle>
+            <el-button text circle @click="openNotify">
               <el-icon :size="18"><Bell /></el-icon>
             </el-button>
           </el-badge>
@@ -100,16 +104,43 @@
       <el-button type="primary" :loading="pwdSubmitting" @click="submitPassword">确定</el-button>
     </template>
   </el-dialog>
+
+  <!-- 消息中心 -->
+  <el-drawer v-model="notifyVisible" title="消息中心" size="420px">
+    <div class="notify-toolbar">
+      <span class="notify-count">未读 {{ unreadCount }} 条</span>
+      <el-button v-if="unreadCount" link type="primary" @click="markAllRead">全部已读</el-button>
+    </div>
+    <el-empty v-if="!notifyLoading && !notifyList.length" description="暂无消息" />
+    <div v-else v-loading="notifyLoading" class="notify-list">
+      <div
+        v-for="n in notifyList"
+        :key="n.id"
+        class="notify-item"
+        :class="{ unread: !n.isRead }"
+        @click="readOne(n)"
+      >
+        <div class="notify-item__head">
+          <span class="notify-item__title">{{ n.title }}</span>
+          <span v-if="!n.isRead" class="notify-dot" />
+        </div>
+        <div class="notify-item__body">{{ n.content }}</div>
+        <div class="notify-item__time">{{ formatDateTime(n.createdAt) }}</div>
+      </div>
+    </div>
+  </el-drawer>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { notifyApi, authApi } from '@/api'
+import { formatDateTime } from '@/utils/time'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const isCollapse = ref(false)
 const unreadCount = ref(0)
@@ -152,9 +183,66 @@ const menuItems = [
   },
 ]
 
+// 面包屑: 首页 / 分组 / 当前页 (分组从菜单结构里反查当前路由所属的父级菜单)
+const breadcrumb = computed(() => {
+  const path = route.path
+  const current = route.meta.title || '工作台'
+  let group = ''
+  for (const item of menuItems) {
+    if (item.children && item.children.some(c => c.path === path)) {
+      group = item.title
+      break
+    }
+  }
+  return { group, current }
+})
+
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/dashboard')
+}
+
 const pwdVisible = ref(false)
 const pwdSubmitting = ref(false)
 const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
+// ===== 消息中心 =====
+const notifyVisible = ref(false)
+const notifyLoading = ref(false)
+const notifyList = ref([])
+
+async function loadNotifyList() {
+  notifyLoading.value = true
+  try {
+    const res = await notifyApi.getPage({ page: 1, size: 30 })
+    notifyList.value = res.data?.records || []
+  } finally {
+    notifyLoading.value = false
+  }
+}
+
+async function openNotify() {
+  notifyVisible.value = true
+  await loadNotifyList()
+}
+
+async function readOne(n) {
+  if (n.isRead) return
+  try {
+    await notifyApi.markRead(n.id)
+    n.isRead = true
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  } catch (e) { /* ignore */ }
+}
+
+async function markAllRead() {
+  try {
+    await notifyApi.markAllRead()
+    notifyList.value.forEach(n => { n.isRead = true })
+    unreadCount.value = 0
+    ElMessage.success('已全部标记为已读')
+  } catch (e) { /* ignore */ }
+}
 
 function handleCommand(cmd) {
   if (cmd === 'logout') {
@@ -301,6 +389,82 @@ onMounted(async () => {
 
 .collapse-btn {
   color: var(--app-text-regular);
+}
+
+.back-btn {
+  color: var(--app-text-regular);
+  font-size: 13px;
+}
+
+.crumb {
+  font-size: 14px;
+}
+
+.notify-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.notify-count {
+  color: var(--app-text-secondary);
+  font-size: 13px;
+}
+
+.notify-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notify-item {
+  padding: 12px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.notify-item:hover {
+  background: var(--app-bg);
+}
+
+.notify-item.unread {
+  border-color: var(--app-primary);
+  background: rgba(155, 44, 54, 0.04);
+}
+
+.notify-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notify-item__title {
+  font-weight: 650;
+  color: var(--app-text);
+}
+
+.notify-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--app-primary);
+  flex-shrink: 0;
+}
+
+.notify-item__body {
+  margin-top: 6px;
+  color: var(--app-text-regular);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notify-item__time {
+  margin-top: 8px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
 }
 
 .route-title {
