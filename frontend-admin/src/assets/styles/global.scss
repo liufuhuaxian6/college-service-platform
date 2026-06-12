@@ -1,36 +1,154 @@
 @use './theme.scss';
 
+/* =====================================================================
+ * 全局基础 + Element Plus 视觉重写
+ * 业务页面统一依赖这里的组件级样式, 单页只写布局
+ * ===================================================================== */
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
-  font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--app-font-body);
   font-size: 14px;
   color: var(--app-text);
   background-color: var(--app-bg);
 }
 
+::selection {
+  background: var(--app-primary-soft);
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
-  border-radius: 3px;
+  background: #CFC9C5;
+  border-radius: 4px;
+
+  &:hover {
+    background: #B9B2AE;
+  }
 }
 
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ===== 菜单 ===== */
 .el-menu {
   border-right: none !important;
 }
 
+/* ===== 按钮 ===== */
 .el-button {
   font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s var(--app-ease);
 }
 
+.el-button--small {
+  border-radius: 7px;
+}
+
+/* 主按钮: 红渐变 + 浮起 */
+.el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
+  border: none;
+  background: var(--app-red-gradient);
+  box-shadow: 0 2px 8px rgba(157, 34, 53, 0.22);
+
+  &:hover {
+    background: linear-gradient(152deg, #AB2A3E 0%, #8E2031 56%, #751A28 100%);
+    box-shadow: 0 4px 14px rgba(157, 34, 53, 0.30);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+/* 默认按钮: 悬停红化 */
+.el-button--default:not(.is-text):not(.is-link) {
+  &:hover,
+  &:focus {
+    color: var(--app-primary);
+    border-color: var(--app-primary-soft);
+    background-color: var(--app-primary-light);
+  }
+}
+
+/* ===== 输入框 / 选择框 / 文本域: 统一暖底 + 红色聚焦环 ===== */
+.el-input__wrapper,
+.el-select__wrapper {
+  border-radius: 8px;
+  background-color: #FCFBFA;
+  box-shadow: 0 0 0 1px var(--app-border) inset;
+  transition: box-shadow 0.2s var(--app-ease), background-color 0.2s var(--app-ease);
+
+  &:hover {
+    box-shadow: 0 0 0 1px #C8B4B8 inset;
+  }
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  background-color: #fff;
+  box-shadow: 0 0 0 1.5px var(--app-primary) inset, 0 0 0 3px var(--app-primary-glow) !important;
+}
+
+.el-textarea__inner {
+  border-radius: 8px;
+  background-color: #FCFBFA;
+  box-shadow: 0 0 0 1px var(--app-border) inset;
+  transition: box-shadow 0.2s var(--app-ease), background-color 0.2s var(--app-ease);
+
+  &:hover {
+    box-shadow: 0 0 0 1px #C8B4B8 inset;
+  }
+
+  &:focus {
+    background-color: #fff;
+    box-shadow: 0 0 0 1.5px var(--app-primary) inset, 0 0 0 3px var(--app-primary-glow);
+  }
+}
+
+/* 禁用态保持灰底 */
+.el-input.is-disabled .el-input__wrapper {
+  background-color: var(--app-info-bg);
+  box-shadow: 0 0 0 1px var(--app-border-light) inset;
+}
+
+/* 下拉面板与选项 */
+.el-select-dropdown {
+  border-radius: 10px;
+
+  .el-select-dropdown__item.is-selected {
+    font-weight: 600;
+  }
+
+  .el-select-dropdown__item.is-hovering {
+    background-color: var(--app-primary-light);
+  }
+}
+
+/* 数字输入 / 日期选择沿用输入框风格 (内部均为 el-input) */
+.el-input-number .el-input-number__decrease,
+.el-input-number .el-input-number__increase {
+  background: transparent;
+}
+
+/* ===== 卡片 / 弹窗 / 抽屉 ===== */
 .el-card,
 .el-dialog {
   border-radius: var(--app-radius-lg);
@@ -40,20 +158,143 @@ body {
   border-color: var(--app-border);
 }
 
-.el-table {
-  --el-table-header-bg-color: #FAFAFB;
-  --el-table-header-text-color: var(--app-text-regular);
-  --el-table-border-color: var(--app-border-light);
+.el-dialog {
+  overflow: hidden;
+  margin-top: 7vh !important;
+
+  .el-dialog__header {
+    padding: 18px 22px 14px;
+    margin-right: 0;
+    border-bottom: 1px solid var(--app-border-light);
+  }
+
+  .el-dialog__title {
+    font-family: var(--app-font-display);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  /* 长内容(如 29 步流程模板编辑)在弹窗体内滚动, 避免弹窗超出视口被遮挡 */
+  .el-dialog__body {
+    padding: 22px;
+    max-height: 66vh;
+    overflow-y: auto;
+  }
+
+  .el-dialog__footer {
+    padding: 14px 22px 18px;
+    border-top: 1px solid var(--app-border-light);
+  }
 }
 
+.el-drawer {
+  .el-drawer__header {
+    padding: 18px 22px 14px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--app-border-light);
+  }
+
+  .el-drawer__title {
+    color: var(--app-text);
+    font-family: var(--app-font-display);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .el-drawer__body {
+    padding: 20px 22px;
+  }
+}
+
+.el-message-box__title {
+  font-weight: 650;
+}
+
+/* ===== 表格 ===== */
+.el-table {
+  --el-table-header-bg-color: #FBF4F2;
+  --el-table-header-text-color: var(--app-primary-deep);
+  --el-table-border-color: var(--app-border-light);
+  --el-table-row-hover-bg-color: #FAF5F3;
+  border-radius: var(--app-radius);
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.el-table .el-table__cell {
+  padding: 10px 0;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: #FBFAF8;
+}
+
+/* ===== 表单 / 输入 ===== */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  transition: box-shadow 0.2s var(--app-ease);
+}
+
+.el-form-item__label {
+  font-weight: 500;
+  color: var(--app-text-regular);
+}
+
+/* ===== 分页 ===== */
+.el-pagination {
+  --el-pagination-button-bg-color: transparent;
+
+  .el-pager li {
+    border-radius: 6px;
+    font-weight: 500;
+  }
+}
+
+/* ===== Descriptions ===== */
+.el-descriptions__label {
+  font-weight: 500;
+}
+
+/* ===== Tag ===== */
+.el-tag {
+  border-radius: 999px;
+}
+
+/* ===== 页面骨架 ===== */
 .app-page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  /* 进场只做透明度: transform 会让页面容器成为 fixed 弹窗遮罩的包含块, 导致 el-dialog 被裁剪 */
+  animation: page-in 0.32s var(--app-ease);
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .table-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 14px;
+  margin-top: 16px;
+}
+
+/* 表格单元里的次级文字 (学号等) */
+.cell-sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.2;
 }

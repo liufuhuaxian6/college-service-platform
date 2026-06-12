@@ -19,26 +19,38 @@
       </el-form>
     </FilterBar>
 
-    <DataPanel title="文档列表">
-      <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column prop="title" label="文档标题" min-width="260" show-overflow-tooltip />
-        <el-table-column prop="category" label="分类" width="140" />
-        <el-table-column prop="fileSize" label="大小" width="120">
-          <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
-        </el-table-column>
-        <el-table-column prop="downloadCount" label="下载次数" width="110" />
-        <el-table-column label="最近更新" width="150" :formatter="row => formatDateTime(row.updatedAt || row.createdAt)" />
-        <el-table-column label="操作" width="240" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="download(row)">下载</el-button>
-            <el-button link type="success" :loading="indexingId === row.id" @click="indexDocument(row)">向量入库</el-button>
-            <el-popconfirm title="确定删除该文档吗？" @confirm="handleDelete(row.id)">
-              <template #reference><el-button link type="danger">删除</el-button></template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-    </DataPanel>
+    <!-- 文档卡片网格 -->
+    <div v-loading="loading" class="doc-grid">
+      <div v-for="row in list" :key="row.id" class="doc-card">
+        <div class="doc-card__main">
+          <span class="file-badge" :class="fileBadgeClass(row)">{{ fileExt(row) }}</span>
+          <div class="doc-card__info">
+            <h3 class="doc-title" :title="row.title">{{ row.title }}</h3>
+            <div class="doc-meta">
+              <span v-if="row.category" class="doc-chip">{{ row.category }}</span>
+              <span class="doc-meta-text">{{ formatSize(row.fileSize) }} · {{ row.downloadCount || 0 }} 次下载</span>
+            </div>
+            <span class="doc-time">更新于 {{ formatDateTime(row.updatedAt || row.createdAt) }}</span>
+          </div>
+        </div>
+        <div class="doc-card__actions">
+          <el-button size="small" @click="download(row)">下载</el-button>
+          <el-button size="small" type="primary" plain :loading="indexingId === row.id" @click="indexDocument(row)">
+            向量入库
+          </el-button>
+          <el-popconfirm title="确定删除该文档吗？" @confirm="handleDelete(row.id)">
+            <template #reference><el-button size="small" type="danger" plain>删除</el-button></template>
+          </el-popconfirm>
+        </div>
+      </div>
+
+      <EmptyState
+        v-if="!loading && !list.length"
+        class="doc-empty"
+        title="暂无政策文档"
+        description="点击右上角「上传文档」, 上传后执行向量入库即可供学生端智能问答检索。"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" title="上传政策文档" width="540px">
       <el-form :model="form" label-width="90px">
@@ -74,7 +86,7 @@ import { useUserStore } from '@/stores/user'
 import router from '@/router'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
-import DataPanel from '@/components/common/DataPanel.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 
 const loading = ref(false)
 const uploading = ref(false)
@@ -227,6 +239,21 @@ function formatSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + 'MB'
 }
 
+function fileExt(row) {
+  const m = (row.fileName || row.filePath || '').match(/\.([a-zA-Z0-9]+)$/)
+  return m ? m[1].toUpperCase().slice(0, 4) : 'DOC'
+}
+
+function fileBadgeClass(row) {
+  const ext = fileExt(row).toLowerCase()
+  if (ext === 'pdf') return 'badge-pdf'
+  if (['doc', 'docx'].includes(ext)) return 'badge-doc'
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'badge-xls'
+  if (['ppt', 'pptx'].includes(ext)) return 'badge-ppt'
+  if (['txt', 'md'].includes(ext)) return 'badge-txt'
+  return 'badge-other'
+}
+
 function parseDownloadFilename(disposition) {
   if (!disposition) return ''
   const match = disposition.match(/filename\*\=UTF-8''([^;]+)/i)
@@ -239,10 +266,135 @@ function parseDownloadFilename(disposition) {
 onMounted(loadData)
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .upload-tip {
   margin-top: 6px;
   color: var(--app-text-secondary);
   font-size: 12px;
+}
+
+/* ===== 文档卡片网格 ===== */
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 14px;
+  min-height: 150px;
+}
+
+.doc-empty {
+  grid-column: 1 / -1;
+}
+
+.doc-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  background: var(--app-panel);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  transition: transform 0.2s var(--app-ease), box-shadow 0.2s var(--app-ease), border-color 0.2s var(--app-ease);
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--app-primary-soft);
+    box-shadow: var(--app-shadow);
+  }
+}
+
+.doc-card__main {
+  display: flex;
+  gap: 14px;
+}
+
+/* 文件类型徽标 (折角文件造型) */
+.file-badge {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 54px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 7px;
+  position: relative;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, transparent 0 10px, currentColor 10px);
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.45);
+    border-bottom-left-radius: 4px;
+  }
+}
+
+.badge-pdf { color: #C2453A; }
+.badge-doc { color: #3568A8; }
+.badge-xls { color: #2F7D55; }
+.badge-ppt { color: #C77023; }
+.badge-txt { color: #6E7681; }
+.badge-other { color: #9D2235; }
+
+.doc-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-title {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.doc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.doc-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--app-primary-light);
+  color: var(--app-primary);
+  font-size: 12px;
+}
+
+.doc-meta-text {
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+}
+
+.doc-time {
+  display: block;
+  margin-top: 6px;
+  color: var(--app-text-placeholder);
+  font-size: 12px;
+}
+
+.doc-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border-light);
 }
 </style>

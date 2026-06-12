@@ -302,7 +302,8 @@
 |------|------|
 | `package.json` | npm 依赖：Vue3、Vue Router、Pinia、Element Plus、Axios、ECharts、xlsx |
 | `vite.config.js` | Vite 构建配置。路径别名 `@` → `src`，开发服务器端口 5173，代理 `/api` 到后端 8080 避免跨域 |
-| `index.html` | HTML 入口，标题"学院综合服务管理平台" |
+| `index.html` | HTML 入口，标题"学院综合服务平台 · 中国人民大学"，引用 `public/favicon.svg`（中国人民大学校徽图标） |
+| `public/favicon.svg` | 中国人民大学校徽站点图标 |
 
 ### 4.2 核心架构
 
@@ -310,14 +311,16 @@
 |------|------|
 | `src/main.js` | 应用入口。创建 Vue 实例，安装 Pinia(状态管理)、Vue Router(路由)、Element Plus(UI组件库+中文语言包)，注册所有 Element Plus 图标 |
 | `src/App.vue` | 根组件，只有一个 `<router-view />`，所有页面通过路由渲染 |
-| `src/assets/styles/global.scss` | 全局样式。严谨正式风格（微软雅黑字体、#f0f2f5 背景、简洁滚动条） |
+| `src/assets/styles/theme.scss` | 设计令牌 v2：**人大红主题**（Pantone 201C `#9D2235`）、鎏金点缀色、暖纸灰中性色、语义色 + 背景对、圆角/阴影/缓动/深红渐变变量、衬线标题字体变量，并全量覆写 Element Plus 变量（主色阶/语义色/文字/边框/圆角） |
+| `src/assets/styles/global.scss` | 全局样式 + Element Plus 组件级视觉重写：按钮悬浮微动效、表格红调表头与悬停行、弹窗/抽屉衬线标题与分隔线、分页圆角、`.app-page` 页面进场动画、`.cell-sub` 等通用类 |
+| `src/components/common/RucSeal.vue` | 人大元素组件：`<img>` 渲染**中国人民大学真实校徽**（`assets/ruc-logo.svg` 红色版 / `ruc-logo-white.svg` 白色版，深色背景自动用白版），用于登录页、侧边栏品牌区与数据概览横幅 |
 
 ### 4.3 API 层
 
 | 文件 | 用途 |
 |------|------|
-| `src/api/request.js` | Axios 封装。请求拦截器自动注入 Token，响应拦截器统一处理错误（401 跳登录、其他弹 ElMessage 提示）|
-| `src/api/index.js` | 全部 API 函数，按模块分组导出：`authApi`(认证)、`systemApi`(用户管理)、`logApi`(日志)、`notifyApi`(通知)、`qaApi`(问答)、`partyApi`(党团)、`approvalApi`(审批)、`studentApi`(学生)、`fileApi`(文件)。C 同学直接 import 使用，不需要关心具体 URL |
+| `src/api/request.js` | Axios 封装。请求拦截器自动注入 Token，响应拦截器统一处理错误（业务码 401 与 **HTTP 401** 均会清登录态并跳登录页、其他弹 ElMessage 提示）|
+| `src/api/index.js` | 全部 API 函数，按模块分组导出：`authApi`(认证)、`systemApi`(用户管理)、`logApi`(日志)、`notifyApi`(通知)、`qaApi`(问答)、`partyApi`(党团)、`approvalApi`(审批, 含 `getTypes` 证明类型下拉)、`studentApi`(学生)、`fileApi`(文件)。C 同学直接 import 使用，不需要关心具体 URL |
 
 ### 4.4 状态管理
 
@@ -329,31 +332,30 @@
 
 | 文件 | 用途 |
 |------|------|
-| `src/router/index.js` | 路由配置。`/login` 登录页(不需要认证)，`/` 下嵌套主布局和全部子页面。每个路由有 `meta.minRole` 控制权限。路由守卫：未登录跳 `/login`，权限不足时 `logout()` 并跳 `/login?reason=role`(避免与 dashboard 的 minRole 互弹死循环) |
+| `src/router/index.js` | 路由配置。`/login` 登录页(不需要认证)，`/` 下嵌套主布局和全部子页面。每个路由有 `meta.minRole` 控制权限。审批两页合并：`/approval/center` 审批中心，旧路径 `/approval/pending`、`/approval/all` 重定向到 center 并携带 `tab` 参数（保持深链兼容）。路由守卫：未登录跳 `/login`；权限不足时**班团骨干(3级)重定向到 `/student/list`**（其唯一可用页），学生(4级) `logout()` 并跳 `/login?reason=role`(避免与 dashboard 的 minRole 互弹死循环) |
 
 ### 4.6 布局
 
 | 文件 | 用途 |
 |------|------|
-| `src/layouts/MainLayout.vue` | 管理端主布局。左侧暗红深色导航栏（根据 roleLevel 动态显示/隐藏菜单项，可折叠）+ 顶栏（面包屑、通知铃铛+未读数、用户下拉菜单：改密码/退出）+ 右侧内容区。暗红/灰白/白色严谨配色 |
+| `src/layouts/MainLayout.vue` | 管理端主布局 v3。**顶部人大红品牌栏**（校徽 + 衬线平台全名 + "实事求是"校训 + 通知铃铛 + 描边胶囊用户块"姓名·角色"下拉：改密码/退出）+ **左侧浅色分组扁平导航**（分组标签[总览/智能问答/党团流程/审批服务/学生工作/系统管理] + router-link 直达条目，active 红底鎏金指示条；按 roleLevel computed 过滤——分组内条目全部无权限时整组隐藏；底部校徽签名）+ 内容区 router-view 渐变切换动画 |
 
 ### 4.7 页面 (`src/views/`)
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `views/login/index.vue` | 登录页 | 学号+密码表单，低饱和暗红主题，白色表单区，调 authApi.login 后存 Store 跳转；**4 级学生直接拒绝**(提示用小程序，不写登录态)，`?reason=role` 进入时自动提示 |
-| `views/dashboard/index.vue` | 数据概览 | 四个统计卡片（在校学生/总用户/待审批/进行中流程），调 systemApi.getDashboard |
-| `views/qa/KnowledgeList.vue` | 知识库管理 | 分类+关键词筛选、表格列表、新增/编辑弹窗、删除确认 |
-| `views/qa/DocumentList.vue` | 政策文档管理 | 文档列表、上传(限30MB)、下载、删除、「重新索引」触发 RAG 入库 |
-| `views/qa/TemplateList.vue` | 办公模板管理 | 与文档管理同构，但仅显示/操作 `doc_type=template` 的记录（请假条/活动预算表/简报等） |
-| `views/party/TemplateList.vue` | 流程模板管理 | 模板列表(名称/步骤数/描述/状态) + 新建/编辑弹窗（含步骤名称/描述/预计天数/所需材料的动态增删 + 前端校验），编辑时通过 `getTemplateDetail` 回填现有步骤 |
-| `views/party/InstanceList.vue` | 学生流程管理 | 按模板/状态筛选、表格列表、推进(弹窗填备注)/暂停操作 |
-| `views/approval/PendingList.vue` | 待审批列表 | 申请编号/申请人/类型/时间、通过(填意见)/驳回(必填原因)/查看详情 |
-| `views/approval/AllList.vue` | 全部申请 | 按状态筛选(6种)、状态标签颜色区分、管理员撤回(仅 approved 且未下载)、已锁定显示标签 |
-| `views/student/StudentList.vue` | 学生信息 | 身份(普通学生/骨干)+年级/专业/班级**下拉筛选**、表格列表(学号/姓名/身份标签/年级/专业/班级/手机/邮箱)、查看详情抽屉（画像、荣誉、流程、申请汇总） |
-| `views/system/UserList.vue` | 用户管理 | 用户列表(角色标签颜色、邮箱列)、身份+年级/专业/班级**下拉筛选**、Excel 导入按钮、**导出学生名单**(弹确认框说明范围, 普通学生+骨干, 含身份列)、编辑用户基础信息和邮箱、设置角色(1-4) |
-| `views/system/LogList.vue` | 操作日志 | 按模块/时间范围筛选、表格列表(操作人/模块/操作/IP/时间) |
-| `views/system/NotificationBroadcast.vue` | 通知群发 | 双 tab：**群发新通知**（标题/正文/标签/来源/链接 + 接收对象多选[普通学生/骨干/老师/院领导] + 年级/专业/班级下拉[仅对学生生效] + 渠道勾选 + 预览目标人数[按角色拆分]）；**广播历史**（命中/已读/邮件数 + 状态徽标 + 24h 内撤回按钮） |
+| `views/login/index.vue` | 登录页 | 全屏人大红渐变 + 装饰圆环 + 大尺寸校徽水印背景：顶部品牌条（校徽 + 中英文校名 + "实事求是"校训），中部左介绍区（衬线平台名 + 功能标签）/ 右鎏金顶边登录卡；调 authApi.login 后存 Store 跳转（**骨干落 `/student/list`，其余落 `/dashboard`**）；**4 级学生直接拒绝**(提示用小程序，不写登录态)，`?reason=role` 进入时自动提示 |
+| `views/dashboard/index.vue` | 工作台 | 人大红欢迎横幅（日期徽章 + 衬线问候语 + 今日待办摘要 + 校徽水印与印章）、四个统计卡片、左列图表（近 7 日趋势线 + 审批状态饼图 + 党团模板柱状图）、右列**待办审批列表（可页内直接通过/驳回**，调 approvalApi，点击进审批中心详情）+ 六宫格快捷入口，调 systemApi.getDashboard |
+| `views/qa/KnowledgeList.vue` | 知识库管理 | **分类标签条**（点击即筛）+ 关键词搜索；条目以**问/答卡片**展示（红"问"章 + 金"答"章 + 答案三行截断 + 关键词 chips + 官方链接，悬停浮现编辑/删除）、新增/编辑弹窗 |
+| `views/qa/DocumentList.vue` | 政策文档管理 | **文档卡片网格**（折角文件类型徽标按扩展名配色 + 分类 chip + 大小/下载次数/更新时间 + 卡内操作按钮）、上传(限30MB)、下载、删除、「向量入库」触发 RAG 入库 |
+| `views/qa/TemplateList.vue` | 办公模板管理 | **模板卡片网格**（红图标章 + 适用范围 + 元信息；**占位待传卡为虚线琥珀边 + 金色图标**），下载/补传/替换/删除；仅操作 `doc_type=template` 的记录 |
+| `views/party/TemplateList.vue` | 流程模板管理 | **模板卡片网格**（图标章 + 名称/描述/节点数/状态 + 虚线"新建"卡片，点击卡片编辑）+ 新建/编辑弹窗（含步骤名称/描述/预计天数/所需材料的动态增删 + 前端校验），编辑时通过 `getTemplateDetail` 回填现有步骤 |
+| `views/party/InstanceList.vue` | 学生流程管理 | 按模板/状态/学生筛选；**流程进度卡片列表**（左侧红色细条 + 学号姓名 + 模板名 + 红金渐变进度条"第 N 步/共 M 步" + 状态徽标 + 卡内推进/暂停/恢复/删除按钮） |
+| `views/approval/ApprovalCenter.vue` | 审批中心 | **待审批 / 全部申请合并为一页**：分段切换条（待审批带数量角标）+ 按 Tab 切换筛选项（证明类型 / 状态+申请人ID）；行点击打开详情抽屉，**抽屉内直接审批**（意见输入 + 通过/驳回，驳回必填）、管理员撤回重批(仅 approved 且未下载，原因必填)、已锁定显示提示；支持 `?openId=` 深链自动弹详情（工作台跳转） |
+| `views/student/StudentList.vue` | 学生信息 | 身份(普通学生/骨干)+年级/专业/班级**下拉筛选**；**人员行表格**（姓名+骨干标签/学号堆叠列、班级信息/联系方式合并列，无头像），整行可点；详情抽屉顶部为**人大红画像头卡**（基本信息 + 荣誉/流程/申请汇总数字）+ 荣誉/流程/申请三块 |
+| `views/system/UserList.vue` | 用户管理 | **人员行表格**（姓名/学号堆叠、角色彩色圆标签、班级/联系方式合并列、状态呼吸圆点，无头像）、身份+年级/专业/班级**下拉筛选**、Excel 导入、**导出学生名单**(弹确认框说明范围)、编辑用户、设置角色(1-4) |
+| `views/system/LogList.vue` | 操作日志 | 按模块/时间范围筛选；**审计时间线**展示（左侧时刻/日期 + 模块彩色圆点轨道 + 模块徽标 + 操作内容 + 操作人/IP） |
+| `views/system/NotificationBroadcast.vue` | 通知群发 | 双 tab：**群发新通知**为双栏布局——左"通知内容"（标题/正文/标签/来源+链接，label 置顶），右"发送设置"（接收对象多选分组框[普通学生/骨干/老师/院领导] + 年级/专业/班级级联下拉[仅对学生生效] + 渠道勾选 + **人数预览块**大数字按角色拆分 + 重置/确认群发）；**广播历史**（命中/已读/邮件数 + 状态徽标 + 24h 内撤回按钮） |
 
 ---
 
@@ -365,7 +367,9 @@
 |------|------|
 | `package.json` | npm 依赖：uni-app 系列(@dcloudio/*)、Vue3、Pinia |
 | `vite.config.js` | Vite + uni-app 插件 |
-| `src/pages.json` | 页面路由配置 + 全局样式(导航栏低饱和暗红) + TabBar 配置(首页/问答/申请/我的 四个标签页) |
+| `src/pages.json` | 页面路由配置 + 全局样式(导航栏人大红 `#9D2235`) + TabBar 配置(首页/问答/申请/我的 四个标签页) |
+| `src/styles/theme.css` | 设计令牌 v2：人大红主题、鎏金点缀、暖纸灰中性色、语义色 + 背景对、红色渐变/阴影/圆角/衬线字体变量，与管理端 theme.scss 同源 |
+| `src/components/RucSeal.vue` | 人大元素组件：`<image>` 渲染中国人民大学校徽（`static/ruc-logo.svg` / `ruc-logo-white.svg`，深色背景用白版），用于登录页与首页 hero |
 | `src/manifest.json` | 小程序配置：appid(待填)、H5 开发代理(指向 localhost:8080) |
 
 ### 5.2 核心架构
@@ -373,7 +377,7 @@
 | 文件 | 用途 |
 |------|------|
 | `src/main.js` | SSR 模式创建 Vue 实例，安装 Pinia |
-| `src/App.vue` | 根组件，设置全局样式(#f0f2f5 背景、平方字体) |
+| `src/App.vue` | 根组件，设置全局样式（暖纸灰背景、苹方字体）+ 全局通用类：`.mp-page-bg` 页面渐变底、`.mp-hero` 深红横幅、`.mp-hero-seal` 校徽水印、`.mp-card` 白卡、`.mp-eyebrow` 眉题章，各页面复用保证风格统一 |
 | `src/api/index.js` | 基于 `uni.request` 封装的请求工具。自动注入 Token，统一错误处理(401 跳登录)。开发环境默认 `http://localhost:8080/api`，生产环境默认 `http://10.10.0.27/api`，可用 `VITE_API_BASE_URL` 覆盖。导出全部 API：authApi、qaApi、partyApi、approvalApi、studentApi、notifyApi |
 | `src/stores/user.js` | Pinia Store，使用 `uni.getStorageSync/setStorageSync` 替代 localStorage（小程序环境）|
 
@@ -381,15 +385,15 @@
 
 | 文件 | 页面 | 功能 |
 |------|------|------|
-| `pages/login/index.vue` | 登录页 | 暗红主题品牌区 + 白色表单卡片，密码输入隐藏，学号+密码登录后 switchTab 到首页；**仅学生可登**：4 级学生/3 级骨干放行，1 级院领导/2 级老师弹窗拒绝(请用管理端，不写登录态) |
-| `pages/index/index.vue` | 首页(TabBar) | 欢迎头部(姓名+学院+通知铃铛)、四宫格入口(智能问答/政策文档/党团进度/我的申请)、最新通知列表 |
-| `pages/qa/index.vue` | 智能问答(TabBar) | **移动端 AI 应用式聊天界面**。消息气泡(用户右侧暗红/系统左侧白色)、快捷问题标签、AI 回答标注"仅供参考"、官方链接可复制、底部输入框+发送按钮 |
+| `pages/login/index.vue` | 登录页 | **全屏人大红沉浸式**：巨型校徽水印 + 同心圆环背景、居中校徽 + 大号衬线"中国人民大学" + 英文校名 + 鎏金"信息学院"分隔 + 平台全名，鎏金顶边白色登录卡，底部"实事求是"校训；学号+密码登录后 switchTab 到首页；**仅学生可登**：4 级学生/3 级骨干放行，1 级院领导/2 级老师弹窗拒绝(请用管理端，不写登录态) |
+| `pages/index/index.vue` | 首页·服务大厅(TabBar) | 人大红 hero 两行结构（第一行校徽+校名品牌区+通知铃铛，第二行大号衬线问候语+鎏金下划线）、**悬浮搜索式问答入口**（CSS 放大镜 + 红渐变提问按钮）、**我的事项速览**（审批中申请数 + 党团流程进度条）、**通栏横排服务行卡**（SVG 线条图标 + 徽标 + 描述 + 箭头，`static/icons/`）、最新通知列表、底部页脚 |
+| `pages/qa/index.vue` | 智能问答(TabBar) | **沉浸式聊天**：未开始对话时为欢迎首屏（红色校徽 + 衬线标题 + 推荐问题卡片列表），发问后切换为纯对话流（用户右侧暗红/AI 左侧白色气泡、打字呼吸动画、参考依据面板）、底部快捷标签 + 输入框 + 发送按钮 |
 | `pages/qa/document.vue` | 政策文档 | 文档列表(标题/分类/大小/下载次数)、点击下载 |
-| `pages/party/index.vue` | 党团进度 | 我的所有流程卡片：流程名称+状态标签+进度圆点条(绿=完成/蓝=当前/灰=未到)+当前步骤名 |
-| `pages/party/detail.vue` | 流程详情 | 纵向时间线：每个步骤圆点+名称+描述+完成时间/预计天数 |
-| `pages/approval/index.vue` | 我的申请(TabBar) | 申请列表(编号+状态标签)。approved 状态显示"下载证明"按钮(**弹窗警告"下载后锁定不可撤回"**)、pending 状态显示"撤回"按钮、downloaded 状态显示"已锁定归档"、底部"提交新申请"按钮 |
-| `pages/approval/apply.vue` | 提交申请 | 现代卡片式提交页。先选择证明类型和办公模板，再调用 `getTemplateFields` 动态渲染文本/下拉/日期字段；提交 `typeId + templateDocId + formData`，由后端固定模板生成证明正文 |
-| `pages/profile/index.vue` | 个人中心(TabBar) | 头像+姓名+学号；**联系方式卡片**（邮箱/手机，点击 `uni.showModal` 编辑，含正则校验，清空回落默认派生）；荣誉列表；退出登录 |
+| `pages/party/index.vue` | 党团进度 | 我的流程卡片：**左侧百分比环** + 流程名 + 状态标签 + "第 N/M 步 · 当前步骤名" + 红金渐变进度条；下方官方流程模板入口 |
+| `pages/party/detail.vue` | 流程详情 | **阶段手风琴**：阶段头可点击展开/收起（菱形状态标记 + 完成数/步骤区间 + 进行中徽标），默认展开当前所在阶段；展开后为纵向时间线（步骤圆点+名称+描述+完成时间/预计天数） |
+| `pages/approval/index.vue` | 我的申请(TabBar) | 统计三色卡（待审批/可下载/已归档）+ **横向状态筛选标签**（本地过滤）+ 申请卡片列表（**左侧状态色条**：待审批琥珀/已通过绿/已驳回红/已归档灰）。approved 显示"下载证明"(**弹窗警告"下载后锁定不可撤回"**)、pending 显示"撤回"、downloaded 显示"已锁定归档"、底部"提交新申请" |
+| `pages/approval/apply.vue` | 提交申请 | **三步向导**：① 选择证明模板（卡片单选，选中即调 `getTemplateFields`）② 填写信息（档案信息自动带入 + 动态文本/下拉/日期字段，必填校验）③ 确认提交（档案/补充信息汇总卡 + 锁定提示）；顶部步骤指示器，底部上一步/下一步/确认提交；提交 `templateDocId + formData`，由后端固定模板生成证明正文 |
+| `pages/profile/index.vue` | 个人中心(TabBar) | **居中式人大红 hero**（校徽 + 大号衬线姓名 + 鎏金下划线 + 专业班级 + 身份徽章，无头像）；**联系方式卡片**（邮箱/手机，点击 `uni.showModal` 编辑，含正则校验，清空回落默认派生）；荣誉列表为**奖章样式**（级别配色：国家级鎏金/省部级人大红/校级蓝 + 级别 chip）；退出登录 |
 | `pages/notify/index.vue` | 消息中心 | 通知列表 + **横向标签筛选条**（调 `/notify/tags`）+ 来源徽章 + 标签 chips。未读左侧深红色边框、点击标记已读、「全部标记已读」按钮 |
 
 ---

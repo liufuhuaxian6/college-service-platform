@@ -1,13 +1,13 @@
 <template>
-  <view class="page">
-    <view class="profile-hero">
-      <view class="avatar">
-        <view class="avatar-head" />
-        <view class="avatar-body" />
-      </view>
-      <view class="hero-info">
+  <view class="page mp-page-bg">
+    <view class="profile-hero mp-hero">
+      <RucSeal :size="300" tone="light" class="mp-hero-seal" />
+      <view class="hero-center">
+        <RucSeal :size="110" tone="light" class="hero-seal" />
         <text class="name">{{ userInfo.name }}</text>
+        <view class="name-underline" />
         <text class="identity">{{ userInfo.major }} · {{ userInfo.className }}</text>
+        <text class="role-chip">{{ roleLabel }}</text>
       </view>
     </view>
 
@@ -78,9 +78,15 @@
       </view>
 
       <view v-for="h in honors" :key="h.id" class="honor-item">
+        <view class="honor-medal" :class="medalClass(h.level)">
+          <image class="honor-medal__img" src="/static/icons/icon-medal.svg" mode="aspectFit" />
+        </view>
         <view class="honor-body">
           <text class="honor-name">{{ h.name }}</text>
-          <text class="honor-meta">{{ h.level || '-' }} · {{ h.date || '-' }}</text>
+          <view class="honor-meta-row">
+            <text class="honor-level" :class="medalClass(h.level)">{{ h.level || '其他' }}</text>
+            <text class="honor-date">{{ h.date || '-' }}</text>
+          </view>
         </view>
       </view>
 
@@ -103,10 +109,13 @@ import { computed, ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { studentApi, authApi } from '@/api'
 import EmptyState from '@/components/EmptyState.vue'
+import RucSeal from '@/components/RucSeal.vue'
 
 const userStore = useUserStore()
 const profile = ref({})
 const honors = ref([])
+
+const roleLabel = computed(() => (Number(userStore.roleLevel) === 3 ? '班团骨干' : '在校学生'))
 
 const userInfo = computed(() => ({
   name: profile.value.name || userStore.name || '同学',
@@ -187,6 +196,14 @@ function editPhone() {
   })
 }
 
+// 荣誉级别 → 奖章配色 (国家级鎏金 / 省部级人大红 / 其他暖灰)
+function medalClass(level) {
+  if (level === '国家级') return 'medal-gold'
+  if (level === '省部级') return 'medal-red'
+  if (level === '校级') return 'medal-blue'
+  return 'medal-gray'
+}
+
 function handleLogout() {
   uni.showModal({
     title: '确认退出',
@@ -202,71 +219,62 @@ function handleLogout() {
 .page {
   min-height: 100vh;
   padding: 24rpx 24rpx 42rpx;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(155, 44, 54, 0.1), transparent 34%),
-    linear-gradient(180deg, #FBF7F5 0%, var(--mp-bg) 38%, var(--mp-bg) 100%);
   box-sizing: border-box;
 }
 
+/* 居中式个人 hero */
 .profile-hero {
-  display: flex;
-  align-items: center;
-  gap: 24rpx;
-  padding: 32rpx;
-  border-radius: 28rpx;
-  background: linear-gradient(135deg, #9B2C36 0%, #7E2630 100%);
-  box-shadow: 0 16rpx 38rpx rgba(155, 44, 54, 0.2);
+  padding: 44rpx 32rpx 70rpx;
 }
 
-.avatar {
+.hero-center {
   position: relative;
-  width: 100rpx;
-  height: 100rpx;
-  flex-shrink: 0;
-  border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.17);
-  overflow: hidden;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.avatar-head {
-  position: absolute;
-  top: 18rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 34rpx;
-  height: 34rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.avatar-body {
-  position: absolute;
-  bottom: -36rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.hero-info {
-  min-width: 0;
+.hero-seal {
+  filter: drop-shadow(0 10rpx 24rpx rgba(0, 0, 0, 0.22));
 }
 
 .name {
   display: block;
+  margin-top: 22rpx;
   color: #fff;
-  font-size: 38rpx;
+  font-family: var(--mp-font-display);
+  font-size: 46rpx;
   font-weight: 800;
+  letter-spacing: 4rpx;
+}
+
+.name-underline {
+  width: 64rpx;
+  height: 6rpx;
+  margin-top: 14rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(90deg, rgba(184, 146, 62, 0.2), var(--mp-gold), rgba(184, 146, 62, 0.2));
 }
 
 .identity {
   display: block;
-  margin-top: 10rpx;
-  color: rgba(255, 255, 255, 0.78);
+  margin-top: 14rpx;
+  color: rgba(255, 255, 255, 0.8);
   font-size: 24rpx;
   line-height: 1.4;
+}
+
+.role-chip {
+  display: inline-flex;
+  margin-top: 16rpx;
+  padding: 5rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1rpx solid rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 21rpx;
+  letter-spacing: 2rpx;
 }
 
 .info-card {
@@ -369,9 +377,23 @@ function handleLogout() {
 }
 
 .section-title {
+  position: relative;
+  padding-left: 20rpx;
   color: var(--mp-text-main);
   font-size: 30rpx;
   font-weight: 800;
+}
+
+/* 红金双色装饰条 */
+.section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6rpx;
+  bottom: 6rpx;
+  width: 7rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(180deg, var(--mp-primary) 0%, var(--mp-primary) 62%, var(--mp-gold) 62%, var(--mp-gold) 100%);
 }
 
 .section-count {
@@ -380,27 +402,54 @@ function handleLogout() {
 }
 
 .honor-item {
-  position: relative;
-  padding: 20rpx 0 20rpx 22rpx;
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx 0;
   border-bottom: 1rpx solid var(--mp-border);
-}
-
-.honor-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 26rpx;
-  width: 6rpx;
-  height: 32rpx;
-  border-radius: 4rpx;
-  background: #C9A95B;
 }
 
 .honor-item:last-child {
   border-bottom: none;
 }
 
+/* 奖章 */
+.honor-medal {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.honor-medal__img {
+  width: 36rpx;
+  height: 36rpx;
+}
+
+.honor-medal.medal-gold {
+  background: linear-gradient(135deg, #D4B16A, #9A7833);
+  box-shadow: 0 6rpx 14rpx rgba(154, 120, 51, 0.32);
+}
+
+.honor-medal.medal-red {
+  background: var(--mp-red-gradient);
+  box-shadow: 0 6rpx 14rpx rgba(157, 34, 53, 0.28);
+}
+
+.honor-medal.medal-blue {
+  background: linear-gradient(135deg, #5380A8, #356382);
+  box-shadow: 0 6rpx 14rpx rgba(53, 99, 130, 0.28);
+}
+
+.honor-medal.medal-gray {
+  background: linear-gradient(135deg, #9AA1AA, #6E7681);
+}
+
 .honor-body {
+  flex: 1;
   min-width: 0;
 }
 
@@ -412,9 +461,41 @@ function handleLogout() {
   line-height: 1.45;
 }
 
-.honor-meta {
-  display: block;
-  margin-top: 6rpx;
+.honor-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 8rpx;
+}
+
+.honor-level {
+  padding: 2rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 650;
+}
+
+.honor-level.medal-gold {
+  color: #8A6422;
+  background: var(--mp-gold-light);
+}
+
+.honor-level.medal-red {
+  color: var(--mp-primary);
+  background: var(--mp-primary-light);
+}
+
+.honor-level.medal-blue {
+  color: #356382;
+  background: #EBF1F5;
+}
+
+.honor-level.medal-gray {
+  color: var(--mp-info);
+  background: var(--mp-info-bg);
+}
+
+.honor-date {
   color: var(--mp-text-sub);
   font-size: 22rpx;
 }

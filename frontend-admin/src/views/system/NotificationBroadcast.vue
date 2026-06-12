@@ -6,120 +6,140 @@
     />
 
     <el-tabs v-model="activeTab" class="broadcast-tabs">
-      <!-- ============== 群发新通知 ============== -->
+      <!-- ============== 群发新通知: 左内容 / 右发送设置 双栏 ============== -->
       <el-tab-pane label="群发新通知" name="compose">
-        <DataPanel title="通知内容">
-          <el-form :model="form" label-width="100px" label-position="right">
-            <el-form-item label="通知标题" required>
-              <el-input v-model="form.title" maxlength="100" show-word-limit placeholder="如:计科 2024 级实习宣讲会" />
-            </el-form-item>
-            <el-form-item label="正文" required>
-              <el-input
-                v-model="form.content"
-                type="textarea"
-                :rows="5"
-                maxlength="1000"
-                show-word-limit
-                placeholder="详细说明时间地点要求,可包含报名链接"
-              />
-            </el-form-item>
-            <el-form-item label="标签">
-              <el-select
-                v-model="form.tags"
-                multiple
-                filterable
-                allow-create
-                default-first-option
-                placeholder="按回车添加,如 就业 / 实习 / 计算机类"
-                style="width: 100%"
-              >
-                <el-option v-for="t in commonTags" :key="t" :label="t" :value="t" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="来源">
-              <el-select v-model="form.source" placeholder="可选" clearable style="width: 220px">
-                <el-option v-for="s in sourceOptions" :key="s" :label="s" :value="s" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="原文链接">
-              <el-input v-model="form.sourceUrl" placeholder="公众号文章地址,选填" />
-            </el-form-item>
-          </el-form>
-        </DataPanel>
+        <el-row :gutter="16">
+          <!-- 左栏: 通知内容 -->
+          <el-col :span="14">
+            <DataPanel title="通知内容" description="标题与正文为必填，标签用于学生端筛选">
+              <el-form :model="form" label-position="top">
+                <el-form-item label="通知标题" required>
+                  <el-input v-model="form.title" maxlength="100" show-word-limit placeholder="如:计科 2024 级实习宣讲会" />
+                </el-form-item>
+                <el-form-item label="正文" required>
+                  <el-input
+                    v-model="form.content"
+                    type="textarea"
+                    :rows="9"
+                    maxlength="1000"
+                    show-word-limit
+                    placeholder="详细说明时间地点要求,可包含报名链接"
+                  />
+                </el-form-item>
+                <el-form-item label="标签">
+                  <el-select
+                    v-model="form.tags"
+                    multiple
+                    filterable
+                    allow-create
+                    default-first-option
+                    placeholder="按回车添加,如 就业 / 实习 / 计算机类"
+                    style="width: 100%"
+                  >
+                    <el-option v-for="t in commonTags" :key="t" :label="t" :value="t" />
+                  </el-select>
+                </el-form-item>
+                <el-row :gutter="14">
+                  <el-col :span="9">
+                    <el-form-item label="来源">
+                      <el-select v-model="form.source" placeholder="可选" clearable style="width: 100%">
+                        <el-option v-for="s in sourceOptions" :key="s" :label="s" :value="s" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="15">
+                    <el-form-item label="原文链接">
+                      <el-input v-model="form.sourceUrl" placeholder="公众号文章地址,选填" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </el-form>
+            </DataPanel>
+          </el-col>
 
-        <DataPanel title="目标受众" style="margin-top: 16px">
-          <el-form :model="form.filter" label-width="100px" label-position="right">
-            <el-form-item label="接收对象" required>
-              <el-checkbox-group v-model="form.filter.roles" class="role-group">
-                <div class="role-col">
-                  <div class="role-col__title">学生</div>
-                  <el-checkbox :value="4">普通学生</el-checkbox>
-                  <el-checkbox :value="3">学生骨干</el-checkbox>
-                </div>
-                <div class="role-col">
-                  <div class="role-col__title">教职工</div>
-                  <el-checkbox :value="2">老师 / 辅导员</el-checkbox>
-                  <el-checkbox :value="1">院领导</el-checkbox>
-                </div>
-              </el-checkbox-group>
-            </el-form-item>
-            <el-alert
-              v-if="hasStaffRole && hasStudentDimFilter"
-              type="info"
-              show-icon
-              :closable="false"
-              style="margin: 0 0 16px 100px; width: calc(100% - 100px)"
-              title="年级 / 专业 / 班级是学生属性, 仅对“普通学生 / 学生骨干”生效; 老师与院领导没有这些字段, 一旦勾选即整组接收本次通知"
-            />
+          <!-- 右栏: 接收对象 + 渠道 + 预览 + 提交 -->
+          <el-col :span="10">
+            <DataPanel title="发送设置" description="选定接收对象后可先预览人数">
+              <el-form :model="form.filter" label-position="top">
+                <el-form-item label="接收对象" required>
+                  <el-checkbox-group v-model="form.filter.roles" class="role-group">
+                    <div class="role-col">
+                      <div class="role-col__title">学生</div>
+                      <el-checkbox :value="4">普通学生</el-checkbox>
+                      <el-checkbox :value="3">学生骨干</el-checkbox>
+                    </div>
+                    <div class="role-col">
+                      <div class="role-col__title">教职工</div>
+                      <el-checkbox :value="2">老师 / 辅导员</el-checkbox>
+                      <el-checkbox :value="1">院领导</el-checkbox>
+                    </div>
+                  </el-checkbox-group>
+                </el-form-item>
+                <el-alert
+                  v-if="hasStaffRole && hasStudentDimFilter"
+                  type="info"
+                  show-icon
+                  :closable="false"
+                  class="dim-alert"
+                  title="年级 / 专业 / 班级仅对学生生效; 勾选的老师与院领导整组接收本次通知"
+                />
 
-            <template v-if="hasStudentRole">
-              <el-form-item label="年级">
-                <el-select v-model="form.filter.grades" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
-                  <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="专业">
-                <el-select v-model="form.filter.majors" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
-                  <el-option v-for="m in majorOptions" :key="m" :label="m" :value="m" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="班级">
-                <el-select v-model="form.filter.classNames" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
-                  <el-option v-for="c in classOptions" :key="c" :label="c" :value="c" />
-                </el-select>
-              </el-form-item>
-            </template>
-            <el-form-item v-else label="年级/专业/班级">
-              <span class="dim-disabled-tip">当前只选了教职工, 年级 / 专业 / 班级筛选不适用</span>
-            </el-form-item>
-            <el-form-item label="发送渠道">
-              <el-checkbox-group v-model="form.channels">
-                <el-checkbox value="system" disabled>站内消息 (必发)</el-checkbox>
-                <el-checkbox value="email">邮件 (RUC 邮箱)</el-checkbox>
-                <el-checkbox value="sms_sim">短信 (演示模拟)</el-checkbox>
-              </el-checkbox-group>
-            </el-form-item>
-            <el-form-item>
-              <div class="preview-row">
-                <el-button @click="previewCount" :loading="previewing">预览目标人数</el-button>
-                <span v-if="previewResult" class="preview-tip">
-                  按当前筛选, 共匹配 <b>{{ previewResult.targetCount }}</b> 人
+                <template v-if="hasStudentRole">
+                  <el-form-item label="年级">
+                    <el-select v-model="form.filter.grades" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
+                      <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="专业">
+                    <el-select v-model="form.filter.majors" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
+                      <el-option v-for="m in majorOptions" :key="m" :label="m" :value="m" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="班级">
+                    <el-select v-model="form.filter.classNames" multiple filterable allow-create placeholder="留空 = 不限 (作用于学生)" style="width: 100%">
+                      <el-option v-for="c in classOptions" :key="c" :label="c" :value="c" />
+                    </el-select>
+                  </el-form-item>
+                </template>
+                <el-form-item v-else label="年级 / 专业 / 班级">
+                  <span class="dim-disabled-tip">当前只选了教职工, 该筛选不适用</span>
+                </el-form-item>
+
+                <el-form-item label="发送渠道">
+                  <el-checkbox-group v-model="form.channels" class="channel-group">
+                    <el-checkbox value="system" disabled>站内消息 (必发)</el-checkbox>
+                    <el-checkbox value="email">邮件 (RUC 邮箱)</el-checkbox>
+                    <el-checkbox value="sms_sim">短信 (演示模拟)</el-checkbox>
+                  </el-checkbox-group>
+                </el-form-item>
+              </el-form>
+
+              <!-- 人数预览 -->
+              <div class="preview-box">
+                <div class="preview-head">
+                  <span class="preview-label">预计送达</span>
+                  <el-button size="small" @click="previewCount" :loading="previewing">预览人数</el-button>
+                </div>
+                <div v-if="previewResult" class="preview-result">
+                  <span class="preview-num">{{ previewResult.targetCount }}</span>
+                  <span class="preview-unit">人</span>
                   <span class="preview-breakdown">
-                    (<template v-if="previewResult.studentCount">普通学生 <b>{{ previewResult.studentCount }}</b></template>
-                    <template v-if="previewResult.cadreCount"> / 学生骨干 <b>{{ previewResult.cadreCount }}</b></template>
-                    <template v-if="previewResult.teacherCount"> / 老师 <b>{{ previewResult.teacherCount }}</b></template>
-                    <template v-if="previewResult.leadershipCount"> / 院领导 <b>{{ previewResult.leadershipCount }}</b></template>)
+                    <template v-if="previewResult.studentCount">普通学生 {{ previewResult.studentCount }}</template>
+                    <template v-if="previewResult.cadreCount"> · 骨干 {{ previewResult.cadreCount }}</template>
+                    <template v-if="previewResult.teacherCount"> · 老师 {{ previewResult.teacherCount }}</template>
+                    <template v-if="previewResult.leadershipCount"> · 院领导 {{ previewResult.leadershipCount }}</template>
                   </span>
-                </span>
+                </div>
+                <div v-else class="preview-empty">调整筛选后点击预览, 确认覆盖范围再群发</div>
               </div>
-            </el-form-item>
-          </el-form>
-        </DataPanel>
 
-        <div class="action-row">
-          <el-button @click="resetForm">重置</el-button>
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">确认群发</el-button>
-        </div>
+              <div class="action-row">
+                <el-button @click="resetForm">重置</el-button>
+                <el-button type="primary" :loading="submitting" @click="handleSubmit">确认群发</el-button>
+              </div>
+            </DataPanel>
+          </el-col>
+        </el-row>
       </el-tab-pane>
 
       <!-- ============== 广播历史 ============== -->
@@ -386,44 +406,108 @@ onMounted(() => {
 .broadcast-tabs {
   margin-top: 8px;
 }
-.preview-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.preview-tip {
-  color: var(--app-text-secondary);
-  font-size: 13px;
-}
-.preview-tip b {
-  color: var(--app-primary);
-  font-size: 16px;
-  font-weight: 700;
-  margin: 0 2px;
-}
-.preview-breakdown {
-  margin-left: 4px;
-}
+
 .role-group {
   display: flex;
-  gap: 48px;
+  gap: 40px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--app-border-light);
+  border-radius: 10px;
+  background: var(--app-muted);
+  box-sizing: border-box;
 }
+
 .role-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
+
 .role-col__title {
   font-size: 12px;
   color: var(--app-text-secondary);
   margin-bottom: 2px;
 }
+
+.channel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 1px solid var(--app-border-light);
+  border-radius: 10px;
+  background: var(--app-muted);
+  box-sizing: border-box;
+}
+
+.dim-alert {
+  margin-bottom: 16px;
+}
+
 .dim-disabled-tip {
   color: var(--app-text-secondary);
   font-size: 13px;
 }
+
+/* 人数预览块 */
+.preview-box {
+  margin-top: 4px;
+  padding: 14px 16px;
+  border: 1px dashed var(--app-primary-soft);
+  border-radius: 10px;
+  background: var(--app-primary-light);
+}
+
+.preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.preview-label {
+  color: var(--app-primary-deep);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preview-result {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.preview-num {
+  color: var(--app-primary);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-unit {
+  color: var(--app-primary-deep);
+  font-size: 13px;
+}
+
+.preview-breakdown {
+  margin-left: 8px;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+}
+
+.preview-empty {
+  margin-top: 10px;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+}
+
 .action-row {
   margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--app-border-light);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
