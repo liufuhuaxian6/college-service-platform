@@ -1,19 +1,49 @@
-:root {
-  --mp-primary: #9B2C36;
-  --mp-primary-dark: #872631;
-  --mp-primary-soft: #B64A54;
-  --mp-primary-light: #F7EDEF;
-  --mp-bg: #F6F4F2;
+/* =====================================================================
+ * 小程序设计令牌 v2 · "人大红" 主题
+ * 人大红 (Pantone 201C #9D2235) + 暖纸灰中性色 + 鎏金点缀
+ * 与管理端 frontend-admin/src/assets/styles/theme.scss 同源
+ * ===================================================================== */
+:root, page {
+  /* 品牌色 */
+  --mp-primary: #9D2235;
+  --mp-primary-dark: #7E1B2A;
+  --mp-primary-deep: #6B1724;
+  --mp-primary-ink: #5C1420;
+  --mp-primary-soft: #B64A58;
+  --mp-primary-light: #F7ECEE;
+
+  /* 鎏金点缀 */
+  --mp-gold: #B8923E;
+  --mp-gold-light: #F7F0E3;
+
+  /* 中性色 · 暖纸灰 */
+  --mp-bg: #F5F3F0;
   --mp-bg-warm: #FBF8F6;
   --mp-card: #FFFFFF;
-  --mp-text-main: #1F2329;
-  --mp-text-regular: #4E5969;
-  --mp-text-sub: #86909C;
-  --mp-border: #E5E6EB;
+  --mp-text-main: #231F20;
+  --mp-text-regular: #4E4A4B;
+  --mp-text-sub: #8A8486;
+  --mp-text-muted: #A8A2A4;
+  --mp-border: #E7E3DF;
+
+  /* 语义色 */
   --mp-success: #2F7D55;
+  --mp-success-bg: #ECF6F0;
   --mp-warning: #9A6A16;
+  --mp-warning-bg: #FFF7E8;
   --mp-danger: #B4232C;
+  --mp-danger-bg: #FBECEC;
   --mp-info: #5B6472;
-  --mp-shadow: 0 14rpx 36rpx rgba(31, 35, 41, 0.08);
-  --mp-radius: 18rpx;
+  --mp-info-bg: #F2F3F5;
+
+  /* 渐变 / 阴影 / 圆角 */
+  --mp-red-gradient: linear-gradient(135deg, #9D2235 0%, #821C2C 56%, #6B1724 100%);
+  --mp-shadow: 0 14rpx 36rpx rgba(35, 31, 32, 0.08);
+  --mp-shadow-card: 0 10rpx 26rpx rgba(35, 31, 32, 0.05);
+  --mp-shadow-red: 0 18rpx 40rpx rgba(157, 34, 53, 0.22);
+  --mp-radius: 20rpx;
+  --mp-radius-lg: 26rpx;
+
+  /* 字体 */
+  --mp-font-display: "Source Han Serif SC", "Noto Serif SC", "STZhongsong", "SimSun", serif;
 }

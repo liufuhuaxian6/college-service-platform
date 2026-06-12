@@ -43,22 +43,40 @@
     </FilterBar>
 
     <DataPanel :title="`用户列表 (共 ${total} 人)`">
-      <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column prop="studentId" label="学号" width="140" />
-        <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column prop="roleLevel" label="角色" width="120">
+      <el-table :data="list" v-loading="loading">
+        <el-table-column label="用户" min-width="210">
           <template #default="{ row }">
-            <el-tag :type="roleType(row.roleLevel)">{{ roleLabel(row.roleLevel) }}</el-tag>
+            <div class="person-info">
+              <span class="person-name">{{ row.name || '-' }}</span>
+              <span class="person-sub">{{ row.studentId }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="grade" label="年级" width="100" />
-        <el-table-column prop="major" label="专业" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="className" label="班级" width="130" show-overflow-tooltip />
-        <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column label="角色" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
+            <el-tag :type="roleType(row.roleLevel)" effect="light" round>{{ roleLabel(row.roleLevel) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="班级信息" min-width="200">
+          <template #default="{ row }">
+            <div class="stack-cell">
+              <span class="stack-main">{{ row.major || '—' }}</span>
+              <span class="stack-sub">{{ [row.grade, row.className].filter(Boolean).join(' · ') || '—' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="联系方式" min-width="220">
+          <template #default="{ row }">
+            <div class="stack-cell">
+              <span class="stack-main">{{ row.phone || '—' }}</span>
+              <span class="stack-sub">{{ row.email || '—' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90">
+          <template #default="{ row }">
+            <span class="status-dot" :class="row.status === 1 ? 'on' : 'off'" />
+            {{ row.status === 1 ? '启用' : '禁用' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
@@ -357,7 +375,69 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+/* ===== 人员行 ===== */
+.person-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.person-name {
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.person-sub {
+  margin-top: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stack-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stack-main {
+  color: var(--app-text-regular);
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-sub {
+  margin-top: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+
+  &.on {
+    background: var(--app-success);
+    box-shadow: 0 0 0 3px var(--app-success-bg);
+  }
+
+  &.off {
+    background: var(--app-danger);
+    box-shadow: 0 0 0 3px var(--app-danger-bg);
+  }
+}
+
 .error-list {
   margin: 12px 0;
   max-height: 240px;

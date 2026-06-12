@@ -156,8 +156,8 @@ onMounted(loadData)
   min-height: 100vh;
   padding: 20rpx 24rpx 42rpx;
   background:
-    radial-gradient(circle at 22% 0%, rgba(155, 44, 54, 0.08), transparent 36%),
-    var(--mp-bg);
+    radial-gradient(circle at 22% 0%, rgba(157, 34, 53, 0.08), transparent 36%),
+    linear-gradient(180deg, #FBF7F5 0%, var(--mp-bg) 320rpx, var(--mp-bg) 100%);
   box-sizing: border-box;
 }
 
@@ -179,18 +179,20 @@ onMounted(loadData)
   align-items: center;
   justify-content: center;
   gap: 8rpx;
-  padding: 18rpx 0;
-  font-size: 27rpx;
+  padding: 22rpx 0;
+  font-size: 28rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
   color: var(--mp-text-sub);
   border-radius: 18rpx;
   transition: background 0.18s, color 0.18s;
 }
 
 .tab.active {
-  background: linear-gradient(135deg, #9B2C36 0%, #7E2630 100%);
+  background: var(--mp-red-gradient);
   color: #fff;
   font-weight: 700;
-  box-shadow: 0 6rpx 14rpx rgba(155, 44, 54, 0.28);
+  box-shadow: 0 6rpx 14rpx rgba(157, 34, 53, 0.28);
 }
 
 .tab-label {
@@ -218,9 +220,14 @@ onMounted(loadData)
   margin-bottom: 16rpx;
   padding: 22rpx;
   background: #fff;
-  border: 1rpx solid rgba(31, 35, 41, 0.05);
+  border: 1rpx solid rgba(35, 31, 32, 0.05);
   border-radius: 22rpx;
-  box-shadow: 0 8rpx 22rpx rgba(31, 35, 41, 0.04);
+  box-shadow: 0 8rpx 22rpx rgba(35, 31, 32, 0.04);
+  transition: transform 0.15s ease;
+}
+
+.doc-item:active {
+  transform: scale(0.985);
 }
 
 /* 左侧文件类型徽标 */
@@ -263,7 +270,7 @@ onMounted(loadData)
 .badge-ppt { color: #E07B00; }
 .badge-txt { color: #6E7681; }
 .badge-zip { color: #8E4EC6; }
-.badge-other { color: #9B2C36; }
+.badge-other { color: #9D2235; }
 
 /* 中部信息 */
 .doc-info {
@@ -290,7 +297,7 @@ onMounted(loadData)
 .doc-chip {
   padding: 2rpx 14rpx;
   font-size: 20rpx;
-  color: #9B2C36;
+  color: #9D2235;
   background: var(--mp-primary-light);
   border-radius: 18rpx;
 }
@@ -323,12 +330,12 @@ onMounted(loadData)
   justify-content: center;
   border-radius: 50%;
   background: var(--mp-primary-light);
-  border: 1rpx solid rgba(155, 44, 54, 0.18);
+  border: 1rpx solid rgba(157, 34, 53, 0.18);
 }
 
 .download-arrow {
   font-size: 32rpx;
-  color: #9B2C36;
+  color: #9D2235;
   font-weight: 700;
   line-height: 1;
 }

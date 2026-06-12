@@ -14,12 +14,12 @@
   "globalStyle": {
     "navigationBarTextStyle": "white",
     "navigationBarTitleText": "学院综合服务",
-    "navigationBarBackgroundColor": "#9B2C36",
+    "navigationBarBackgroundColor": "#9D2235",
     "backgroundColor": "#F6F4F2"
   },
   "tabBar": {
     "color": "#86909C",
-    "selectedColor": "#9B2C36",
+    "selectedColor": "#9D2235",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [

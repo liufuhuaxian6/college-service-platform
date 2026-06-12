@@ -76,8 +76,12 @@ async function loadTags() {
 async function loadList() {
   const params = { page: 1, size: 50 }
   if (activeTag.value) params.tag = activeTag.value
-  const res = await notifyApi.getPage(params)
-  list.value = res.data?.records || []
+  try {
+    const res = await notifyApi.getPage(params)
+    list.value = res.data?.records || []
+  } catch (_) {
+    list.value = []
+  }
 }
 
 function normalizeTags(raw) {
@@ -117,18 +121,21 @@ function formatTime(value) {
 }
 
 async function markRead(n) {
-  if (!n.isRead) {
+  if (n.isRead) return
+  try {
     await notifyApi.markRead(n.id)
     n.isRead = true
-  }
+  } catch (_) { /* request 层已提示 */ }
 }
 
 async function markAll() {
-  await notifyApi.markAllRead()
-  list.value.forEach((n) => {
-    n.isRead = true
-  })
-  uni.showToast({ title: '已全部标记', icon: 'success' })
+  try {
+    await notifyApi.markAllRead()
+    list.value.forEach((n) => {
+      n.isRead = true
+    })
+    uni.showToast({ title: '已全部标记', icon: 'success' })
+  } catch (_) { /* request 层已提示 */ }
 }
 </script>
 
@@ -136,7 +143,9 @@ async function markAll() {
 .page {
   min-height: 100vh;
   padding: 20rpx 24rpx 36rpx;
-  background: linear-gradient(180deg, #FBF7F5 0%, #F6F4F2 320rpx, #F6F4F2 100%);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(157, 34, 53, 0.08), transparent 30%),
+    linear-gradient(180deg, #FBF7F5 0%, var(--mp-bg) 320rpx, var(--mp-bg) 100%);
   box-sizing: border-box;
 }
 
@@ -171,9 +180,9 @@ async function markAll() {
 
 .tag.active {
   color: #FFFFFF;
-  background: #9B2C36;
-  border-color: #9B2C36;
-  box-shadow: 0 10rpx 22rpx rgba(155, 44, 54, 0.18);
+  background: var(--mp-red-gradient);
+  border-color: transparent;
+  box-shadow: 0 10rpx 22rpx rgba(157, 34, 53, 0.26);
 }
 
 .toolbar {
@@ -184,28 +193,61 @@ async function markAll() {
 }
 
 .toolbar-title {
-  color: #1F2329;
+  position: relative;
+  padding-left: 20rpx;
+  color: var(--mp-text-main);
   font-size: 30rpx;
   font-weight: 800;
 }
 
+/* 红金双色装饰条 */
+.toolbar-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6rpx;
+  bottom: 6rpx;
+  width: 7rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(180deg, var(--mp-primary) 0%, var(--mp-primary) 62%, var(--mp-gold) 62%, var(--mp-gold) 100%);
+}
+
 .mark-all {
-  color: #9B2C36;
+  color: #9D2235;
   font-size: 24rpx;
   font-weight: 700;
 }
 
 .notify-item {
-  padding: 24rpx;
+  position: relative;
+  padding: 24rpx 24rpx 24rpx 28rpx;
   margin-bottom: 18rpx;
   background: #FFFFFF;
-  border: 1rpx solid rgba(31, 35, 41, 0.07);
+  border: 1rpx solid rgba(35, 31, 32, 0.07);
   border-radius: 22rpx;
-  box-shadow: 0 12rpx 30rpx rgba(31, 35, 41, 0.05);
+  box-shadow: 0 12rpx 30rpx rgba(35, 31, 32, 0.05);
+  overflow: hidden;
+  transition: transform 0.15s ease;
 }
 
+.notify-item:active {
+  transform: scale(0.985);
+}
+
+/* 未读: 左侧人大红色条 + 淡红底 */
 .notify-item.unread {
-  border-color: rgba(155, 44, 54, 0.22);
+  border-color: rgba(157, 34, 53, 0.2);
+  background: linear-gradient(90deg, rgba(157, 34, 53, 0.04), #fff 30%);
+}
+
+.notify-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8rpx;
+  background: var(--mp-red-gradient);
 }
 
 .notify-head {
@@ -220,7 +262,7 @@ async function markAll() {
   margin-top: 14rpx;
   flex-shrink: 0;
   border-radius: 50%;
-  background: #9B2C36;
+  background: #9D2235;
 }
 
 .notify-title {
@@ -264,7 +306,7 @@ async function markAll() {
 }
 
 .source-chip {
-  color: #9B2C36;
+  color: #9D2235;
   background: #F7EDEF;
 }
 

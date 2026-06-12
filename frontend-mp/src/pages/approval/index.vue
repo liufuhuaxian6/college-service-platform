@@ -1,9 +1,11 @@
 <template>
-  <view class="page">
-    <view class="hero-card">
-      <view>
-        <text class="hero-eyebrow">证明审批</text>
+  <view class="page mp-page-bg">
+    <view class="hero-card mp-hero">
+      <RucSeal :size="240" tone="light" class="mp-hero-seal" />
+      <view class="hero-main">
+        <text class="hero-eyebrow mp-eyebrow">证明审批</text>
         <text class="hero-title">我的申请</text>
+        <view class="hero-underline" />
         <text class="hero-desc">查看证明申请、审批进度与下载归档状态</text>
       </view>
       <view class="hero-count">
@@ -14,13 +16,15 @@
 
     <view class="stats-card">
       <view class="stat-item">
-        <text class="stat-value">{{ pendingCount }}</text>
+        <text class="stat-value stat-value--warning">{{ pendingCount }}</text>
         <text class="stat-label">待审批</text>
       </view>
+      <view class="stat-divider" />
       <view class="stat-item">
-        <text class="stat-value">{{ approvedCount }}</text>
+        <text class="stat-value stat-value--success">{{ approvedCount }}</text>
         <text class="stat-label">可下载</text>
       </view>
+      <view class="stat-divider" />
       <view class="stat-item">
         <text class="stat-value">{{ lockedCount }}</text>
         <text class="stat-label">已归档</text>
@@ -37,8 +41,23 @@
       <text class="section-action" @click="loadApplications">刷新</text>
     </view>
 
+    <!-- 状态筛选标签 -->
+    <scroll-view scroll-x class="filter-bar" show-scrollbar="false">
+      <view class="filter-row">
+        <view
+          v-for="f in statusFilters"
+          :key="f.value"
+          class="filter-chip"
+          :class="{ active: activeFilter === f.value }"
+          @click="activeFilter = f.value"
+        >
+          {{ f.label }}
+        </view>
+      </view>
+    </scroll-view>
+
     <view
-      v-for="app in applicationList"
+      v-for="app in filteredList"
       :key="app.id"
       class="app-card"
       :class="`app-card--${normalizedStatus(app)}`"
@@ -100,9 +119,9 @@
     </view>
 
     <EmptyState
-      v-if="!applicationList.length"
-      title="暂无申请记录"
-      description="点击下方按钮提交新的证明申请。"
+      v-if="!filteredList.length"
+      :title="applicationList.length ? '该状态下暂无申请' : '暂无申请记录'"
+      :description="applicationList.length ? '切换上方筛选标签查看其他状态。' : '点击下方按钮提交新的证明申请。'"
     />
 
     <view class="footer">
@@ -116,8 +135,25 @@ import { computed, ref, onMounted } from 'vue'
 import { approvalApi } from '@/api'
 import StatusPill from '@/components/StatusPill.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import RucSeal from '@/components/RucSeal.vue'
 
 const applicationList = ref([])
+
+// 状态筛选 (本地过滤, 与下方统计联动)
+const statusFilters = [
+  { label: '全部', value: '' },
+  { label: '待审批', value: 'pending' },
+  { label: '已通过', value: 'approved' },
+  { label: '已驳回', value: 'rejected' },
+  { label: '已归档', value: 'downloaded' },
+  { label: '已撤回', value: 'withdrawn' },
+]
+const activeFilter = ref('')
+
+const filteredList = computed(() => {
+  if (!activeFilter.value) return applicationList.value
+  return applicationList.value.filter((app) => normalizedStatus(app) === activeFilter.value)
+})
 
 const statusMap = {
   draft: '草稿',
@@ -272,9 +308,6 @@ function goApply() {
 .page {
   min-height: 100vh;
   padding: 24rpx 24rpx calc(132rpx + env(safe-area-inset-bottom));
-  background:
-    radial-gradient(circle at 15% 0%, rgba(155, 44, 54, 0.1), transparent 34%),
-    linear-gradient(180deg, #FBF7F5 0%, var(--mp-bg) 38%, var(--mp-bg) 100%);
   box-sizing: border-box;
 }
 
@@ -282,27 +315,33 @@ function goApply() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 30rpx;
-  border-radius: 26rpx;
-  background: linear-gradient(135deg, #9B2C36 0%, #7E2630 100%);
-  box-shadow: 0 16rpx 38rpx rgba(155, 44, 54, 0.2);
+  padding: 30rpx 30rpx 52rpx;
+}
+
+.hero-main {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-eyebrow {
-  display: inline-flex;
   margin-bottom: 16rpx;
-  padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 21rpx;
 }
 
 .hero-title {
   display: block;
   color: #fff;
-  font-size: 38rpx;
+  font-family: var(--mp-font-display);
+  font-size: 44rpx;
   font-weight: 800;
+  letter-spacing: 3rpx;
+}
+
+.hero-underline {
+  width: 64rpx;
+  height: 6rpx;
+  margin-top: 14rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(90deg, var(--mp-gold), rgba(184, 146, 62, 0.2));
 }
 
 .hero-desc {
@@ -313,6 +352,8 @@ function goApply() {
 }
 
 .hero-count {
+  position: relative;
+  z-index: 1;
   width: 96rpx;
   height: 96rpx;
   display: flex;
@@ -322,6 +363,7 @@ function goApply() {
   flex-shrink: 0;
   border-radius: 24rpx;
   background: rgba(255, 255, 255, 0.14);
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 
 .count-value {
@@ -336,28 +378,42 @@ function goApply() {
 }
 
 .stats-card {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
+  display: flex;
+  align-items: stretch;
   margin: -24rpx 18rpx 22rpx;
   padding: 18rpx;
   position: relative;
   z-index: 2;
   border-radius: 22rpx;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.97);
   box-shadow: var(--mp-shadow);
 }
 
 .stat-item {
+  flex: 1;
   text-align: center;
   padding: 12rpx 4rpx;
+}
+
+.stat-divider {
+  width: 1rpx;
+  margin: 16rpx 0;
+  background: rgba(35, 31, 32, 0.08);
 }
 
 .stat-value {
   display: block;
   color: var(--mp-text-main);
-  font-size: 32rpx;
+  font-size: 34rpx;
   font-weight: 800;
+}
+
+.stat-value--warning {
+  color: var(--mp-warning);
+}
+
+.stat-value--success {
+  color: var(--mp-success);
 }
 
 .stat-label {
@@ -405,24 +461,95 @@ function goApply() {
 }
 
 .section-title {
+  position: relative;
+  padding-left: 20rpx;
   color: var(--mp-text-main);
   font-size: 30rpx;
   font-weight: 800;
 }
 
+/* 红金双色装饰条 */
+.section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6rpx;
+  bottom: 6rpx;
+  width: 7rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(180deg, var(--mp-primary) 0%, var(--mp-primary) 62%, var(--mp-gold) 62%, var(--mp-gold) 100%);
+}
+
 .section-action {
-  color: #9B2C36;
+  color: #9D2235;
   font-size: 23rpx;
 }
 
-.app-card {
+/* ===== 状态筛选标签 ===== */
+.filter-bar {
+  width: 100%;
   margin-bottom: 18rpx;
-  padding: 24rpx;
+  white-space: nowrap;
+}
+
+.filter-row {
+  display: inline-flex;
+  gap: 12rpx;
+  padding: 2rpx 0 8rpx;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 54rpx;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  color: var(--mp-text-regular);
+  border: 1rpx solid rgba(35, 31, 32, 0.08);
+  font-size: 23rpx;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.filter-chip.active {
+  color: #fff;
+  background: var(--mp-primary);
+  border-color: var(--mp-primary);
+  box-shadow: 0 8rpx 18rpx rgba(157, 34, 53, 0.2);
+}
+
+.app-card {
+  position: relative;
+  margin-bottom: 18rpx;
+  padding: 24rpx 24rpx 24rpx 30rpx;
   border-radius: 22rpx;
   background: #fff;
-  border: 1rpx solid rgba(31, 35, 41, 0.06);
-  box-shadow: 0 10rpx 26rpx rgba(31, 35, 41, 0.05);
+  border: 1rpx solid rgba(35, 31, 32, 0.06);
+  box-shadow: var(--mp-shadow-card);
+  transition: transform 0.15s ease;
+  overflow: hidden;
 }
+
+.app-card:active {
+  transform: scale(0.985);
+}
+
+/* 左侧状态色条 */
+.app-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8rpx;
+  background: var(--mp-info);
+}
+
+.app-card--pending::before { background: var(--mp-warning); }
+.app-card--approved::before { background: var(--mp-success); }
+.app-card--rejected::before { background: var(--mp-danger); }
+.app-card--downloaded::before { background: #9AA1AA; }
 
 .app-card--downloaded {
   background: #F7F8FA;
@@ -516,7 +643,7 @@ function goApply() {
 }
 
 .action-btn.primary {
-  background: #9B2C36;
+  background: #9D2235;
   color: #fff;
 }
 
@@ -548,10 +675,10 @@ function goApply() {
   line-height: 84rpx;
   text-align: center;
   border-radius: 24rpx;
-  background: #9B2C36;
+  background: #9D2235;
   color: #fff;
   font-size: 30rpx;
   font-weight: 800;
-  box-shadow: 0 10rpx 24rpx rgba(155, 44, 54, 0.22);
+  box-shadow: 0 10rpx 24rpx rgba(157, 34, 53, 0.22);
 }
 </style>

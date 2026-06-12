@@ -80,6 +80,7 @@ export const partyApi = {
 
 // ==================== 审批管理 ====================
 export const approvalApi = {
+  getTypes: () => request.get('/approval/types'),
   getPendingPage: (params) => request.get('/approval/pending/page', { params }),
   getAllPage: (params) => request.get('/approval/all/page', { params }),
   approve: (id, data) => request.put(`/approval/${id}/approve`, data),

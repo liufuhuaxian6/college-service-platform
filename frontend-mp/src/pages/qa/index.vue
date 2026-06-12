@@ -1,30 +1,31 @@
 <template>
   <view class="chat-page">
     <scroll-view class="chat-list" scroll-y :scroll-into-view="scrollIntoId">
-      <view class="assistant-card">
-        <view class="assistant-top">
-          <view class="assistant-avatar">AI</view>
-          <view>
-            <text class="assistant-name">学院智能问答</text>
-            <text class="assistant-status">基于政策文档与知识库检索回答</text>
+      <!-- ===== 欢迎态: 未开始对话时的沉浸式首屏 ===== -->
+      <view v-if="messages.length === 1" class="welcome">
+        <RucSeal :size="160" tone="primary" class="welcome-seal" />
+        <text class="welcome-title">学院智能问答</text>
+        <view class="welcome-underline" />
+        <text class="welcome-sub">基于政策文档与知识库检索回答 · 答案附参考依据</text>
+        <view class="welcome-divider">
+          <view class="divider-line" />
+          <text class="divider-text">可以这样问</text>
+          <view class="divider-line" />
+        </view>
+        <view class="suggest-list">
+          <view v-for="item in suggestions" :key="item" class="suggest-card" @click="askSuggestion(item)">
+            <view class="suggest-dot" />
+            <text class="suggest-q">{{ item }}</text>
+            <text class="suggest-arrow">›</text>
           </view>
         </view>
-        <text class="assistant-desc">
-          你可以咨询报到入学、证明申请、党团流程、政策制度等事项。涉及最终办理要求时，请以学院正式通知为准。
-        </text>
+        <text class="welcome-note">涉及最终办理要求时，请以学院正式通知为准</text>
       </view>
 
-      <view v-if="messages.length === 1" class="prompt-panel">
-        <text class="prompt-title">可以这样问</text>
-        <view class="prompt-list">
-          <view v-for="item in suggestions" :key="item" class="prompt-chip" @click="askSuggestion(item)">
-            <text>{{ item }}</text>
-          </view>
-        </view>
-      </view>
-
+      <!-- ===== 对话态 ===== -->
       <view
         v-for="msg in messages"
+        v-show="messages.length > 1"
         :id="`msg-${msg.id}`"
         :key="msg.id"
         class="msg-row"
@@ -50,7 +51,6 @@
             </view>
           </view>
         </view>
-        <view v-if="msg.role === 'user'" class="msg-avatar user-avatar">我</view>
       </view>
 
       <view class="bottom-space" />
@@ -88,6 +88,7 @@
 <script setup>
 import { computed, ref, nextTick, watch } from 'vue'
 import { qaApi } from '@/api'
+import RucSeal from '@/components/RucSeal.vue'
 
 const suggestions = [
   '本科新生什么时候报到？',
@@ -180,7 +181,7 @@ watch(
 .chat-page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 50% 0%, rgba(155, 44, 54, 0.1), transparent 35%),
+    radial-gradient(circle at 50% 0%, rgba(157, 34, 53, 0.1), transparent 35%),
     linear-gradient(180deg, #FBF7F5 0%, var(--mp-bg) 42%, var(--mp-bg) 100%);
 }
 
@@ -190,20 +191,119 @@ watch(
   box-sizing: border-box;
 }
 
-.assistant-card {
-  padding: 28rpx;
-  border-radius: 26rpx;
-  background: linear-gradient(135deg, #9B2C36 0%, #7E2630 100%);
-  box-shadow: 0 16rpx 38rpx rgba(155, 44, 54, 0.2);
+/* ===== 欢迎态 ===== */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 70rpx 12rpx 30rpx;
 }
 
-.assistant-top {
+.welcome-seal {
+  opacity: 0.92;
+}
+
+.welcome-title {
+  margin-top: 28rpx;
+  color: var(--mp-text-main);
+  font-family: var(--mp-font-display);
+  font-size: 48rpx;
+  font-weight: 800;
+  letter-spacing: 6rpx;
+  text-indent: 6rpx;
+}
+
+.welcome-underline {
+  width: 70rpx;
+  height: 6rpx;
+  margin-top: 16rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(90deg, rgba(184, 146, 62, 0.2), var(--mp-gold), rgba(184, 146, 62, 0.2));
+}
+
+.welcome-sub {
+  margin-top: 16rpx;
+  color: var(--mp-text-sub);
+  font-size: 23rpx;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.welcome-divider {
   display: flex;
   align-items: center;
-  gap: 18rpx;
+  gap: 16rpx;
+  width: 100%;
+  margin: 44rpx 0 22rpx;
 }
 
-.assistant-avatar,
+.divider-line {
+  flex: 1;
+  height: 1rpx;
+  background: var(--mp-border);
+}
+
+.divider-text {
+  color: var(--mp-text-muted);
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+
+.suggest-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.suggest-card {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 24rpx 26rpx;
+  border-radius: 20rpx;
+  background: #fff;
+  border: 1rpx solid rgba(157, 34, 53, 0.1);
+  box-shadow: var(--mp-shadow-card);
+  transition: transform 0.15s ease;
+}
+
+.suggest-card:active {
+  transform: scale(0.98);
+}
+
+/* 菱形红点标记 */
+.suggest-dot {
+  width: 12rpx;
+  height: 12rpx;
+  flex-shrink: 0;
+  border-radius: 3rpx;
+  transform: rotate(45deg);
+  background: var(--mp-primary);
+  box-shadow: 0 0 0 5rpx var(--mp-primary-light);
+}
+
+.suggest-q {
+  flex: 1;
+  min-width: 0;
+  color: var(--mp-text-regular);
+  font-size: 26rpx;
+  line-height: 1.4;
+}
+
+.suggest-arrow {
+  flex-shrink: 0;
+  color: var(--mp-primary);
+  font-size: 34rpx;
+  line-height: 1;
+}
+
+.welcome-note {
+  margin-top: 36rpx;
+  color: var(--mp-text-muted);
+  font-size: 21rpx;
+}
+
 .msg-avatar {
   width: 58rpx;
   height: 58rpx;
@@ -214,66 +314,6 @@ watch(
   border-radius: 18rpx;
   font-size: 22rpx;
   font-weight: 800;
-}
-
-.assistant-avatar {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
-
-.assistant-name {
-  display: block;
-  color: #fff;
-  font-size: 32rpx;
-  font-weight: 800;
-}
-
-.assistant-status {
-  display: block;
-  margin-top: 4rpx;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 22rpx;
-}
-
-.assistant-desc {
-  display: block;
-  margin-top: 24rpx;
-  color: rgba(255, 255, 255, 0.84);
-  font-size: 24rpx;
-  line-height: 1.65;
-}
-
-.prompt-panel {
-  margin: 18rpx 0 26rpx;
-  padding: 22rpx;
-  border-radius: 22rpx;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10rpx 26rpx rgba(31, 35, 41, 0.05);
-}
-
-.prompt-title {
-  display: block;
-  margin-bottom: 16rpx;
-  color: var(--mp-text-main);
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.prompt-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.prompt-chip {
-  max-width: 100%;
-  padding: 13rpx 18rpx;
-  border-radius: 999rpx;
-  background: #fff;
-  border: 1rpx solid rgba(155, 44, 54, 0.13);
-  color: var(--mp-text-regular);
-  font-size: 23rpx;
-  line-height: 1.35;
 }
 
 .msg-row {
@@ -290,13 +330,13 @@ watch(
 .msg-avatar {
   background: #fff;
   color: var(--mp-primary);
-  border: 1rpx solid rgba(155, 44, 54, 0.13);
+  border: 1rpx solid rgba(157, 34, 53, 0.13);
 }
 
 .user-avatar {
-  background: #9B2C36;
+  background: #9D2235;
   color: #fff;
-  border-color: #9B2C36;
+  border-color: #9D2235;
 }
 
 .msg-main {
@@ -317,9 +357,9 @@ watch(
 
 .bubble-user {
   border-top-right-radius: 8rpx;
-  background: #9B2C36;
-  border-color: #9B2C36;
-  box-shadow: 0 10rpx 24rpx rgba(155, 44, 54, 0.18);
+  background: #9D2235;
+  border-color: #9D2235;
+  box-shadow: 0 10rpx 24rpx rgba(157, 34, 53, 0.18);
 }
 
 .bubble-text {
@@ -349,6 +389,26 @@ watch(
   border-radius: 50%;
   background: var(--mp-primary);
   opacity: 0.45;
+  animation: typing-blink 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-blink {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-4rpx);
+  }
 }
 
 .typing-text {
@@ -362,7 +422,7 @@ watch(
   padding: 18rpx;
   border-radius: 18rpx;
   background: rgba(255, 255, 255, 0.76);
-  border: 1rpx solid rgba(155, 44, 54, 0.1);
+  border: 1rpx solid rgba(157, 34, 53, 0.1);
 }
 
 .source-title {
@@ -428,7 +488,7 @@ watch(
   background: #F5F1F1;
   color: var(--mp-text-regular);
   font-size: 22rpx;
-  border: 1rpx solid rgba(155, 44, 54, 0.08);
+  border: 1rpx solid rgba(157, 34, 53, 0.08);
 }
 
 .composer {
@@ -447,7 +507,7 @@ watch(
   padding: 10rpx 18rpx;
   border-radius: 26rpx;
   background: #fff;
-  border: 1rpx solid rgba(155, 44, 54, 0.12);
+  border: 1rpx solid rgba(157, 34, 53, 0.12);
   box-shadow: 0 10rpx 26rpx rgba(31, 35, 41, 0.08);
   box-sizing: border-box;
 }
@@ -480,8 +540,8 @@ watch(
 }
 
 .send-fab-ready {
-  background: #9B2C36;
-  box-shadow: 0 8rpx 18rpx rgba(155, 44, 54, 0.24);
+  background: #9D2235;
+  box-shadow: 0 8rpx 18rpx rgba(157, 34, 53, 0.24);
 }
 
 .send-fab-disabled {

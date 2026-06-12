@@ -25,58 +25,50 @@
       </el-form>
     </FilterBar>
 
-    <DataPanel title="模板列表">
-      <el-table :data="filteredList" v-loading="loading" stripe>
-        <el-table-column prop="title" label="模板名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="category" label="分类" width="120" />
-        <el-table-column prop="description" label="适用范围" min-width="220" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span style="color: var(--app-text-secondary)">{{ row.description || '—' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <StatusTag :status="isPlaceholder(row) ? 'placeholder' : 'online'" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="fileSize" label="大小" width="100">
-          <template #default="{ row }">{{ row.filePath ? formatSize(row.fileSize) : '—' }}</template>
-        </el-table-column>
-        <el-table-column prop="downloadCount" label="下载次数" width="100" />
-        <el-table-column label="最近更新" width="150" :formatter="row => formatDateTime(row.updatedAt || row.createdAt)" />
-        <el-table-column label="操作" width="260" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              link
-              type="primary"
-              :disabled="isPlaceholder(row)"
-              @click="download(row)"
-            >
-              下载
-            </el-button>
-            <el-button
-              v-if="isPlaceholder(row)"
-              link
-              type="success"
-              @click="showFillDialog(row)"
-            >
-              补传文件
-            </el-button>
-            <el-button
-              v-else
-              link
-              type="warning"
-              @click="showFillDialog(row)"
-            >
-              替换
-            </el-button>
-            <el-popconfirm title="确定删除该模板吗？" @confirm="handleDelete(row.id)">
-              <template #reference><el-button link type="danger">删除</el-button></template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-    </DataPanel>
+    <!-- 模板卡片网格: 占位待传卡片用虚线琥珀边提示 -->
+    <div v-loading="loading" class="tpl-grid">
+      <div
+        v-for="row in filteredList"
+        :key="row.id"
+        class="tpl-card"
+        :class="{ 'tpl-card--placeholder': isPlaceholder(row) }"
+      >
+        <div class="tpl-card__head">
+          <span class="tpl-icon">
+            <el-icon :size="19"><Document /></el-icon>
+          </span>
+          <div class="tpl-head-info">
+            <h3 class="tpl-title" :title="row.title">{{ row.title }}</h3>
+            <span v-if="row.category" class="tpl-chip">{{ row.category }}</span>
+          </div>
+          <StatusTag :status="isPlaceholder(row) ? 'placeholder' : 'online'" />
+        </div>
+
+        <p class="tpl-desc">{{ row.description || '暂无适用范围说明' }}</p>
+
+        <div class="tpl-meta">
+          <span>{{ row.filePath ? formatSize(row.fileSize) : '未上传文件' }}</span>
+          <span>{{ row.downloadCount || 0 }} 次下载</span>
+          <span>更新于 {{ formatDateTime(row.updatedAt || row.createdAt) }}</span>
+        </div>
+
+        <div class="tpl-actions">
+          <el-button size="small" :disabled="isPlaceholder(row)" @click="download(row)">下载</el-button>
+          <el-button v-if="isPlaceholder(row)" size="small" type="primary" @click="showFillDialog(row)">补传文件</el-button>
+          <el-button v-else size="small" type="warning" plain @click="showFillDialog(row)">替换</el-button>
+          <el-popconfirm title="确定删除该模板吗？" @confirm="handleDelete(row.id)">
+            <template #reference><el-button size="small" type="danger" plain>删除</el-button></template>
+          </el-popconfirm>
+        </div>
+      </div>
+
+      <EmptyState
+        v-if="!loading && !filteredList.length"
+        class="tpl-empty"
+        title="暂无办公模板"
+        description="点击右上角「上传模板」, 学生端「文件与模板」页即可下载使用。"
+      />
+    </div>
 
     <!-- 新增模板 -->
     <el-dialog v-model="dialogVisible" title="上传办公模板" width="540px">
@@ -149,7 +141,7 @@ import { useUserStore } from '@/stores/user'
 import router from '@/router'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
-import DataPanel from '@/components/common/DataPanel.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 
 const categories = ['党团证明', '请假申请', '活动报销', '工作简报', '其他']
@@ -374,10 +366,127 @@ function parseDownloadFilename(disposition) {
 onMounted(loadData)
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .upload-tip {
   margin-top: 6px;
   color: var(--app-text-secondary);
   font-size: 12px;
+}
+
+/* ===== 模板卡片网格 ===== */
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 14px;
+  min-height: 150px;
+}
+
+.tpl-empty {
+  grid-column: 1 / -1;
+}
+
+.tpl-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: var(--app-panel);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  transition: transform 0.2s var(--app-ease), box-shadow 0.2s var(--app-ease), border-color 0.2s var(--app-ease);
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--app-primary-soft);
+    box-shadow: var(--app-shadow);
+  }
+}
+
+/* 占位待传: 虚线琥珀边 */
+.tpl-card--placeholder {
+  border-style: dashed;
+  border-color: #E2C58A;
+  background: #FFFDF8;
+}
+
+.tpl-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tpl-icon {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--app-primary);
+  background: var(--app-primary-light);
+}
+
+.tpl-card--placeholder .tpl-icon {
+  color: var(--app-gold-deep);
+  background: var(--app-gold-light);
+}
+
+.tpl-head-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tpl-title {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-chip {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--app-primary-light);
+  color: var(--app-primary);
+  font-size: 12px;
+}
+
+.tpl-desc {
+  flex: 1;
+  margin: 11px 0 0;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tpl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 11px;
+  color: var(--app-text-placeholder);
+  font-size: 12px;
+}
+
+.tpl-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border-light);
+}
+
+.tpl-card--placeholder .tpl-actions {
+  border-top-color: #F0E4CB;
 }
 </style>

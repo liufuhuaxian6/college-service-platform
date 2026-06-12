@@ -1,6 +1,7 @@
 <template>
   <span class="status-tag" :class="`status-tag--${normalized}`">
-    {{ label || computedLabel }}
+    <span class="status-tag__dot" />
+    {{ text || label || computedLabel }}
   </span>
 </template>
 
@@ -10,9 +11,20 @@ import { computed } from 'vue'
 const props = defineProps({
   status: { type: [String, Number], default: '' },
   label: { type: String, default: '' },
+  // 直接指定色调与文案 (绕过 status 映射), 供广播历史等非标准状态使用
+  type: { type: String, default: '' },
+  text: { type: String, default: '' },
 })
 
+const TYPE_TO_CLASS = {
+  success: 'approved',
+  warning: 'pending',
+  danger: 'rejected',
+  info: 'default',
+}
+
 const normalized = computed(() => {
+  if (props.type) return TYPE_TO_CLASS[props.type] || 'default'
   const map = {
     draft: 'draft',
     pending: 'pending',
@@ -55,40 +67,52 @@ const computedLabel = computed(() => {
 .status-tag {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   height: 24px;
-  padding: 0 9px;
+  padding: 0 10px;
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 500;
   line-height: 1;
   border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-tag__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
 }
 
 .status-tag--draft,
 .status-tag--withdrawn,
 .status-tag--disabled,
+.status-tag--suspended,
 .status-tag--default {
   color: var(--app-info);
-  background: #F2F3F5;
+  background: var(--app-info-bg);
   border-color: #E5E6EB;
 }
 
 .status-tag--pending,
 .status-tag--active {
   color: var(--app-warning);
-  background: #FFF7E8;
+  background: var(--app-warning-bg);
   border-color: #F3D6A2;
 }
 
 .status-tag--approved,
 .status-tag--completed {
   color: var(--app-success);
-  background: #ECF6F0;
+  background: var(--app-success-bg);
   border-color: #B8DCC8;
 }
 
 .status-tag--rejected {
   color: var(--app-danger);
-  background: #FBECEC;
+  background: var(--app-danger-bg);
   border-color: #E8B8BA;
 }
 

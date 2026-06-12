@@ -32,25 +32,45 @@
       </el-form>
     </FilterBar>
 
-    <DataPanel title="学生列表">
-      <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column prop="studentId" label="学号" width="140" />
-        <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column prop="grade" label="年级" width="100" />
-        <el-table-column prop="major" label="专业" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="className" label="班级" width="120" />
-        <el-table-column prop="phone" label="手机号" width="140" />
-        <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
-        <el-table-column prop="roleLevel" label="身份" width="100">
+    <DataPanel :title="`学生列表 (共 ${total} 人)`">
+      <el-table :data="list" v-loading="loading" @row-click="row => viewDetail(row.id)" class="person-table">
+        <el-table-column label="学生" min-width="220">
           <template #default="{ row }">
-            <el-tag :type="row.roleLevel === 3 ? 'warning' : 'info'">
+            <div class="person-info">
+              <span class="person-name">
+                {{ row.name || '-' }}
+                <el-tag v-if="row.roleLevel === 3" type="warning" size="small" effect="plain">骨干</el-tag>
+              </span>
+              <span class="person-sub">{{ row.studentId }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="班级信息" min-width="220">
+          <template #default="{ row }">
+            <div class="stack-cell">
+              <span class="stack-main">{{ row.major || '-' }}</span>
+              <span class="stack-sub">{{ [row.grade, row.className].filter(Boolean).join(' · ') || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="联系方式" min-width="230">
+          <template #default="{ row }">
+            <div class="stack-cell">
+              <span class="stack-main">{{ row.phone || '-' }}</span>
+              <span class="stack-sub">{{ row.email || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="身份" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.roleLevel === 3 ? 'warning' : 'info'" effect="light" round>
               {{ row.roleLevel === 3 ? '学生骨干' : '普通学生' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="viewDetail(row.id)">详情</el-button>
+            <el-button link type="primary" @click.stop="viewDetail(row.id)">查看画像</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -67,16 +87,27 @@
     </DataPanel>
 
     <el-drawer v-model="detailVisible" title="学生画像详情" size="760px">
+      <!-- 画像头卡: 基本信息 + 汇总数字 -->
+      <div class="profile-hero">
+        <div class="profile-head">
+          <div class="profile-name-row">
+            <strong>{{ detail.name || '-' }}</strong>
+            <span class="profile-id">{{ detail.studentId || '-' }}</span>
+          </div>
+          <span class="profile-class">{{ [detail.grade, detail.major, detail.className].filter(Boolean).join(' · ') || '-' }}</span>
+        </div>
+        <div class="profile-stats">
+          <div class="profile-stat"><strong>{{ honors.length }}</strong><span>荣誉</span></div>
+          <div class="profile-stat"><strong>{{ processes.length }}</strong><span>流程</span></div>
+          <div class="profile-stat"><strong>{{ approvals.length }}</strong><span>申请</span></div>
+        </div>
+      </div>
+
       <el-descriptions :column="2" border>
         <el-descriptions-item label="用户ID">{{ detail.userId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="学号">{{ detail.studentId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="姓名">{{ detail.name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="年级">{{ detail.grade || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="专业">{{ detail.major || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="班级">{{ detail.className || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="身份证号">{{ detail.idCard || '-' }}</el-descriptions-item>
         <el-descriptions-item label="手机号">{{ detail.phone || '-' }}</el-descriptions-item>
         <el-descriptions-item label="邮箱">{{ detail.email || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="身份证号">{{ detail.idCard || '-' }}</el-descriptions-item>
       </el-descriptions>
 
       <div class="section-title">
@@ -285,12 +316,136 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .section-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin: 22px 0 12px;
   font-weight: 650;
+}
+
+/* ===== 人员行 ===== */
+.person-table :deep(.el-table__row) {
+  cursor: pointer;
+}
+
+.person-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.person-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.person-sub {
+  margin-top: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stack-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stack-main {
+  color: var(--app-text-regular);
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-sub {
+  margin-top: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== 画像头卡 ===== */
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  color: #fff;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 92% -40%, rgba(255, 255, 255, 0.16), transparent 46%),
+    var(--app-red-gradient);
+  box-shadow: var(--app-shadow-red);
+}
+
+.profile-head {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+
+  strong {
+    font-family: var(--app-font-display);
+    font-size: 19px;
+    letter-spacing: 1px;
+  }
+}
+
+.profile-id {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-class {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12.5px;
+}
+
+.profile-stats {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.profile-stat {
+  min-width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  strong {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  span {
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11.5px;
+  }
 }
 </style>

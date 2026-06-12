@@ -6,32 +6,39 @@
       </template>
     </PageHeader>
 
-    <DataPanel title="模板列表">
-      <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="流程名称" min-width="170" />
-        <el-table-column prop="totalSteps" label="步骤数" width="100" />
-        <el-table-column prop="description" label="描述" min-width="240" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="110">
-          <template #default="{ row }"><StatusTag :status="row.status" /></template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="editTemplate(row)">编辑</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="table-footer">
-        <el-pagination
-          v-model:current-page="query.page"
-          v-model:page-size="query.size"
-          :total="total"
-          layout="total, prev, pager, next"
-          @current-change="loadData"
-        />
+    <!-- 模板卡片网格: 每张卡片展示流程概况, 点击编辑 -->
+    <div v-loading="loading" class="template-grid">
+      <div v-for="t in list" :key="t.id" class="template-card" @click="editTemplate(t)">
+        <div class="template-card__head">
+          <span class="template-card__icon">
+            <el-icon :size="20"><Flag /></el-icon>
+          </span>
+          <StatusTag :status="t.status" />
+        </div>
+        <h3 class="template-card__name">{{ t.name }}</h3>
+        <p class="template-card__desc">{{ t.description || '暂无描述' }}</p>
+        <div class="template-card__foot">
+          <span class="template-card__steps">共 {{ t.totalSteps ?? '-' }} 个节点</span>
+          <el-button link type="primary" @click.stop="editTemplate(t)">编辑 ›</el-button>
+        </div>
       </div>
-    </DataPanel>
+
+      <!-- 新建卡片 -->
+      <div class="template-card template-card--add" @click="showCreateDialog">
+        <el-icon :size="26"><Plus /></el-icon>
+        <span>新建流程模板</span>
+      </div>
+    </div>
+
+    <div v-if="total > query.size" class="table-footer">
+      <el-pagination
+        v-model:current-page="query.page"
+        v-model:page-size="query.size"
+        :total="total"
+        layout="total, prev, pager, next"
+        @current-change="loadData"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑流程模板' : '新建流程模板'" width="780px">
       <el-form :model="form" label-width="90px">
@@ -80,7 +87,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { partyApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
-import DataPanel from '@/components/common/DataPanel.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 
 const loading = ref(false)
@@ -197,6 +203,100 @@ onMounted(loadData)
 </script>
 
 <style scoped lang="scss">
+/* ===== 模板卡片网格 ===== */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  min-height: 140px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  background: var(--app-panel);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow);
+  cursor: pointer;
+  transition: transform 0.22s var(--app-ease), box-shadow 0.22s var(--app-ease), border-color 0.22s var(--app-ease);
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: var(--app-primary-soft);
+    box-shadow: var(--app-shadow-lg);
+  }
+}
+
+.template-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.template-card__icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--app-primary);
+  background: var(--app-primary-light);
+}
+
+.template-card__name {
+  margin: 14px 0 0;
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.template-card__desc {
+  flex: 1;
+  margin: 8px 0 0;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.template-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border-light);
+}
+
+.template-card__steps {
+  color: var(--app-gold-deep);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 新建卡片 */
+.template-card--add {
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 170px;
+  color: var(--app-text-secondary);
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+
+  &:hover {
+    color: var(--app-primary);
+    background: var(--app-primary-light);
+  }
+}
+
+/* ===== 编辑弹窗内步骤卡片 ===== */
 .steps-header {
   display: flex;
   justify-content: space-between;
