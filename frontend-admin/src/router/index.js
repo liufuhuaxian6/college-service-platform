@@ -51,18 +51,20 @@ const routes = [
         component: () => import('@/views/party/InstanceList.vue'),
         meta: { title: '学生流程', icon: 'User', minRole: 2 },
       },
-      // 审批管理
+      // 审批服务: 待审批/全部申请合并为审批中心 (页内 Tab), 旧路径重定向保持深链可用
+      {
+        path: 'approval/center',
+        name: 'ApprovalCenter',
+        component: () => import('@/views/approval/ApprovalCenter.vue'),
+        meta: { title: '审批中心', icon: 'Tickets', minRole: 2 },
+      },
       {
         path: 'approval/pending',
-        name: 'ApprovalPending',
-        component: () => import('@/views/approval/PendingList.vue'),
-        meta: { title: '待审批', icon: 'Tickets', minRole: 2 },
+        redirect: to => ({ path: '/approval/center', query: { ...to.query, tab: 'pending' } }),
       },
       {
         path: 'approval/all',
-        name: 'ApprovalAll',
-        component: () => import('@/views/approval/AllList.vue'),
-        meta: { title: '全部申请', icon: 'Finished', minRole: 2 },
+        redirect: to => ({ path: '/approval/center', query: { ...to.query, tab: 'all' } }),
       },
       // 学生管理
       {
@@ -113,8 +115,12 @@ router.beforeEach((to, from, next) => {
     }
   }
 
-  // 权限检查: 角色等级不够时, 清登录态踢回 login 避免和 dashboard 的 minRole 互相弹形成死循环
+  // 权限检查: 班团骨干(3级)只开放"学生信息", 权限不足时引导到可用页面;
+  // 学生(4级)清登录态踢回 login, 避免和 dashboard 的 minRole 互相弹形成死循环
   if (to.meta.minRole && userStore.roleLevel > to.meta.minRole) {
+    if (userStore.roleLevel === 3 && to.path !== '/student/list') {
+      return next('/student/list')
+    }
     userStore.logout()
     return next({ path: '/login', query: { reason: 'role' } })
   }

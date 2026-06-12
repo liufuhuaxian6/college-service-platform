@@ -37,7 +37,17 @@ request.interceptors.response.use(
     return res
   },
   error => {
-    ElMessage.error(error.message || '网络错误')
+    // HTTP 层 401 (token 过期/无效): 清登录态并跳回登录页
+    const status = error.response?.status
+    const bizCode = error.response?.data?.code
+    if (status === 401 || bizCode === 401) {
+      const userStore = useUserStore()
+      userStore.logout()
+      ElMessage.error('登录已过期, 请重新登录')
+      router.push('/login')
+      return Promise.reject(error)
+    }
+    ElMessage.error(error.response?.data?.message || error.message || '网络错误')
     return Promise.reject(error)
   }
 )

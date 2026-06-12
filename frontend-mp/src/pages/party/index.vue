@@ -1,9 +1,11 @@
 <template>
-  <view class="page">
-    <view class="hero">
-      <view>
-        <text class="eyebrow">党团事务</text>
+  <view class="page mp-page-bg">
+    <view class="hero mp-hero">
+      <RucSeal :size="250" tone="light" class="mp-hero-seal" />
+      <view class="hero-main">
+        <text class="eyebrow mp-eyebrow">党团事务</text>
         <text class="title">我的党团流程</text>
+        <view class="title-underline" />
         <text class="subtitle">查看个人进度，也可查阅官方流程模板</text>
       </view>
     </view>
@@ -21,14 +23,23 @@
           :key="item.id"
           @click="openProgress(item)"
         >
+          <view class="percent-ring">
+            <text class="percent-num">{{ progressPercent(item) }}</text>
+            <text class="percent-unit">%</text>
+          </view>
           <view class="card-main">
-            <text class="card-title">{{ item.templateName || '党团流程' }}</text>
-            <text class="card-desc">当前第 {{ item.currentStep || 1 }} 步，共 {{ item.steps?.length || '-' }} 步</text>
+            <view class="card-title-row">
+              <text class="card-title">{{ item.templateName || '党团流程' }}</text>
+              <StatusPill :status="item.status" />
+            </view>
+            <text class="card-desc">
+              第 {{ item.currentStep || 1 }}/{{ item.steps?.length || '-' }} 步{{ currentStepName(item) ? ' · ' + currentStepName(item) : '' }}
+            </text>
             <view class="progress-bar">
               <view class="progress-fill" :style="{ width: progressPercent(item) + '%' }" />
             </view>
           </view>
-          <StatusPill :status="item.status" />
+          <text class="card-arrow">›</text>
         </view>
       </view>
       <EmptyState
@@ -66,6 +77,7 @@ import { computed, onMounted, ref } from 'vue'
 import { partyApi } from '@/api'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import RucSeal from '@/components/RucSeal.vue'
 
 const progressList = ref([])
 const templates = ref([])
@@ -97,8 +109,14 @@ const templateCards = computed(() => {
 function progressPercent(item) {
   const total = item.steps?.length || 0
   if (!total) return 0
+  if (item.status === 'completed') return 100
   const current = Math.min(item.currentStep || 1, total)
   return Math.round((current / total) * 100)
+}
+
+function currentStepName(item) {
+  const step = (item.steps || []).find((s) => s.stepOrder === item.currentStep)
+  return step?.name || ''
 }
 
 function openProgress(item) {
@@ -129,7 +147,6 @@ onMounted(async () => {
 .page {
   min-height: 100vh;
   padding: 24rpx;
-  background: var(--mp-bg);
   box-sizing: border-box;
 }
 
@@ -137,30 +154,36 @@ onMounted(async () => {
   margin-bottom: 28rpx;
   padding: 32rpx;
   color: #fff;
-  border-radius: 26rpx;
-  background: linear-gradient(135deg, #9B2C36 0%, #7E2430 100%);
-  box-shadow: 0 18rpx 42rpx rgba(155, 44, 54, .18);
+}
+
+.hero-main {
+  position: relative;
+  z-index: 1;
 }
 
 .eyebrow {
-  display: inline-flex;
   margin-bottom: 18rpx;
-  padding: 6rpx 14rpx;
-  color: rgba(255, 255, 255, .86);
-  font-size: 22rpx;
-  background: rgba(255, 255, 255, .14);
-  border-radius: 999rpx;
 }
 
 .title {
   display: block;
-  font-size: 40rpx;
+  font-family: var(--mp-font-display);
+  font-size: 44rpx;
   font-weight: 800;
+  letter-spacing: 3rpx;
+}
+
+.title-underline {
+  width: 64rpx;
+  height: 6rpx;
+  margin-top: 14rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(90deg, var(--mp-gold), rgba(184, 146, 62, 0.2));
 }
 
 .subtitle {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 12rpx;
   color: rgba(255, 255, 255, .76);
   font-size: 24rpx;
 }
@@ -173,9 +196,23 @@ onMounted(async () => {
 }
 
 .section-title {
+  position: relative;
+  padding-left: 20rpx;
   color: var(--mp-text-main);
   font-size: 31rpx;
   font-weight: 750;
+}
+
+/* 红金双色装饰条 */
+.section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6rpx;
+  bottom: 6rpx;
+  width: 7rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(180deg, var(--mp-primary) 0%, var(--mp-primary) 62%, var(--mp-gold) 62%, var(--mp-gold) 100%);
 }
 
 .section-extra {
@@ -197,15 +234,48 @@ onMounted(async () => {
 
 .progress-card {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20rpx;
-  padding: 24rpx;
+  align-items: center;
+  gap: 22rpx;
+  padding: 26rpx 24rpx;
   border-radius: 18rpx;
+  transition: background 0.15s ease;
+}
+
+.progress-card:active {
+  background: var(--mp-bg-warm);
 }
 
 .progress-card + .progress-card {
   border-top: 1rpx solid var(--mp-border);
+}
+
+/* 左侧百分比章 (实心人大红渐变圆) */
+.percent-ring {
+  width: 110rpx;
+  height: 110rpx;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-direction: row;
+  flex-shrink: 0;
+  padding-top: 34rpx;
+  border-radius: 50%;
+  background: var(--mp-red-gradient);
+  box-shadow: 0 10rpx 24rpx rgba(157, 34, 53, 0.28), inset 0 0 0 5rpx rgba(255, 255, 255, 0.16);
+  box-sizing: border-box;
+}
+
+.percent-num {
+  color: #fff;
+  font-size: 36rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.percent-unit {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 19rpx;
+  font-weight: 700;
 }
 
 .card-main {
@@ -213,18 +283,37 @@ onMounted(async () => {
   min-width: 0;
 }
 
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14rpx;
+}
+
 .card-title {
-  display: block;
   color: var(--mp-text-main);
   font-size: 30rpx;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-desc {
   display: block;
   margin-top: 8rpx;
   color: var(--mp-text-sub);
-  font-size: 24rpx;
+  font-size: 23rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-arrow {
+  flex-shrink: 0;
+  color: var(--mp-text-muted);
+  font-size: 36rpx;
+  line-height: 1;
 }
 
 .progress-bar {
@@ -238,7 +327,8 @@ onMounted(async () => {
 .progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: var(--mp-primary);
+  background: linear-gradient(90deg, var(--mp-primary), var(--mp-gold));
+  transition: width 0.4s ease;
 }
 
 .template-grid {

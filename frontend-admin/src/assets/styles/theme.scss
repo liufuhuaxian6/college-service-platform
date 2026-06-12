@@ -1,33 +1,93 @@
+/* =====================================================================
+ * 设计令牌 v2 · "人大红" 主题
+ * 基调: 人大红 (Pantone 201C #9D2235) + 暖纸灰中性色 + 鎏金点缀
+ * 风格: 庄重、典雅、克制 —— 贴合高校党团工作场景
+ * 说明: 双端主题只需改本文件与 frontend-mp/src/styles/theme.css
+ * ===================================================================== */
 :root {
-  --app-primary: #9B2C36;
-  --app-primary-hover: #872631;
-  --app-primary-light: #F7EDEF;
-  --app-primary-soft: #E8D3D6;
-  --app-sidebar: #2B2022;
-  --app-sidebar-active: #3A292B;
-  --app-bg: #F5F6F8;
-  --app-panel: #FFFFFF;
-  --app-muted: #FAFAFB;
-  --app-border: #E5E6EB;
-  --app-border-light: #F0F1F3;
-  --app-text: #1F2329;
-  --app-text-regular: #4E5969;
-  --app-text-secondary: #86909C;
-  --app-success: #2F7D55;
-  --app-warning: #9A6A16;
-  --app-danger: #B4232C;
-  --app-info: #5B6472;
-  --app-radius: 6px;
-  --app-radius-lg: 8px;
-  --app-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  /* ---- 品牌色 · 人大红 ---- */
+  --app-primary: #9D2235;
+  --app-primary-hover: #8A1E2F;
+  --app-primary-deep: #751A28;
+  --app-primary-ink: #5C1420;          /* 最深红, 用于大面积深色底 */
+  --app-primary-light: #F7ECEE;        /* 红色浅底 */
+  --app-primary-soft: #EAD2D7;         /* 红色弱化边框 */
+  --app-primary-glow: rgba(157, 34, 53, 0.16);
 
-  --el-color-primary: #9B2C36;
-  --el-color-primary-light-3: #B75D65;
-  --el-color-primary-light-5: #CC8A90;
-  --el-color-primary-light-7: #E2BDC1;
-  --el-color-primary-light-8: #EEDDE0;
-  --el-color-primary-light-9: #F7EDEF;
-  --el-color-primary-dark-2: #872631;
-  --el-border-radius-base: 6px;
+  /* ---- 点缀色 · 鎏金 (荣誉、强调线、active 标记) ---- */
+  --app-gold: #B8923E;
+  --app-gold-deep: #9A7833;
+  --app-gold-light: #F7F0E3;
+
+  /* ---- 侧边栏 · 深红色阶 ---- */
+  --app-sidebar-top: #8A1E2F;
+  --app-sidebar: #7E1B2A;
+  --app-sidebar-deep: #621523;
+
+  /* ---- 中性色 · 暖纸灰 ---- */
+  --app-bg: #F5F3F0;                   /* 页面底 */
+  --app-panel: #FFFFFF;                /* 卡片底 */
+  --app-muted: #FAF8F6;                /* 卡片内浅块 */
+  --app-border: #E7E3DF;
+  --app-border-light: #F1EEEA;
+  --app-text: #231F20;
+  --app-text-regular: #4E4A4B;
+  --app-text-secondary: #8A8486;
+  --app-text-placeholder: #B5AFB1;
+
+  /* ---- 语义色 (低饱和, 庄重) ---- */
+  --app-success: #2F7D55;
+  --app-success-bg: #ECF6F0;
+  --app-warning: #9A6A16;
+  --app-warning-bg: #FFF7E8;
+  --app-danger: #B4232C;
+  --app-danger-bg: #FBECEC;
+  --app-info: #5B6472;
+  --app-info-bg: #F2F3F5;
+
+  /* ---- 圆角 / 阴影 / 动效 ---- */
+  --app-radius-sm: 6px;
+  --app-radius: 8px;
+  --app-radius-lg: 12px;
+  --app-shadow-sm: 0 1px 2px rgba(35, 31, 32, 0.05);
+  --app-shadow: 0 1px 3px rgba(35, 31, 32, 0.05), 0 4px 14px rgba(35, 31, 32, 0.04);
+  --app-shadow-lg: 0 12px 36px rgba(35, 31, 32, 0.12);
+  --app-shadow-red: 0 8px 26px rgba(157, 34, 53, 0.20);
+  --app-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---- 字体: 标题衬线宋体增加庄重感, 正文黑体 ---- */
+  --app-font-display: "Source Han Serif SC", "Noto Serif SC", "STZhongsong", "SimSun", serif;
+  --app-font-body: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --app-font-num: "DIN Alternate", "Helvetica Neue", Arial, sans-serif;
+
+  /* ---- 深红渐变 (登录页 / 横幅 / 侧边栏共用) ---- */
+  --app-red-gradient: linear-gradient(152deg, #9D2235 0%, #821C2C 56%, #6B1724 100%);
+
+  /* ---- Element Plus 全局覆写 ---- */
+  --el-color-primary: #9D2235;
+  --el-color-primary-light-3: #BA6472;
+  --el-color-primary-light-5: #CE909A;
+  --el-color-primary-light-7: #E2BCC2;
+  --el-color-primary-light-8: #EBD3D7;
+  --el-color-primary-light-9: #F5E9EB;
+  --el-color-primary-dark-2: #7E1B2A;
+  --el-color-success: #2F7D55;
+  --el-color-warning: #9A6A16;
+  --el-color-danger: #B4232C;
+  --el-color-error: #B4232C;
+  --el-color-info: #5B6472;
+  --el-text-color-primary: #231F20;
+  --el-text-color-regular: #4E4A4B;
+  --el-text-color-secondary: #8A8486;
+  --el-border-color: #E7E3DF;
+  --el-border-color-light: #EDEAE6;
+  --el-border-color-lighter: #F1EEEA;
+  --el-fill-color-light: #FAF8F6;
+  --el-fill-color-lighter: #FCFBFA;
+  --el-bg-color-page: #F5F3F0;
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-box-shadow: var(--app-shadow-lg);
+  --el-box-shadow-light: var(--app-shadow);
   --el-font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }

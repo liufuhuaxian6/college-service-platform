@@ -43,46 +43,52 @@
       </el-form>
     </FilterBar>
 
-    <DataPanel title="流程列表">
-      <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column label="学生" min-width="200">
-          <template #default="{ row }">
-            <span>{{ getStudentLabel(row.userId) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="流程模板" min-width="170">
-          <template #default="{ row }">{{ getTemplateName(row.templateId) }}</template>
-        </el-table-column>
-        <el-table-column prop="currentStep" label="当前步骤" width="100" />
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="{ row }"><StatusTag :status="row.status" /></template>
-        </el-table-column>
-        <el-table-column prop="startDate" label="开始日期" width="140" />
-        <el-table-column label="操作" width="240" fixed="right">
-          <template #default="{ row }">
-            <template v-if="row.status === 'active'">
-              <el-button link type="primary" @click="advance(row)">推进</el-button>
-              <el-button link type="warning" @click="suspend(row)">暂停</el-button>
-            </template>
-            <template v-else-if="row.status === 'suspended'">
-              <el-button link type="success" @click="resume(row)">恢复</el-button>
-            </template>
-            <el-button link type="danger" @click="removeInstance(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+    <!-- 流程进度卡片列表 -->
+    <div v-loading="loading" class="inst-list">
+      <div v-for="row in list" :key="row.id" class="inst-card">
+        <div class="inst-main">
+          <div class="inst-line1">
+            <strong class="inst-student">{{ getStudentLabel(row.userId) }}</strong>
+            <StatusTag :status="row.status" />
+          </div>
+          <div class="inst-line2">
+            <span class="inst-template">{{ getTemplateName(row.templateId) }}</span>
+            <span class="inst-date">{{ row.startDate ? `开始于 ${row.startDate}` : '' }}</span>
+          </div>
+          <div class="inst-progress">
+            <div class="inst-bar">
+              <div class="inst-fill" :style="{ width: progressPercent(row) + '%' }" />
+            </div>
+            <span class="inst-step">第 {{ row.currentStep || 1 }} 步 / 共 {{ getTotalSteps(row.templateId) || '-' }} 步</span>
+          </div>
+        </div>
 
-      <div class="table-footer">
-        <el-pagination
-          v-model:current-page="query.page"
-          v-model:page-size="query.size"
-          :total="total"
-          layout="total, prev, pager, next"
-          @current-change="loadData"
-        />
+        <div class="inst-actions">
+          <template v-if="row.status === 'active'">
+            <el-button size="small" type="primary" @click="advance(row)">推进</el-button>
+            <el-button size="small" type="warning" plain @click="suspend(row)">暂停</el-button>
+          </template>
+          <el-button v-else-if="row.status === 'suspended'" size="small" type="success" plain @click="resume(row)">恢复</el-button>
+          <el-button size="small" type="danger" plain @click="removeInstance(row)">删除</el-button>
+        </div>
       </div>
-    </DataPanel>
+
+      <EmptyState
+        v-if="!loading && !list.length"
+        title="暂无学生流程"
+        description="点击右上角「创建学生流程」, 为学生绑定入党/入团流程模板后即可逐步推进。"
+      />
+    </div>
+
+    <div v-if="total > query.size" class="table-footer">
+      <el-pagination
+        v-model:current-page="query.page"
+        v-model:page-size="query.size"
+        :total="total"
+        layout="total, prev, pager, next"
+        @current-change="loadData"
+      />
+    </div>
 
     <el-dialog v-model="dialogVisible" title="创建学生流程" width="560px">
       <el-form :model="form" label-width="100px">
@@ -124,7 +130,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { partyApi, systemApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
-import DataPanel from '@/components/common/DataPanel.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 
 const loading = ref(false)
@@ -150,6 +156,19 @@ async function loadStudents() {
 function getStudentLabel(userId) {
   const s = students.value.find(x => x.id === userId)
   return s ? `${s.studentId} ${s.name}` : `用户 ${userId}`
+}
+
+function getTotalSteps(templateId) {
+  const t = templates.value.find(item => item.id === templateId)
+  return t?.totalSteps || 0
+}
+
+function progressPercent(row) {
+  const total = getTotalSteps(row.templateId)
+  if (!total) return 0
+  if (row.status === 'completed') return 100
+  const current = Math.min(row.currentStep || 1, total)
+  return Math.round((current / total) * 100)
 }
 
 function buildQueryParams() {
@@ -288,3 +307,108 @@ onMounted(async () => {
   loadData()
 })
 </script>
+
+<style scoped lang="scss">
+/* ===== 流程进度卡片 ===== */
+.inst-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 150px;
+}
+
+.inst-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--app-panel);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  transition: box-shadow 0.2s var(--app-ease), border-color 0.2s var(--app-ease);
+
+  &:hover {
+    border-color: var(--app-primary-soft);
+    box-shadow: var(--app-shadow);
+  }
+}
+
+.inst-card {
+  /* 左侧人大红细条标识 */
+  border-left: 4px solid var(--app-primary);
+}
+
+.inst-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.inst-line1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inst-student {
+  color: var(--app-text);
+  font-size: 14.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inst-line2 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 5px;
+}
+
+.inst-template {
+  color: var(--app-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.inst-date {
+  color: var(--app-text-placeholder);
+  font-size: 12.5px;
+}
+
+.inst-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  max-width: 460px;
+}
+
+.inst-bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--app-border-light);
+  overflow: hidden;
+}
+
+.inst-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--app-primary), var(--app-gold));
+  transition: width 0.4s var(--app-ease);
+}
+
+.inst-step {
+  flex-shrink: 0;
+  color: var(--app-text-secondary);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inst-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+</style>

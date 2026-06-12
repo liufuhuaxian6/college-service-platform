@@ -1,38 +1,51 @@
 <template>
-  <view class="page">
-    <view class="top-card" v-if="detail">
-      <view>
-        <text class="eyebrow">{{ isTemplateMode ? '流程模板' : '我的流程' }}</text>
+  <view class="page mp-page-bg">
+    <view class="top-card mp-hero" v-if="detail">
+      <RucSeal :size="230" tone="light" class="mp-hero-seal" />
+      <view class="top-main">
+        <text class="eyebrow mp-eyebrow">{{ isTemplateMode ? '流程模板' : '我的流程' }}</text>
         <text class="title">{{ detail.templateName }}</text>
         <text class="subtitle">
           {{ isTemplateMode ? '官方节点说明' : `当前第 ${detail.currentStep || 1} 步` }}
         </text>
       </view>
-      <StatusPill v-if="!isTemplateMode" :status="detail.status" />
+      <StatusPill v-if="!isTemplateMode" :status="detail.status" class="top-pill" />
     </view>
 
+    <!-- 阶段手风琴: 点击阶段头展开/收起, 默认展开当前所在阶段 -->
     <view class="timeline" v-if="detail">
       <view class="stage-block" v-for="stage in stages" :key="stage.name">
-        <view class="stage-title">
-          <text>{{ stage.name }}</text>
-          <text>{{ stage.start }}-{{ stage.end }}</text>
+        <view class="stage-head" :class="{ 'stage-head--current': stage.hasCurrent }" @click="toggleStage(stage.name)">
+          <view class="stage-head-main">
+            <view class="stage-marker" :class="{ done: stage.doneCount === stage.steps.length, current: stage.hasCurrent }" />
+            <text class="stage-name">{{ stage.name }}</text>
+            <text v-if="stage.hasCurrent" class="stage-badge">进行中</text>
+          </view>
+          <view class="stage-head-side">
+            <text class="stage-meta">
+              {{ isTemplateMode ? `第 ${stage.start}-${stage.end} 步` : `${stage.doneCount}/${stage.steps.length}` }}
+            </text>
+            <text class="stage-chevron" :class="{ open: isExpanded(stage.name) }">›</text>
+          </view>
         </view>
 
-        <view class="step" v-for="step in stage.steps" :key="step.stepOrder">
-          <view class="step-rail">
-            <view class="step-indicator" :class="stepStatus(step)">{{ step.stepOrder }}</view>
-            <view class="step-line" v-if="step.stepOrder !== detail.steps.length" :class="stepStatus(step)" />
-          </view>
-          <view class="step-content">
-            <view class="step-head">
-              <text class="step-name">{{ step.name }}</text>
-              <text class="step-tag" v-if="stepStatus(step) === 'current'">当前</text>
-              <text class="step-tag done" v-else-if="step.completed">完成</text>
+        <view v-if="isExpanded(stage.name)" class="stage-body">
+          <view class="step" v-for="step in stage.steps" :key="step.stepOrder">
+            <view class="step-rail">
+              <view class="step-indicator" :class="stepStatus(step)">{{ step.stepOrder }}</view>
+              <view class="step-line" v-if="step.stepOrder !== detail.steps.length" :class="stepStatus(step)" />
             </view>
-            <text class="step-desc" v-if="step.description">{{ step.description }}</text>
-            <text class="step-time" v-if="step.completedAt">完成时间：{{ formatDateTime(step.completedAt) }}</text>
-            <text class="step-time" v-else-if="step.expectedEnd">预计节点：{{ step.expectedEnd }}</text>
-            <text class="step-time" v-else-if="step.durationDays">预计需要 {{ step.durationDays }} 天</text>
+            <view class="step-content">
+              <view class="step-head">
+                <text class="step-name">{{ step.name }}</text>
+                <text class="step-tag" v-if="stepStatus(step) === 'current'">当前</text>
+                <text class="step-tag done" v-else-if="step.completed">完成</text>
+              </view>
+              <text class="step-desc" v-if="step.description">{{ step.description }}</text>
+              <text class="step-time" v-if="step.completedAt">完成时间：{{ formatDateTime(step.completedAt) }}</text>
+              <text class="step-time" v-else-if="step.expectedEnd">预计节点：{{ step.expectedEnd }}</text>
+              <text class="step-time" v-else-if="step.durationDays">预计需要 {{ step.durationDays }} 天</text>
+            </view>
           </view>
         </view>
       </view>
@@ -47,6 +60,7 @@ import { computed, onMounted, ref } from 'vue'
 import { partyApi } from '@/api'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import RucSeal from '@/components/RucSeal.vue'
 
 const detail = ref(null)
 const mode = ref('progress')
@@ -103,13 +117,39 @@ const stages = computed(() => {
     }
     map.get(stageName).push(step)
   })
+  const current = detail.value?.currentStep
   return Array.from(map.entries()).map(([name, steps]) => ({
     name,
     steps,
     start: steps[0]?.stepOrder,
     end: steps[steps.length - 1]?.stepOrder,
+    doneCount: steps.filter((s) => s.completed).length,
+    hasCurrent: !isTemplateMode.value && steps.some((s) => s.stepOrder === current),
   }))
 })
+
+// ===== 阶段手风琴展开状态 =====
+const expandedStages = ref([])
+
+function isExpanded(name) {
+  return expandedStages.value.includes(name)
+}
+
+function toggleStage(name) {
+  if (isExpanded(name)) {
+    expandedStages.value = expandedStages.value.filter((n) => n !== name)
+  } else {
+    expandedStages.value = [...expandedStages.value, name]
+  }
+}
+
+// 默认展开: 进度模式展开当前所在阶段, 模板模式/无当前步骤展开第一个阶段
+function initExpanded() {
+  const list = stages.value
+  if (!list.length) return
+  const target = list.find((s) => s.hasCurrent) || list[0]
+  expandedStages.value = [target.name]
+}
 
 function stepStatus(step) {
   if (isTemplateMode.value) return 'template'
@@ -175,12 +215,14 @@ onMounted(async () => {
 
   if (mode.value === 'template') {
     detail.value = await buildTemplateDetail(options.id, decodeURIComponent(options.name || ''))
+    initExpanded()
     return
   }
 
   if (options.id) {
     const res = await partyApi.getProgressDetail(options.id)
     detail.value = res.data
+    initExpanded()
   }
 })
 </script>
@@ -189,7 +231,6 @@ onMounted(async () => {
 .page {
   min-height: 100vh;
   padding: 24rpx;
-  background: var(--mp-bg);
   box-sizing: border-box;
 }
 
@@ -201,25 +242,30 @@ onMounted(async () => {
   margin-bottom: 20rpx;
   padding: 30rpx;
   color: #fff;
-  background: linear-gradient(135deg, #9B2C36 0%, #7E2430 100%);
-  border-radius: 24rpx;
-  box-shadow: 0 18rpx 42rpx rgba(155, 44, 54, .18);
+}
+
+.top-main {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.top-pill {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
 }
 
 .eyebrow {
-  display: inline-flex;
   margin-bottom: 14rpx;
-  padding: 6rpx 14rpx;
-  color: rgba(255, 255, 255, .88);
-  font-size: 22rpx;
-  background: rgba(255, 255, 255, .14);
-  border-radius: 999rpx;
 }
 
 .title {
   display: block;
-  font-size: 38rpx;
-  font-weight: 760;
+  font-family: var(--mp-font-display);
+  font-size: 42rpx;
+  font-weight: 800;
+  letter-spacing: 3rpx;
 }
 
 .subtitle {
@@ -234,28 +280,108 @@ onMounted(async () => {
   background: var(--mp-card);
   border: 1rpx solid var(--mp-border);
   border-radius: 24rpx;
+  box-shadow: var(--mp-shadow-card);
 }
 
 .stage-block + .stage-block {
-  margin-top: 28rpx;
-  padding-top: 28rpx;
+  margin-top: 14rpx;
+  padding-top: 14rpx;
   border-top: 1rpx solid var(--mp-border);
 }
 
-.stage-title {
+/* ===== 阶段头 (可点击展开/收起) ===== */
+.stage-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 22rpx;
+  justify-content: space-between;
+  gap: 14rpx;
+  padding: 14rpx 6rpx;
+  border-radius: 14rpx;
+  transition: background 0.15s ease;
+}
+
+.stage-head:active {
+  background: var(--mp-bg-warm);
+}
+
+/* 当前阶段: 淡红底强调 */
+.stage-head--current {
+  padding-left: 16rpx;
+  padding-right: 16rpx;
+  background: linear-gradient(90deg, rgba(157, 34, 53, 0.07), rgba(157, 34, 53, 0.02));
+  border: 1rpx solid rgba(157, 34, 53, 0.12);
+}
+
+.stage-head-main {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  min-width: 0;
+}
+
+.stage-marker {
+  width: 14rpx;
+  height: 14rpx;
+  flex-shrink: 0;
+  border-radius: 4rpx;
+  transform: rotate(45deg);
+  background: #D6CFC9;
+}
+
+.stage-marker.current {
+  background: var(--mp-primary);
+  box-shadow: 0 0 0 5rpx var(--mp-primary-light);
+}
+
+.stage-marker.done {
+  background: var(--mp-success);
+}
+
+.stage-name {
   color: var(--mp-text-main);
   font-size: 28rpx;
   font-weight: 720;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.stage-title text:last-child {
+.stage-badge {
+  flex-shrink: 0;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: var(--mp-primary-light);
+  color: var(--mp-primary);
+  font-size: 19rpx;
+  font-weight: 700;
+}
+
+.stage-head-side {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-shrink: 0;
+}
+
+.stage-meta {
   color: var(--mp-text-sub);
   font-size: 22rpx;
-  font-weight: 500;
+}
+
+.stage-chevron {
+  color: var(--mp-text-muted);
+  font-size: 34rpx;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.stage-chevron.open {
+  transform: rotate(90deg);
+}
+
+.stage-body {
+  padding: 14rpx 6rpx 4rpx;
 }
 
 .step {
@@ -318,7 +444,7 @@ onMounted(async () => {
 }
 
 .step-line.current {
-  background: rgba(155, 44, 54, .35);
+  background: rgba(157, 34, 53, .35);
 }
 
 .step-content {

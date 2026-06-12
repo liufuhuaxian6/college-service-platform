@@ -1,5 +1,8 @@
 <template>
-  <view class="status-pill" :class="`status-pill--${type}`">{{ text }}</view>
+  <view class="status-pill" :class="`status-pill--${type}`">
+    <view class="status-pill__dot" />
+    <text>{{ text }}</text>
+  </view>
 </template>
 
 <script setup>
@@ -49,13 +52,22 @@ const text = computed(() => {
 .status-pill {
   display: inline-flex;
   align-items: center;
-  height: 42rpx;
-  padding: 0 16rpx;
+  gap: 8rpx;
+  height: 44rpx;
+  padding: 0 18rpx;
   border-radius: 999rpx;
   font-size: 22rpx;
   font-weight: 650;
   border: 1rpx solid transparent;
   white-space: nowrap;
+}
+
+.status-pill__dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
 }
 
 .status-pill--warning {
