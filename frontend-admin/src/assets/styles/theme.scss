@@ -91,3 +91,24 @@
   --el-box-shadow-light: var(--app-shadow);
   --el-font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
+
+/* =====================================================================
+ * 关键: 用更高特异性 (:root:root) 再覆写一次 Element Plus 主色变量.
+ * 原因: Vite/Element 的 :root 可能在我们之后注入, 普通 :root 同特异性下
+ * 按加载顺序被盖回默认蓝 (#409eff), 导致复选框/单选/开关/plain 按钮/分页/
+ * 输入聚焦/loading 等"原生主色组件"仍是蓝色, 与人大红主题割裂.
+ * 提升特异性后这些组件统一变红.
+ * ===================================================================== */
+:root:root {
+  --el-color-primary: #9D2235;
+  --el-color-primary-light-3: #BA6472;
+  --el-color-primary-light-5: #CE909A;
+  --el-color-primary-light-7: #E2BCC2;
+  --el-color-primary-light-8: #EBD3D7;
+  --el-color-primary-light-9: #F5E9EB;
+  --el-color-primary-dark-2: #7E1B2A;
+  --el-color-success: #2F7D55;
+  --el-color-warning: #9A6A16;
+  --el-color-danger: #B4232C;
+  --el-color-error: #B4232C;
+}

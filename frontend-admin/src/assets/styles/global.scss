@@ -88,6 +88,18 @@ body {
   }
 }
 
+/* 朴素(plain)主按钮: 收敛为人大红描边, 避免 Element 默认蓝色漏出 */
+.el-button--primary.is-plain {
+  --el-button-text-color: var(--app-primary);
+  --el-button-bg-color: var(--app-primary-light);
+  --el-button-border-color: var(--app-primary-soft);
+  --el-button-hover-text-color: #fff;
+  --el-button-hover-bg-color: var(--app-primary);
+  --el-button-hover-border-color: var(--app-primary);
+  --el-button-active-bg-color: var(--app-primary-deep);
+  --el-button-active-border-color: var(--app-primary-deep);
+}
+
 /* ===== 输入框 / 选择框 / 文本域: 统一暖底 + 红色聚焦环 ===== */
 .el-input__wrapper,
 .el-select__wrapper {

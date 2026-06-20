@@ -216,9 +216,9 @@ onMounted(loadData)
 
   &.active {
     color: #fff;
-    background: var(--app-primary);
-    border-color: var(--app-primary);
-    box-shadow: 0 2px 8px rgba(157, 34, 53, 0.26);
+    background: var(--app-red-gradient);
+    border-color: transparent;
+    box-shadow: 0 3px 10px rgba(157, 34, 53, 0.28);
   }
 }
 

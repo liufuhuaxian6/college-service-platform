@@ -6,7 +6,7 @@
       <div class="welcome-main">
         <span class="welcome-date">{{ todayText }}</span>
         <h1>{{ greeting }}，{{ userStore.name || '老师' }}</h1>
-        <p>今日待审批 {{ cards[2].value === '-' ? 0 : cards[2].value }} 件 · 进行中党团流程 {{ cards[3].value === '-' ? 0 : cards[3].value }} 个</p>
+        <p>学院学生综合服务平台 · 智能问答 / 电子审批 / 党团流程 / 信息推送一站式办理</p>
       </div>
       <RucSeal class="welcome-seal" :size="78" disc />
     </div>

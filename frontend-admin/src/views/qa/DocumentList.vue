@@ -23,7 +23,7 @@
     <div v-loading="loading" class="doc-grid">
       <div v-for="row in list" :key="row.id" class="doc-card">
         <div class="doc-card__main">
-          <span class="file-badge" :class="fileBadgeClass(row)">{{ fileExt(row) }}</span>
+          <span class="file-badge">{{ fileExt(row) }}</span>
           <div class="doc-card__info">
             <h3 class="doc-title" :title="row.title">{{ row.title }}</h3>
             <div class="doc-meta">
@@ -244,16 +244,6 @@ function fileExt(row) {
   return m ? m[1].toUpperCase().slice(0, 4) : 'DOC'
 }
 
-function fileBadgeClass(row) {
-  const ext = fileExt(row).toLowerCase()
-  if (ext === 'pdf') return 'badge-pdf'
-  if (['doc', 'docx'].includes(ext)) return 'badge-doc'
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'badge-xls'
-  if (['ppt', 'pptx'].includes(ext)) return 'badge-ppt'
-  if (['txt', 'md'].includes(ext)) return 'badge-txt'
-  return 'badge-other'
-}
-
 function parseDownloadFilename(disposition) {
   if (!disposition) return ''
   const match = disposition.match(/filename\*\=UTF-8''([^;]+)/i)
@@ -308,7 +298,7 @@ onMounted(loadData)
   gap: 14px;
 }
 
-/* 文件类型徽标 (折角文件造型) */
+/* 文件类型徽标 (折角文件造型, 统一中性蓝灰底 + 扩展名文字区分) */
 .file-badge {
   flex: 0 0 auto;
   width: 46px;
@@ -323,7 +313,7 @@ onMounted(loadData)
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  background: linear-gradient(135deg, transparent 0 10px, currentColor 10px);
+  background: linear-gradient(135deg, transparent 0 10px, #5B6472 10px);
 
   &::before {
     content: "";
@@ -332,17 +322,10 @@ onMounted(loadData)
     right: 0;
     width: 10px;
     height: 10px;
-    background: rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.5);
     border-bottom-left-radius: 4px;
   }
 }
-
-.badge-pdf { color: #C2453A; }
-.badge-doc { color: #3568A8; }
-.badge-xls { color: #2F7D55; }
-.badge-ppt { color: #C77023; }
-.badge-txt { color: #6E7681; }
-.badge-other { color: #9D2235; }
 
 .doc-card__info {
   flex: 1;
