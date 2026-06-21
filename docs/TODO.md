@@ -31,6 +31,42 @@
 
 ## 二、近期迭代回顾
 
+### 2026-06-21 · RAG 宽松召回 + 大模型自主决定引用
+
+把"相似度不达标就判未命中、后端机械给引用"改为"宽松召回候选 → 大模型自己判断与引用"：
+
+- `DocumentRagService.retrieveCandidates`：宽松召回(`rag.candidate-min-score` 默认 0.2，远低于严格 `minScore`)，召回更多候选交给大模型，不再因低分直接"未命中"
+- `QaService` 大模型分支重构：候选拼成带【编号】资料(`buildNumberedContext`)喂 AI；解析 AI 在答案末尾标注的 `[引用: n]` 编号(`parseAiCitations`)→ 映射回文档(按文档去重，最多 3)生成 `references`，**AI 未引用则为空**；`stripCitationTag` 去掉答案里的引用标记不展示
+- `OpenAiCompatibleProvider` systemPrompt：资料不足也别直接拒答 + 末尾按 `[引用: 1,3]` / `[引用: 无]` 标注引用
+- **抽取式(未配大模型)分支保持原严格 RAG**；仅大模型分支走"AI 自主引用"
+- 前端无需改(已有 references chips + 右滑侧栏)；需配 `AI_PROVIDER=openai` + key 重启后端生效
+- 验证：后端 `mvnw compile` ✅
+
+### 2026-06-21 · 问答接入多轮对话上下文
+
+- `AiProvider` 接口加带 `history` 的 default 方法(默认退化单轮, 向后兼容); `OpenAiCompatibleProvider` 把对话历史拼进 `messages`(system + 历史 user/assistant + 当前问题带最新检索上下文)
+- `QaService.chat` / `QaController.ChatRequest` 透传 `history`; 前端 `qa/index.vue` 的 `send` 取当前问题前最近 6 条已完成对话(ai→assistant)一并发送
+- 仅**大模型分支**生效(知识库精确匹配 / RAG 抽取式不依赖历史, 因其基于单问题检索); 需配 `AI_PROVIDER=openai` + key 重启后端才有多轮效果
+- 验证: 后端 `mvnw compile` ✅、`build:mp-weixin` ✅
+
+### 2026-06-21 · 问答来源引用(点击看原文) + 首页通知红点修复
+
+- **问答来源引用**(现代 AI 体验，仿 Perplexity/Claude)：
+  - 后端 `QaService.chat` 在 RAG 分支新增结构化 `references`——按文档去重取最高分片段、`focusExtractiveContent` 提取命中段落、最多 3 条，每条 `{documentId, title, category, snippet}`(此前引用只揉在 answer 文本里，前端拿不到结构)
+  - 前端 AI 回复底部新增**参考来源 chips**(红序号 + 文档名，可点)；点击**从右滑出侧栏**展示：文档标题 + 分类徽章 + 命中政策原文片段 + **下载原文档**按钮(调 `/qa/document/{id}/download`)
+- **修复首页通知红点不消失**：首页未读数原用 `onMounted` 取，tab 页只首次触发——读完通知切回首页不刷新、红点残留；改用 `onShow`(每次显示刷新)，读完即消失、有新消息及时亮
+- 验证：后端 `mvnw compile` ✅ + Python(UTF-8) 实测 chat 返回 references 正常；`build:mp-weixin` ✅；H5 巡检确认 chips/侧栏/原文片段/红点均正常
+
+### 2026-06-19 · 小程序巡检 + 智能问答重做为现代 AI 对话界面 + 3 处优化
+
+按手机尺寸逐页截图巡检小程序(H5 真机一致渲染)后改进：
+
+- **智能问答页重做**(qa/index.vue)：仿 DeepSeek/ChatGPT/Claude——居中红圆校徽 logo + 衬线标题 + **2×2 示例提问卡**的欢迎态；对话态为用户红气泡 + AI 圆头像 + 宽内容块，AI 回复做**轻量 markdown 解析**(标题/有序/无序列表/段落)排版 + **打字机逐字效果** + 末尾光标；回复附**参考依据**与**复制**操作；底部**自适应高度输入框 + 圆形发送箭头按钮**，对话态顶部"＋新对话"
+- **修复文件徽标 bug**(qa/document.vue)：`fileExt` 此前取 MIME 前 4 字母显示 `APPL/IMAG/TEXT`，改为取真实扩展名(PDF/DOCX/TXT/PNG)，徽标中性灰底与管理端一致
+- **通知卡片紧凑化**(notify + 首页)：减小 padding/行高/字号、正文 2 行截断、标签更小，长列表不再拥挤
+- **提交申请第 1 步留白优化**：模板少时中部大留白，补一张"办理流程"3 步引导卡
+- 验证：`build:mp-weixin` ✅；H5 巡检确认欢迎态/对话态/打字机/列表渲染/徽标/紧凑均正常
+
 ### 2026-06-19 · 导入/导出逻辑理顺（归属纠正 + 全角色 + 身份列 + 新增用户）
 
 针对"用户管理与学生信息的导入导出逻辑不合理"，重排为：
