@@ -14,7 +14,7 @@
     </view>
 
     <view class="doc-item" v-for="doc in list" :key="doc.id" @click="download(doc)">
-      <view class="file-badge" :class="fileTypeClass(doc)">
+      <view class="file-badge">
         <text class="file-ext">{{ fileExt(doc) }}</text>
       </view>
 
@@ -63,21 +63,18 @@ function isPlaceholder(doc) {
 
 function fileExt(doc) {
   if (isPlaceholder(doc)) return '·'
+  // 优先从文件名/路径取真实扩展名 (fileType 多为 MIME, 直接截会得到 APPL/IMAG 乱码)
+  const m = (doc.fileName || doc.filePath || '').match(/\.([a-zA-Z0-9]+)$/)
+  if (m) return m[1].toUpperCase().slice(0, 4)
+  // 退而从 MIME 映射常见类型
   const type = (doc.fileType || '').toLowerCase()
-  if (type) return type.replace('.', '').slice(0, 4).toUpperCase()
-  const m = (doc.filePath || '').match(/\.([a-zA-Z0-9]+)$/)
-  return m ? m[1].toUpperCase().slice(0, 4) : 'FILE'
-}
-
-function fileTypeClass(doc) {
-  const ext = fileExt(doc).toLowerCase()
-  if (['pdf'].includes(ext)) return 'badge-pdf'
-  if (['doc', 'docx'].includes(ext)) return 'badge-doc'
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'badge-xls'
-  if (['ppt', 'pptx'].includes(ext)) return 'badge-ppt'
-  if (['txt', 'md'].includes(ext)) return 'badge-txt'
-  if (['zip', 'rar', '7z'].includes(ext)) return 'badge-zip'
-  return 'badge-other'
+  if (type.includes('pdf')) return 'PDF'
+  if (type.includes('word') || type.includes('msword')) return 'DOC'
+  if (type.includes('sheet') || type.includes('excel')) return 'XLS'
+  if (type.includes('presentation') || type.includes('powerpoint')) return 'PPT'
+  if (type.includes('image')) return 'IMG'
+  if (type.includes('text')) return 'TXT'
+  return 'FILE'
 }
 
 async function loadData() {
@@ -230,7 +227,7 @@ onMounted(loadData)
   transform: scale(0.985);
 }
 
-/* 左侧文件类型徽标 */
+/* 左侧文件类型徽标 (中性蓝灰底 + 扩展名文字, 与管理端一致) */
 .file-badge {
   width: 84rpx;
   height: 96rpx;
@@ -244,7 +241,7 @@ onMounted(loadData)
   color: #fff;
   font-weight: 800;
   /* 折角效果 */
-  background: linear-gradient(135deg, transparent 0 18rpx, currentColor 18rpx);
+  background: linear-gradient(135deg, transparent 0 18rpx, #5B6472 18rpx);
 }
 
 .file-badge::before {
@@ -254,7 +251,7 @@ onMounted(loadData)
   right: 0;
   width: 18rpx;
   height: 18rpx;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.5);
   border-bottom-left-radius: 6rpx;
 }
 
@@ -263,14 +260,6 @@ onMounted(loadData)
   letter-spacing: 1rpx;
   color: #fff;
 }
-
-.badge-pdf { color: #D7263D; }
-.badge-doc { color: #1F6FEB; }
-.badge-xls { color: #1F8B4C; }
-.badge-ppt { color: #E07B00; }
-.badge-txt { color: #6E7681; }
-.badge-zip { color: #8E4EC6; }
-.badge-other { color: #9D2235; }
 
 /* 中部信息 */
 .doc-info {
