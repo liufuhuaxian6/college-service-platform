@@ -27,7 +27,7 @@
       :key="n.id"
       class="notify-item"
       :class="{ unread: !n.isRead }"
-      @click="markRead(n)"
+      @click="openNotice(n)"
     >
       <view class="notify-main">
         <view class="notify-head">
@@ -128,6 +128,29 @@ async function markRead(n) {
   } catch (_) { /* request 层已提示 */ }
 }
 
+// 点击通知: 标记已读 + 弹出完整内容(正文列表已截断 2 行, 这里看全文)
+function openNotice(n) {
+  markRead(n)
+  const lines = [n.content || '（无正文）']
+  if (n.source) lines.push('\n来源：' + n.source)
+  if (n.tags) lines.push('标签：' + n.tags)
+  uni.showModal({
+    title: n.title || '通知',
+    content: lines.join('\n'),
+    showCancel: !!n.sourceUrl,
+    cancelText: '复制链接',
+    confirmText: '知道了',
+    success: (res) => {
+      if (res.cancel && n.sourceUrl) {
+        uni.setClipboardData({
+          data: n.sourceUrl,
+          success: () => uni.showToast({ title: '链接已复制', icon: 'none' }),
+        })
+      }
+    },
+  })
+}
+
 async function markAll() {
   try {
     await notifyApi.markAllRead()
@@ -220,12 +243,12 @@ async function markAll() {
 
 .notify-item {
   position: relative;
-  padding: 24rpx 24rpx 24rpx 28rpx;
-  margin-bottom: 18rpx;
+  padding: 18rpx 20rpx 16rpx 26rpx;
+  margin-bottom: 12rpx;
   background: #FFFFFF;
   border: 1rpx solid rgba(35, 31, 32, 0.07);
-  border-radius: 22rpx;
-  box-shadow: 0 12rpx 30rpx rgba(35, 31, 32, 0.05);
+  border-radius: 18rpx;
+  box-shadow: 0 8rpx 20rpx rgba(35, 31, 32, 0.04);
   overflow: hidden;
   transition: transform 0.15s ease;
 }
@@ -257,9 +280,9 @@ async function markAll() {
 }
 
 .unread-dot {
-  width: 12rpx;
-  height: 12rpx;
-  margin-top: 14rpx;
+  width: 11rpx;
+  height: 11rpx;
+  margin-top: 11rpx;
   flex-shrink: 0;
   border-radius: 50%;
   background: #9D2235;
@@ -268,40 +291,46 @@ async function markAll() {
 .notify-title {
   flex: 1;
   color: #1F2329;
-  font-size: 29rpx;
-  font-weight: 800;
-  line-height: 1.45;
+  font-size: 27rpx;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .notify-content {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 6rpx;
   color: #4E5969;
-  font-size: 25rpx;
-  line-height: 1.62;
+  font-size: 23rpx;
+  line-height: 1.5;
+  /* 长内容 2 行截断, 避免单卡过高 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .notify-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 18rpx;
+  margin-top: 12rpx;
   gap: 16rpx;
 }
 
 .tag-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8rpx;
+  gap: 6rpx;
   min-width: 0;
 }
 
 .tag-chip {
-  padding: 4rpx 12rpx;
+  padding: 3rpx 11rpx;
   border-radius: 999rpx;
   color: #5B6472;
   background: #F2F3F5;
-  font-size: 20rpx;
+  font-size: 19rpx;
   line-height: 1.3;
 }
 

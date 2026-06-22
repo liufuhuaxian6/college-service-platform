@@ -85,20 +85,23 @@ public class PartyReminderScheduler {
                 continue;
             }
 
-            String key = buildKey(instance.getId(), instance.getCurrentStep());
+            String name = StringUtils.hasText(template.getName()) ? template.getName() : "党团流程";
+            String stepName = StringUtils.hasText(current.getName()) ? current.getName() : "当前步骤";
+            // 防重用中文内容特征(流程+步骤), 不再往正文塞 [party-instance:...] 英文标记
             boolean alreadySentToday = notificationMapper.selectCount(
                     new LambdaQueryWrapper<SysNotification>()
                             .eq(SysNotification::getUserId, instance.getUserId())
                             .eq(SysNotification::getType, "reminder")
                             .ge(SysNotification::getCreatedAt, startOfToday)
-                            .like(SysNotification::getContent, key)
+                            .like(SysNotification::getContent, "流程：" + name)
+                            .like(SysNotification::getContent, "步骤：" + stepName)
             ) > 0;
             if (alreadySentToday) {
                 continue;
             }
 
             String title = "党团流程提醒";
-            String content = buildContent(template.getName(), current, dueDate, key);
+            String content = buildContent(name, stepName, current, dueDate);
             systemService.sendNotification(instance.getUserId(), title, content, "reminder");
         }
     }
@@ -125,22 +128,15 @@ public class PartyReminderScheduler {
         return startDate.plusDays(days);
     }
 
-    private static String buildKey(Long instanceId, Integer stepOrder) {
-        return "[party-instance:" + instanceId + ",step:" + stepOrder + "]";
-    }
-
-    private static String buildContent(String templateName, PartyProcessStep step, LocalDate dueDate, String key) {
-        String name = StringUtils.hasText(templateName) ? templateName : "党团流程";
-        String stepName = step != null && StringUtils.hasText(step.getName()) ? step.getName() : "当前步骤";
+    private static String buildContent(String name, String stepName, PartyProcessStep step, LocalDate dueDate) {
         String materials = step != null && StringUtils.hasText(step.getRequiredMaterials()) ? step.getRequiredMaterials() : "";
 
         StringBuilder sb = new StringBuilder();
-        sb.append(key).append("\n");
-        sb.append("流程: ").append(name).append("\n");
-        sb.append("步骤: ").append(stepName).append("\n");
-        sb.append("预计到期日期: ").append(dueDate).append("\n");
+        sb.append("流程：").append(name).append("\n");
+        sb.append("步骤：").append(stepName).append("\n");
+        sb.append("预计到期日期：").append(dueDate).append("\n");
         if (StringUtils.hasText(materials)) {
-            sb.append("需要材料: ").append(materials).append("\n");
+            sb.append("需要材料：").append(materials).append("\n");
         }
         sb.append("请及时准备并按要求完成。");
         return sb.toString();

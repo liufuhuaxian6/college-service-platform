@@ -18,10 +18,16 @@ import com.ruc.college.module.party.mapper.PartyProcessTemplateMapper;
 import com.ruc.college.module.student.entity.StudentHonor;
 import com.ruc.college.module.student.mapper.StudentHonorMapper;
 import com.ruc.college.module.system.service.EmailService;
+import com.alibaba.excel.EasyExcel;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,16 +66,21 @@ public class StudentService {
 
     // ==================== 管理端 ====================
 
-    public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className, Integer roleLevel) {
+    public Page<SysUser> getStudentPage(int page, int size, String grade, String major, String className, String roleLevel) {
         // 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并纳入学生信息
-        // roleLevel 指定时只看该身份(仅允许 3/4), 否则两类都看
-        boolean validRole = roleLevel != null && (roleLevel == 3 || roleLevel == 4);
+        // 支持逗号分隔多值; roleLevel 仅在 3/4 内生效, 否则两类都看
+        List<String> grades = splitCsv(grade);
+        List<String> majors = splitCsv(major);
+        List<String> classes = splitCsv(className);
+        List<Integer> roleLevels = splitCsvInt(roleLevel).stream()
+                .filter(r -> r == 3 || r == 4)
+                .toList();
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(validRole, SysUser::getRoleLevel, roleLevel)
-                .in(!validRole, SysUser::getRoleLevel, 3, 4)
-                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
-                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
-                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
+                .in(!roleLevels.isEmpty(), SysUser::getRoleLevel, roleLevels)
+                .in(roleLevels.isEmpty(), SysUser::getRoleLevel, 3, 4)
+                .in(!grades.isEmpty(), SysUser::getGrade, grades)
+                .in(!majors.isEmpty(), SysUser::getMajor, majors)
+                .in(!classes.isEmpty(), SysUser::getClassName, classes)
                 .orderByAsc(SysUser::getStudentId);
 
         // 数据隔离: 3级只看本班
@@ -96,6 +107,62 @@ public class StudentService {
             u.setOriginEnc(null); // 管理端也脱敏
         });
         return result;
+    }
+
+    /**
+     * 导出学生名单为 Excel (学生信息页).
+     * 学生 = 普通学生(4) + 学生骨干(3), 用"身份"列区分; 只导启用状态;
+     * 支持 身份/年级/专业/班级 多值筛选; 3级骨干受数据隔离只导本班.
+     */
+    public void exportStudents(String grade, String major, String className, String roleLevel, HttpServletResponse response) {
+        List<String> grades = splitCsv(grade);
+        List<String> majors = splitCsv(major);
+        List<String> classes = splitCsv(className);
+        List<Integer> roleLevels = splitCsvInt(roleLevel).stream()
+                .filter(r -> r == 3 || r == 4)
+                .toList();
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
+                .in(!roleLevels.isEmpty(), SysUser::getRoleLevel, roleLevels)
+                .in(roleLevels.isEmpty(), SysUser::getRoleLevel, 3, 4)
+                .eq(SysUser::getStatus, 1)
+                .in(!grades.isEmpty(), SysUser::getGrade, grades)
+                .in(!majors.isEmpty(), SysUser::getMajor, majors)
+                .in(!classes.isEmpty(), SysUser::getClassName, classes)
+                .orderByAsc(SysUser::getGrade)
+                .orderByAsc(SysUser::getClassName)
+                .orderByAsc(SysUser::getStudentId);
+
+        // 数据隔离: 3级骨干只导本班
+        if (UserContext.getRoleLevel() == 3) {
+            SysUser current = userMapper.selectById(UserContext.getUserId());
+            if (current != null) {
+                wrapper.eq(SysUser::getClassName, current.getClassName());
+            }
+        }
+
+        List<SysUser> users = userMapper.selectList(wrapper);
+        List<StudentExportRow> rows = users.stream().map(u -> {
+            StudentExportRow r = new StudentExportRow();
+            r.setStudentId(u.getStudentId());
+            r.setName(u.getName());
+            r.setIdentity(Integer.valueOf(3).equals(u.getRoleLevel()) ? "学生骨干" : "普通学生");
+            r.setGrade(u.getGrade());
+            r.setMajor(u.getMajor());
+            r.setClassName(u.getClassName());
+            r.setPhone(u.getPhone());
+            return r;
+        }).toList();
+
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            String fileName = URLEncoder.encode("学生名单.xlsx", StandardCharsets.UTF_8).replace("+", "%20");
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName);
+            EasyExcel.write(response.getOutputStream(), StudentExportRow.class)
+                    .sheet("学生名单")
+                    .doWrite(rows);
+        } catch (IOException e) {
+            throw new BusinessException("导出Excel失败: " + e.getMessage());
+        }
     }
 
     public Map<String, Object> getStudentDetail(Long userId) {
@@ -223,6 +290,29 @@ public class StudentService {
 
     // ==================== 辅助方法 ====================
 
+    /** 逗号分隔字符串 -> 去重去空的字符串列表 (兼容单值与多值) */
+    private static List<String> splitCsv(String csv) {
+        if (!StringUtils.hasText(csv)) return List.of();
+        return java.util.Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    /** 逗号分隔字符串 -> 整数列表 (非法值跳过) */
+    private static List<Integer> splitCsvInt(String csv) {
+        List<Integer> out = new java.util.ArrayList<>();
+        for (String s : splitCsv(csv)) {
+            try {
+                out.add(Integer.parseInt(s));
+            } catch (NumberFormatException ignore) {
+                // 跳过非数字
+            }
+        }
+        return out;
+    }
+
     private Map<String, Object> buildProfile(SysUser user, boolean showSensitive) {
         Map<String, Object> profile = new HashMap<>();
         profile.put("userId", user.getId());
@@ -246,5 +336,24 @@ public class StudentService {
             }
         }
         return profile;
+    }
+
+    /** 学生信息导出行: 学号/姓名/身份/年级/专业/班级/手机号 */
+    @Data
+    public static class StudentExportRow {
+        @com.alibaba.excel.annotation.ExcelProperty("学号")
+        private String studentId;
+        @com.alibaba.excel.annotation.ExcelProperty("姓名")
+        private String name;
+        @com.alibaba.excel.annotation.ExcelProperty("身份")
+        private String identity;
+        @com.alibaba.excel.annotation.ExcelProperty("年级")
+        private String grade;
+        @com.alibaba.excel.annotation.ExcelProperty("专业")
+        private String major;
+        @com.alibaba.excel.annotation.ExcelProperty("班级")
+        private String className;
+        @com.alibaba.excel.annotation.ExcelProperty("手机号")
+        private String phone;
     }
 }

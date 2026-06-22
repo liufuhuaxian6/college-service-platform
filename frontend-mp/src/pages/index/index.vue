@@ -113,7 +113,8 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user'
 import { notifyApi, approvalApi, partyApi } from '@/api'
 import ServiceCard from '@/components/ServiceCard.vue'
@@ -244,7 +245,8 @@ async function loadOverview() {
   }
 }
 
-onMounted(async () => {
+// 用 onShow 而非 onMounted: tab 页每次显示都刷新, 读完通知切回首页未读红点会及时消失
+onShow(async () => {
   if (!userStore.isLoggedIn) {
     uni.reLaunch({ url: '/pages/login/index' })
     return
@@ -612,8 +614,8 @@ onMounted(async () => {
 
 .notice-item {
   display: flex;
-  gap: 18rpx;
-  padding: 24rpx;
+  gap: 16rpx;
+  padding: 20rpx 22rpx;
   border-bottom: 1rpx solid var(--mp-border);
 }
 

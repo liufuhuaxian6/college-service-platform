@@ -36,7 +36,8 @@ public class SystemController {
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
             @RequestParam(required = false) String className,
-            @RequestParam(required = false) Integer roleLevel) {
+            // 支持逗号分隔多值, 例如 roleLevel=3,4 / grade=2023,2024
+            @RequestParam(required = false) String roleLevel) {
         return Result.ok(systemService.getUserPage(page, size, grade, major, className, roleLevel));
     }
 
@@ -44,6 +45,14 @@ public class SystemController {
     @RequireRole(minLevel = 2)
     public Result<SysUser> userDetail(@PathVariable Long id) {
         return Result.ok(systemService.getUserDetail(id));
+    }
+
+    @PostMapping("/system/user")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "用户管理", action = "新增用户")
+    public Result<Void> createUser(@RequestBody SysUser user) {
+        systemService.createUser(user);
+        return Result.ok();
     }
 
     @GetMapping("/system/dimensions")
@@ -77,14 +86,15 @@ public class SystemController {
 
     @GetMapping("/system/user/export")
     @RequireRole(minLevel = 2)
-    @OperationLog(module = "用户管理", action = "导出学生名单")
-    public void exportStudents(
+    @OperationLog(module = "用户管理", action = "导出用户名单")
+    public void exportUsers(
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
             @RequestParam(required = false) String className,
-            @RequestParam(required = false) Integer roleLevel,
+            // 支持逗号分隔多值 (全角色)
+            @RequestParam(required = false) String roleLevel,
             HttpServletResponse response) {
-        systemService.exportStudents(grade, major, className, roleLevel, response);
+        systemService.exportUsers(grade, major, className, roleLevel, response);
     }
 
     @GetMapping("/system/dashboard")

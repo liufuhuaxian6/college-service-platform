@@ -63,7 +63,7 @@ public class QaService {
      * 智能问答: 先匹配知识库 → 未命中则调 AI → 记录日志.
      * 每用户每自然日提问数受 qa.chat.daily-limit 限制 (默认 200), 超过抛业务异常.
      */
-    public Map<String, Object> chat(String question) {
+    public Map<String, Object> chat(String question, List<Map<String, String>> history) {
         // 0. 每日提问次数限流
         Long userId = com.ruc.college.common.security.UserContext.getUserId();
         if (userId != null && dailyChatLimit > 0) {
@@ -96,34 +96,69 @@ public class QaService {
             result.put("sourceType", "knowledge");
             result.put("sourceUrl", knowledge.getSourceUrl());
             result.put("aiGenerated", false);
+            result.put("references", java.util.List.of());
             log.setAnswer(knowledge.getAnswer());
             log.setSourceType("knowledge");
             log.setMatched(true);
         } else {
-            // 2. RAG 检索文档向量片段 + 知识库候选，作为 AI 上下文
-            List<QaDocumentChunk> ragChunks = documentRagService.retrieve(question, null);
-            String ragContext = documentRagService.buildContext(ragChunks);
-            String knowledgeContext = buildKnowledgeContext(question, tokens);
-            String context = buildRagPromptContext(knowledgeContext, ragContext);
             AiProvider ai = aiProviderFactory.getProvider();
-            boolean hasRagContext = StringUtils.hasText(ragContext);
-            String aiAnswer = hasRagContext && ai.getName().equals("none")
-                    ? buildExtractiveRagAnswer(question, ragChunks)
-                    : ai.chat(question, context);
-            result.put("answer", aiAnswer);
-            result.put("sourceType", hasRagContext ? "rag" : (ai.getName().equals("none") ? "manual" : "ai"));
-            result.put("sourceUrl", null);
-            result.put("aiGenerated", !ai.getName().equals("none"));
-            result.put("ragUsed", hasRagContext);
-            log.setAnswer(aiAnswer);
-            log.setSourceType(hasRagContext ? "rag" : (ai.getName().equals("none") ? "manual" : "ai"));
-            log.setMatched(false);
+            boolean aiAvailable = !ai.getName().equals("none") && ai.isAvailable();
+            List<QaDocumentChunk> candidates = java.util.List.of();
+            String raw = null;
+            if (aiAvailable) {
+                // ===== 大模型: 宽松召回候选, 由 AI 自主判断与引用 =====
+                // 不再因相似度不达标直接"未命中", 而是把候选编号喂给 AI, AI 决定引用哪些
+                candidates = documentRagService.retrieveCandidates(question, null, 6);
+                String knowledgeContext = buildKnowledgeContext(question, tokens);
+                String numberedContext = buildNumberedContext(candidates, knowledgeContext);
+                raw = ai.chat(question, numberedContext, history); // 调用失败/超时返回 null
+            }
+            if (aiAvailable && StringUtils.hasText(raw)) {
+                // AI 正常应答: 取 AI 自主决定的引用
+                List<Map<String, Object>> refs = parseAiCitations(raw, candidates, question);
+                String answer = stripCitationTag(raw);
+                result.put("answer", answer);
+                result.put("sourceType", "ai");
+                result.put("sourceUrl", null);
+                result.put("aiGenerated", true);
+                result.put("ragUsed", !candidates.isEmpty());
+                result.put("references", refs); // 仅 AI 实际引用的文档; AI 未引用则空
+                log.setAnswer(answer);
+                log.setSourceType("ai");
+                log.setMatched(false);
+            } else {
+                // 无大模型, 或 AI 调用失败/超时 → 抽取式 RAG 兜底(把已检索到的资料直接呈现, 而非只提示"繁忙")
+                fillExtractiveResult(question, result, log);
+            }
         }
 
         // 3. 记录问答日志
         chatLogMapper.insert(log);
 
         return result;
+    }
+
+    /**
+     * 抽取式 RAG 兜底: 严格检索政策片段并直接抽取要点.
+     * 用于"无大模型"以及"大模型调用失败/超时"两种场景——只要检索到了资料就把资料呈现给用户,
+     * 检索为空才提示联系辅导员.
+     */
+    private void fillExtractiveResult(String question, Map<String, Object> result, QaChatLog log) {
+        List<QaDocumentChunk> ragChunks = documentRagService.retrieve(question, null);
+        String ragContext = documentRagService.buildContext(ragChunks);
+        boolean hasRagContext = StringUtils.hasText(ragContext);
+        String answer = hasRagContext
+                ? buildExtractiveRagAnswer(question, ragChunks)
+                : "暂未在政策文件中找到明确依据，建议联系辅导员获取准确信息。";
+        result.put("answer", answer);
+        result.put("sourceType", hasRagContext ? "rag" : "manual");
+        result.put("sourceUrl", null);
+        result.put("aiGenerated", false);
+        result.put("ragUsed", hasRagContext);
+        result.put("references", hasRagContext ? buildReferences(question, ragChunks) : java.util.List.of());
+        log.setAnswer(answer);
+        log.setSourceType(hasRagContext ? "rag" : "manual");
+        log.setMatched(false);
     }
 
     public Page<QaChatLog> getChatHistory(int page, int size) {
@@ -400,6 +435,115 @@ public class QaService {
 
     private static final int MAX_EXTRACTIVE_CHUNKS = 3;
     private static final int MIN_SECONDARY_SCORE_RATIO = 60; // 次级 chunk 至少要达到最佳分数 60% 才纳入
+
+    /** AI 引用标记: [引用: 1,3] / 【引用：无】 */
+    private static final java.util.regex.Pattern CITATION_TAG =
+            java.util.regex.Pattern.compile("[\\[【]\\s*引用\\s*[:：]\\s*([^\\]】]*)[\\]】]");
+
+    /**
+     * 把宽松召回的候选拼成带【编号】的资料, 供大模型阅读并标注引用编号.
+     * 知识库补充上下文附在末尾(不参与编号引用).
+     */
+    private String buildNumberedContext(List<QaDocumentChunk> candidates, String knowledgeContext) {
+        StringBuilder sb = new StringBuilder();
+        if (candidates != null) {
+            for (int i = 0; i < candidates.size(); i++) {
+                QaDocumentChunk c = candidates.get(i);
+                if (i > 0) sb.append("\n\n");
+                sb.append("【").append(i + 1).append("】《")
+                        .append(StringUtils.hasText(c.getTitle()) ? c.getTitle() : "政策文档").append("》");
+                if (StringUtils.hasText(c.getCategory())) {
+                    sb.append("（").append(c.getCategory()).append("）");
+                }
+                sb.append("\n").append(c.getContent() == null ? "" : c.getContent().trim());
+            }
+        }
+        if (StringUtils.hasText(knowledgeContext)) {
+            if (sb.length() > 0) sb.append("\n\n");
+            sb.append("【补充问答参考(不计入引用编号)】\n").append(knowledgeContext.trim());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 从 AI 回答里解析其标注的引用编号, 映射回候选文档(按文档去重), 生成 references.
+     * AI 未标注或标"无"时返回空 => 前端不显示引用.
+     */
+    private List<Map<String, Object>> parseAiCitations(String answer, List<QaDocumentChunk> candidates, String question) {
+        if (!StringUtils.hasText(answer) || candidates == null || candidates.isEmpty()) return java.util.List.of();
+        java.util.LinkedHashSet<Integer> nums = new java.util.LinkedHashSet<>();
+        java.util.regex.Matcher m = CITATION_TAG.matcher(answer);
+        while (m.find()) {
+            java.util.regex.Matcher d = java.util.regex.Pattern.compile("\\d+").matcher(m.group(1));
+            while (d.find()) {
+                try { nums.add(Integer.parseInt(d.group())); } catch (NumberFormatException ignore) { }
+            }
+        }
+        if (nums.isEmpty()) return java.util.List.of();
+        java.util.LinkedHashMap<Long, QaDocumentChunk> byDoc = new java.util.LinkedHashMap<>();
+        for (Integer n : nums) {
+            if (n >= 1 && n <= candidates.size()) {
+                QaDocumentChunk c = candidates.get(n - 1);
+                if (c.getDocumentId() != null) byDoc.putIfAbsent(c.getDocumentId(), c);
+            }
+        }
+        String q = question == null ? "" : question;
+        List<Map<String, Object>> refs = new java.util.ArrayList<>();
+        for (QaDocumentChunk c : byDoc.values()) {
+            if (refs.size() >= 3) break;
+            String content = c.getContent() == null ? "" : c.getContent().trim();
+            String snippet = focusExtractiveContent(q, content);
+            if (!StringUtils.hasText(snippet)) snippet = content;
+            if (!StringUtils.hasText(snippet)) continue;
+            if (snippet.length() > 600) snippet = snippet.substring(0, 600).trim() + "…";
+            Map<String, Object> ref = new java.util.LinkedHashMap<>();
+            ref.put("documentId", c.getDocumentId());
+            ref.put("title", StringUtils.hasText(c.getTitle()) ? c.getTitle() : "政策文档");
+            ref.put("category", c.getCategory());
+            ref.put("snippet", snippet);
+            refs.add(ref);
+        }
+        return refs;
+    }
+
+    /** 去掉 AI 回答里的 [引用: ...] 标记, 不展示给用户 */
+    private static String stripCitationTag(String answer) {
+        if (!StringUtils.hasText(answer)) return answer;
+        return CITATION_TAG.matcher(answer).replaceAll("").trim();
+    }
+
+    /**
+     * 把 RAG 命中的片段整理为结构化引用, 供前端展示来源 chips + 侧栏看原文.
+     * 按文档去重(同文档取最高分片段), 取命中段落作摘要, 最多 3 条.
+     */
+    private List<Map<String, Object>> buildReferences(String question, List<QaDocumentChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) return java.util.List.of();
+        final String q = question == null ? "" : question;
+        java.util.Map<Long, QaDocumentChunk> bestByDoc = new java.util.LinkedHashMap<>();
+        chunks.stream()
+                .sorted((a, b) -> Double.compare(
+                        b.getScore() == null ? 0 : b.getScore(),
+                        a.getScore() == null ? 0 : a.getScore()))
+                .forEach(c -> {
+                    if (c.getDocumentId() != null) bestByDoc.putIfAbsent(c.getDocumentId(), c);
+                });
+        List<Map<String, Object>> refs = new java.util.ArrayList<>();
+        for (QaDocumentChunk c : bestByDoc.values()) {
+            if (refs.size() >= 3) break;
+            String content = c.getContent() == null ? "" : c.getContent().trim();
+            String snippet = focusExtractiveContent(q, content);
+            if (!StringUtils.hasText(snippet)) snippet = content;
+            if (!StringUtils.hasText(snippet)) continue;
+            if (snippet.length() > 600) snippet = snippet.substring(0, 600).trim() + "…";
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("documentId", c.getDocumentId());
+            m.put("title", StringUtils.hasText(c.getTitle()) ? c.getTitle() : "政策文档");
+            m.put("category", c.getCategory());
+            m.put("snippet", snippet);
+            refs.add(m);
+        }
+        return refs;
+    }
 
     private String buildExtractiveRagAnswer(String question, List<QaDocumentChunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {

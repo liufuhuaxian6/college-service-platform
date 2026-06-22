@@ -42,8 +42,22 @@ public class StudentController {
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String major,
             @RequestParam(required = false) String className,
-            @RequestParam(required = false) Integer roleLevel) {
+            // 支持逗号分隔多值, 例如 roleLevel=3,4 / grade=2023,2024
+            @RequestParam(required = false) String roleLevel) {
         return Result.ok(studentService.getStudentPage(page, size, grade, major, className, roleLevel));
+    }
+
+    @GetMapping("/export")
+    @RequireRole(minLevel = 3)
+    @OperationLog(module = "学生画像", action = "导出学生名单")
+    public void exportStudents(
+            @RequestParam(required = false) String grade,
+            @RequestParam(required = false) String major,
+            @RequestParam(required = false) String className,
+            // 支持逗号分隔多值 (仅学生身份 3/4 生效)
+            @RequestParam(required = false) String roleLevel,
+            jakarta.servlet.http.HttpServletResponse response) {
+        studentService.exportStudents(grade, major, className, roleLevel, response);
     }
 
     @GetMapping("/{id}/detail")

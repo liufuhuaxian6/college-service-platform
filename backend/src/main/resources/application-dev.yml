@@ -4,6 +4,13 @@ spring:
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # DB 短暂重启/抖动后自动剔除失效连接, 避免后端握死连接导致接口全 500
+      keepalive-time: 30000           # 30s 对空闲连接探活, 提前发现并替换死连接 (须 < max-lifetime)
+      max-lifetime: 600000            # 连接最长存活 10min, 到点主动回收重建
+      connection-timeout: 10000       # 取连接最长等待 10s
+      validation-timeout: 5000        # 连接有效性校验超时 5s
+      connection-test-query: SELECT 1 # 取连接前校验有效性 (PG 重启后旧连接会被判失效并丢弃)
 
   data:
     redis:

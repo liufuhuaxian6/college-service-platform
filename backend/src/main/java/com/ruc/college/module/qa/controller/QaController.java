@@ -38,7 +38,7 @@ public class QaController {
 
     @PostMapping("/chat")
     public Result<Map<String, Object>> chat(@RequestBody @Validated ChatRequest request) {
-        return Result.ok(qaService.chat(request.getQuestion()));
+        return Result.ok(qaService.chat(request.getQuestion(), request.getHistory()));
     }
 
     @GetMapping("/chat/history")
@@ -182,5 +182,7 @@ public class QaController {
     public static class ChatRequest {
         @NotBlank(message = "问题不能为空")
         private String question;
+        /** 多轮上下文: 之前的对话, 每项 {role: user|assistant, content}; 可空 */
+        private List<Map<String, String>> history;
     }
 }

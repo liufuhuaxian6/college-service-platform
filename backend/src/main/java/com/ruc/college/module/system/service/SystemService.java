@@ -99,12 +99,17 @@ public class SystemService {
                 .toList();
     }
 
-    public Page<SysUser> getUserPage(int page, int size, String grade, String major, String className, Integer roleLevel) {
+    public Page<SysUser> getUserPage(int page, int size, String grade, String major, String className, String roleLevel) {
+        // 支持逗号分隔多值: 身份/年级/专业/班级均可一次选多个 -> IN 查询
+        List<String> grades = splitCsv(grade);
+        List<String> majors = splitCsv(major);
+        List<String> classes = splitCsv(className);
+        List<Integer> roleLevels = splitCsvInt(roleLevel);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(roleLevel != null, SysUser::getRoleLevel, roleLevel)
-                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
-                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
-                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
+                .in(!roleLevels.isEmpty(), SysUser::getRoleLevel, roleLevels)
+                .in(!grades.isEmpty(), SysUser::getGrade, grades)
+                .in(!majors.isEmpty(), SysUser::getMajor, majors)
+                .in(!classes.isEmpty(), SysUser::getClassName, classes)
                 .orderByAsc(SysUser::getStudentId);
         Page<SysUser> result = userMapper.selectPage(new Page<>(page, size), wrapper);
         result.getRecords().forEach(u -> {
@@ -112,6 +117,29 @@ public class SystemService {
             u.setEmail(emailService.resolveEmail(u));
         });
         return result;
+    }
+
+    /** 逗号分隔字符串 -> 去重去空的字符串列表 (兼容单值与多值) */
+    private static List<String> splitCsv(String csv) {
+        if (!StringUtils.hasText(csv)) return List.of();
+        return java.util.Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    /** 逗号分隔字符串 -> 整数列表 (非法值跳过) */
+    private static List<Integer> splitCsvInt(String csv) {
+        List<Integer> out = new ArrayList<>();
+        for (String s : splitCsv(csv)) {
+            try {
+                out.add(Integer.parseInt(s));
+            } catch (NumberFormatException ignore) {
+                // 跳过非数字
+            }
+        }
+        return out;
     }
 
     public SysUser getUserDetail(Long id) {
@@ -125,16 +153,42 @@ public class SystemService {
     public void updateUser(Long id, SysUser user) {
         SysUser existing = userMapper.selectById(id);
         if (existing == null) throw new BusinessException("用户不存在");
+        // 越级保护: 只能管理权限严格低于自己的账号 (角色等级数字越小权限越高).
+        // 例如老师(2)不能修改/禁用院领导(1)或其它老师(2).
+        assertCanManage(existing.getRoleLevel(), "无权修改该账号(仅能管理权限低于自己的账号)");
         user.setId(id);
         user.setPassword(null);
+        // 角色变更必须走 setUserRole 接口并受其越权校验, 这里禁止顺带改角色
+        user.setRoleLevel(null);
         userMapper.updateById(user);
     }
 
     public void setUserRole(Long id, int roleLevel) {
         SysUser user = userMapper.selectById(id);
         if (user == null) throw new BusinessException("用户不存在");
+        if (roleLevel < 1 || roleLevel > 4) {
+            throw new BusinessException("角色等级必须在 1-4 之间");
+        }
+        int operatorLevel = UserContext.getRoleLevel();
+        // 越级保护: 只能调整权限低于自己的账号
+        assertCanManage(user.getRoleLevel(), "无权调整该账号的角色(仅能管理权限低于自己的账号)");
+        // 防提权: 不能把任何人提升到与自己同级或更高的权限
+        if (roleLevel <= operatorLevel) {
+            throw new BusinessException("不能将角色设置为与自己同级或更高的权限");
+        }
         user.setRoleLevel(roleLevel);
         userMapper.updateById(user);
+    }
+
+    /**
+     * 校验当前操作者是否有权管理目标账号.
+     * 规则: 操作者角色等级必须严格小于目标 (权限严格更高) 才能管理.
+     */
+    private void assertCanManage(Integer targetLevel, String denyMessage) {
+        int operatorLevel = UserContext.getRoleLevel();
+        if (targetLevel == null || operatorLevel >= targetLevel) {
+            throw new BusinessException(denyMessage);
+        }
     }
 
     public void changePassword(String oldPassword, String newPassword) {
@@ -149,14 +203,17 @@ public class SystemService {
     // ==================== Excel 批量导入 ====================
 
     /**
-     * Excel 批量导入学生名单
-     * Excel 列格式: 学号 | 姓名 | 年级 | 专业 | 班级 | 手机号 | 身份证号
+     * Excel 批量导入用户名单.
+     * 列格式: 学号 | 姓名 | 身份 | 年级 | 专业 | 班级 | 手机号 | 身份证号
+     * 身份列可留空(默认普通学生); 支持"普通学生/学生骨干/老师/院领导".
+     * 越级保护: 只能导入权限严格低于自己的身份(老师导不了院领导/其它老师).
      */
     public Map<String, Object> importStudents(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("文件不能为空");
         }
 
+        final int operatorLevel = UserContext.getRoleLevel();
         List<String> errors = new ArrayList<>();
         int[] counts = {0, 0}; // [success, fail]
 
@@ -186,11 +243,21 @@ public class SystemService {
                         return;
                     }
 
+                    // 身份列 -> 角色等级, 留空默认普通学生(4); 越级保护
+                    int role = parseIdentity(row.getIdentity());
+                    if (role <= operatorLevel) {
+                        errors.add("第" + rowNum + "行: 无权导入身份「"
+                                + (row.getIdentity() == null ? "" : row.getIdentity().trim())
+                                + "」(不能创建与你同级或更高权限的账号)");
+                        counts[1]++;
+                        return;
+                    }
+
                     SysUser user = new SysUser();
                     user.setStudentId(row.getStudentId().trim());
                     user.setName(row.getName().trim());
                     user.setPassword(BCrypt.hashpw("123456")); // 默认密码
-                    user.setRoleLevel(4); // 默认普通学生
+                    user.setRoleLevel(role);
                     user.setGrade(row.getGrade());
                     user.setMajor(row.getMajor());
                     user.setClassName(row.getClassName());
@@ -222,52 +289,112 @@ public class SystemService {
         return result;
     }
 
+    // ==================== 新增单个用户 ====================
+
+    /**
+     * 用户管理: 新增单个账号(学生/骨干/老师, 视操作者权限).
+     * 越级保护: 只能创建权限严格低于自己的角色; 默认密码 123456.
+     */
+    public void createUser(SysUser user) {
+        if (user == null || !StringUtils.hasText(user.getStudentId())) {
+            throw new BusinessException("学号不能为空");
+        }
+        if (!StringUtils.hasText(user.getName())) {
+            throw new BusinessException("姓名不能为空");
+        }
+        int role = user.getRoleLevel() == null ? 4 : user.getRoleLevel();
+        if (role < 1 || role > 4) {
+            throw new BusinessException("角色等级必须在 1-4 之间");
+        }
+        int operatorLevel = UserContext.getRoleLevel();
+        if (role <= operatorLevel) {
+            throw new BusinessException("不能创建与自己同级或更高权限的账号");
+        }
+        String studentId = user.getStudentId().trim();
+        SysUser existing = userMapper.selectOne(
+                new LambdaQueryWrapper<SysUser>().eq(SysUser::getStudentId, studentId));
+        if (existing != null) {
+            throw new BusinessException("学号 " + studentId + " 已存在");
+        }
+        user.setId(null);
+        user.setStudentId(studentId);
+        user.setName(user.getName().trim());
+        user.setRoleLevel(role);
+        user.setPassword(BCrypt.hashpw("123456"));
+        user.setStatus(1);
+        userMapper.insert(user);
+    }
+
     // ==================== Excel 导出 ====================
 
     /**
-     * 导出学生名单为 Excel.
-     * 学生 = 普通学生(4) + 学生骨干(3); 骨干也是学生, 一并导出, 用"身份"列区分.
-     * 支持按 年级 / 专业 / 班级 筛选 (空则不限), 只导启用状态.
+     * 导出用户名单为 Excel (用户管理). 覆盖全部角色(院领导/老师/骨干/学生),
+     * 按 身份/年级/专业/班级 多值筛选(空=不限); 含角色与启用状态列.
+     * 注: 学生名单导出在"学生信息"页 (StudentService.exportStudents).
      */
-    public void exportStudents(String grade, String major, String className, Integer roleLevel, HttpServletResponse response) {
-        // roleLevel 指定时只导该身份(仅允许 3/4), 否则普通学生+学生骨干全导
-        boolean validRole = roleLevel != null && (roleLevel == 3 || roleLevel == 4);
+    public void exportUsers(String grade, String major, String className, String roleLevel, HttpServletResponse response) {
+        List<String> grades = splitCsv(grade);
+        List<String> majors = splitCsv(major);
+        List<String> classes = splitCsv(className);
+        List<Integer> roleLevels = splitCsvInt(roleLevel); // 全角色, 不过滤
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .eq(validRole, SysUser::getRoleLevel, roleLevel)
-                .in(!validRole, SysUser::getRoleLevel, 3, 4)
-                .eq(SysUser::getStatus, 1)
-                .eq(StringUtils.hasText(grade), SysUser::getGrade, grade)
-                .eq(StringUtils.hasText(major), SysUser::getMajor, major)
-                .eq(StringUtils.hasText(className), SysUser::getClassName, className)
+                .in(!roleLevels.isEmpty(), SysUser::getRoleLevel, roleLevels)
+                .in(!grades.isEmpty(), SysUser::getGrade, grades)
+                .in(!majors.isEmpty(), SysUser::getMajor, majors)
+                .in(!classes.isEmpty(), SysUser::getClassName, classes)
+                .orderByAsc(SysUser::getRoleLevel)
                 .orderByAsc(SysUser::getGrade)
-                .orderByAsc(SysUser::getClassName)
                 .orderByAsc(SysUser::getStudentId);
 
         List<SysUser> users = userMapper.selectList(wrapper);
 
-        List<StudentExportRow> rows = users.stream().map(u -> {
-            StudentExportRow row = new StudentExportRow();
+        List<UserExportRow> rows = users.stream().map(u -> {
+            UserExportRow row = new UserExportRow();
             row.setStudentId(u.getStudentId());
             row.setName(u.getName());
-            row.setIdentity(Integer.valueOf(3).equals(u.getRoleLevel()) ? "学生骨干" : "普通学生");
+            row.setRole(roleName(u.getRoleLevel()));
             row.setGrade(u.getGrade());
             row.setMajor(u.getMajor());
             row.setClassName(u.getClassName());
             row.setPhone(u.getPhone());
+            row.setEmail(emailService.resolveEmail(u));
+            row.setStatus(Integer.valueOf(1).equals(u.getStatus()) ? "启用" : "禁用");
             return row;
         }).toList();
 
         try {
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            String fileName = URLEncoder.encode("学生名单.xlsx", StandardCharsets.UTF_8).replace("+", "%20");
+            String fileName = URLEncoder.encode("用户名单.xlsx", StandardCharsets.UTF_8).replace("+", "%20");
             response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName);
 
-            EasyExcel.write(response.getOutputStream(), StudentExportRow.class)
-                    .sheet("学生名单")
+            EasyExcel.write(response.getOutputStream(), UserExportRow.class)
+                    .sheet("用户名单")
                     .doWrite(rows);
         } catch (IOException e) {
             throw new BusinessException("导出Excel失败: " + e.getMessage());
         }
+    }
+
+    /** 身份名称 -> 角色等级 (导入用); 留空/未知默认普通学生(4). */
+    private static int parseIdentity(String s) {
+        if (!StringUtils.hasText(s)) return 4;
+        String v = s.trim();
+        if (v.contains("院领导") || v.contains("领导")) return 1;
+        if (v.contains("老师") || v.contains("辅导员") || v.contains("教师")) return 2;
+        if (v.contains("骨干")) return 3;
+        return 4; // 普通学生 / 学生 / 其它
+    }
+
+    /** 角色等级 -> 中文名 (导出用). */
+    private static String roleName(Integer lv) {
+        if (lv == null) return "-";
+        return switch (lv) {
+            case 1 -> "院领导";
+            case 2 -> "管理老师";
+            case 3 -> "学生骨干";
+            case 4 -> "普通学生";
+            default -> "级别" + lv;
+        };
     }
 
     // ==================== 数据概览 ====================
@@ -445,6 +572,8 @@ public class SystemService {
         private String studentId;
         @com.alibaba.excel.annotation.ExcelProperty("姓名")
         private String name;
+        @com.alibaba.excel.annotation.ExcelProperty("身份")
+        private String identity;
         @com.alibaba.excel.annotation.ExcelProperty("年级")
         private String grade;
         @com.alibaba.excel.annotation.ExcelProperty("专业")
@@ -457,14 +586,15 @@ public class SystemService {
         private String idCard;
     }
 
+    /** 用户管理导出: 全角色, 含角色/邮箱/状态列 */
     @Data
-    public static class StudentExportRow {
+    public static class UserExportRow {
         @com.alibaba.excel.annotation.ExcelProperty("学号")
         private String studentId;
         @com.alibaba.excel.annotation.ExcelProperty("姓名")
         private String name;
-        @com.alibaba.excel.annotation.ExcelProperty("身份")
-        private String identity;
+        @com.alibaba.excel.annotation.ExcelProperty("角色")
+        private String role;
         @com.alibaba.excel.annotation.ExcelProperty("年级")
         private String grade;
         @com.alibaba.excel.annotation.ExcelProperty("专业")
@@ -473,5 +603,9 @@ public class SystemService {
         private String className;
         @com.alibaba.excel.annotation.ExcelProperty("手机号")
         private String phone;
+        @com.alibaba.excel.annotation.ExcelProperty("邮箱")
+        private String email;
+        @com.alibaba.excel.annotation.ExcelProperty("状态")
+        private String status;
     }
 }

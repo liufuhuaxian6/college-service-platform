@@ -291,17 +291,37 @@ public class NotificationBroadcastService {
     }
 
     public Page<SysNotificationBroadcast> getBroadcastPage(int page, int size) {
-        return broadcastMapper.selectPage(
+        Page<SysNotificationBroadcast> result = broadcastMapper.selectPage(
                 new Page<>(page, size),
                 new LambdaQueryWrapper<SysNotificationBroadcast>()
                         .orderByDesc(SysNotificationBroadcast::getCreatedAt)
         );
+        // 已读人数实时统计 (而非沿用 sentCount): 学生进消息中心点开后才计入
+        result.getRecords().forEach(bc -> bc.setReadCount(countRead(bc.getId())));
+        return result;
     }
 
     public SysNotificationBroadcast getBroadcastDetail(Long id) {
         SysNotificationBroadcast bc = broadcastMapper.selectById(id);
         if (bc == null) throw new BusinessException("广播任务不存在");
+        bc.setReadCount(countRead(bc.getId()));
         return bc;
+    }
+
+    /**
+     * 真实已读人数 = 该广播下 system 类通知中 is_read=true 的条数.
+     * 群发时每个目标用户写一条 system 通知且初始 is_read=false, 故发送后即为 0,
+     * 只有用户在消息中心点开后才递增, 避免广播历史误显示"全部已读".
+     */
+    private int countRead(Long broadcastId) {
+        if (broadcastId == null) return 0;
+        Long c = notificationMapper.selectCount(
+                new LambdaQueryWrapper<SysNotification>()
+                        .eq(SysNotification::getBroadcastId, broadcastId)
+                        .eq(SysNotification::getType, "system")
+                        .eq(SysNotification::getIsRead, true)
+        );
+        return c == null ? 0 : c.intValue();
     }
 
     /**

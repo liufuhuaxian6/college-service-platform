@@ -31,6 +31,68 @@
 
 ## 二、近期迭代回顾
 
+### 2026-06-21 · RAG 宽松召回 + 大模型自主决定引用
+
+把"相似度不达标就判未命中、后端机械给引用"改为"宽松召回候选 → 大模型自己判断与引用"：
+
+- `DocumentRagService.retrieveCandidates`：宽松召回(`rag.candidate-min-score` 默认 0.2，远低于严格 `minScore`)，召回更多候选交给大模型，不再因低分直接"未命中"
+- `QaService` 大模型分支重构：候选拼成带【编号】资料(`buildNumberedContext`)喂 AI；解析 AI 在答案末尾标注的 `[引用: n]` 编号(`parseAiCitations`)→ 映射回文档(按文档去重，最多 3)生成 `references`，**AI 未引用则为空**；`stripCitationTag` 去掉答案里的引用标记不展示
+- `OpenAiCompatibleProvider` systemPrompt：资料不足也别直接拒答 + 末尾按 `[引用: 1,3]` / `[引用: 无]` 标注引用
+- **抽取式(未配大模型)分支保持原严格 RAG**；仅大模型分支走"AI 自主引用"
+- 前端无需改(已有 references chips + 右滑侧栏)；需配 `AI_PROVIDER=openai` + key 重启后端生效
+- 验证：后端 `mvnw compile` ✅
+
+### 2026-06-21 · 问答接入多轮对话上下文
+
+- `AiProvider` 接口加带 `history` 的 default 方法(默认退化单轮, 向后兼容); `OpenAiCompatibleProvider` 把对话历史拼进 `messages`(system + 历史 user/assistant + 当前问题带最新检索上下文)
+- `QaService.chat` / `QaController.ChatRequest` 透传 `history`; 前端 `qa/index.vue` 的 `send` 取当前问题前最近 6 条已完成对话(ai→assistant)一并发送
+- 仅**大模型分支**生效(知识库精确匹配 / RAG 抽取式不依赖历史, 因其基于单问题检索); 需配 `AI_PROVIDER=openai` + key 重启后端才有多轮效果
+- 验证: 后端 `mvnw compile` ✅、`build:mp-weixin` ✅
+
+### 2026-06-21 · 问答来源引用(点击看原文) + 首页通知红点修复
+
+- **问答来源引用**(现代 AI 体验，仿 Perplexity/Claude)：
+  - 后端 `QaService.chat` 在 RAG 分支新增结构化 `references`——按文档去重取最高分片段、`focusExtractiveContent` 提取命中段落、最多 3 条，每条 `{documentId, title, category, snippet}`(此前引用只揉在 answer 文本里，前端拿不到结构)
+  - 前端 AI 回复底部新增**参考来源 chips**(红序号 + 文档名，可点)；点击**从右滑出侧栏**展示：文档标题 + 分类徽章 + 命中政策原文片段 + **下载原文档**按钮(调 `/qa/document/{id}/download`)
+- **修复首页通知红点不消失**：首页未读数原用 `onMounted` 取，tab 页只首次触发——读完通知切回首页不刷新、红点残留；改用 `onShow`(每次显示刷新)，读完即消失、有新消息及时亮
+- 验证：后端 `mvnw compile` ✅ + Python(UTF-8) 实测 chat 返回 references 正常；`build:mp-weixin` ✅；H5 巡检确认 chips/侧栏/原文片段/红点均正常
+
+### 2026-06-19 · 小程序巡检 + 智能问答重做为现代 AI 对话界面 + 3 处优化
+
+按手机尺寸逐页截图巡检小程序(H5 真机一致渲染)后改进：
+
+- **智能问答页重做**(qa/index.vue)：仿 DeepSeek/ChatGPT/Claude——居中红圆校徽 logo + 衬线标题 + **2×2 示例提问卡**的欢迎态；对话态为用户红气泡 + AI 圆头像 + 宽内容块，AI 回复做**轻量 markdown 解析**(标题/有序/无序列表/段落)排版 + **打字机逐字效果** + 末尾光标；回复附**参考依据**与**复制**操作；底部**自适应高度输入框 + 圆形发送箭头按钮**，对话态顶部"＋新对话"
+- **修复文件徽标 bug**(qa/document.vue)：`fileExt` 此前取 MIME 前 4 字母显示 `APPL/IMAG/TEXT`，改为取真实扩展名(PDF/DOCX/TXT/PNG)，徽标中性灰底与管理端一致
+- **通知卡片紧凑化**(notify + 首页)：减小 padding/行高/字号、正文 2 行截断、标签更小，长列表不再拥挤
+- **提交申请第 1 步留白优化**：模板少时中部大留白，补一张"办理流程"3 步引导卡
+- 验证：`build:mp-weixin` ✅；H5 巡检确认欢迎态/对话态/打字机/列表渲染/徽标/紧凑均正常
+
+### 2026-06-19 · 导入/导出逻辑理顺（归属纠正 + 全角色 + 身份列 + 新增用户）
+
+针对"用户管理与学生信息的导入导出逻辑不合理"，重排为：
+
+- **导出归属纠正**：「学生信息」页新增**导出学生名单**（`GET /student/export`，minRole 3，**3 级骨干受数据隔离只导本班**），支持当前年级/专业/班级/身份多选筛选；学生名单导出从此回归到学生信息页
+- **用户管理改全角色导出**：`/system/user/export` 由"只导学生(3/4)"改为**导出全部角色用户**（`exportUsers`，按身份筛选，导出含**角色 / 邮箱 / 状态**列，启用+禁用都导）；前端按钮"导出学生名单"→"导出用户"
+- **导入支持身份列**：导入模板新增「身份」列（留空=普通学生，支持 普通学生/学生骨干/老师/院领导）；`importStudents` 按身份列设角色，并加**越级保护**（不能导入与自己同级或更高权限的账号）；下载模板加老师示例行
+- **新增"新增用户"入口**（补此前硬缺失）：`POST /system/user` `createUser`（学号查重 + **越级保护** + 默认密码 123456）；UserList 加新增按钮与弹窗，身份下拉只列出操作者**可创建**的角色
+- 验证：后端 `mvnw compile` ✅、前端 `npm run build` ✅（接口需重启后端生效）
+
+### 2026-06-19 · 管理端截图巡检 + 配色协调（修复 Element 主色变量未生效根因）
+
+- **根因修复（影响最大）**：发现 `--el-color-primary` 实际仍是 Element 默认蓝 `#409eff`——theme.scss 对 Element 变量的 `:root` 覆盖被 Element 自身 `:root` 按加载顺序盖回，导致**所有原生主色组件（复选框/单选/开关/plain 按钮/分页/输入聚焦/loading）都是蓝色**，与人大红主题割裂（之前看着"红"只是按钮背景被硬覆盖）。用更高特异性 `:root:root` 再覆写一次主色变量，一次性把这些组件统一红化
+- **配色收敛**：用户管理「导出学生名单」绿色按钮 → 红描边；办公模板「替换」橙色 → 红描边；global.scss 补 plain 主按钮红化覆写；政策文档文件类型徽标改为**统一中性灰底 + 扩展名文字**（TXT/PDF/PNG 一眼区分，取代几乎全红的"按类型配色"）
+- **筛选风格统一**：知识库分类标签条选中态与审批中心分段 Tab 统一为同款红渐变
+- **工作台精简**：横幅副标题去掉与 KPI 卡重复的"待审批/进行中流程"数字，改为平台能力概览句
+- 巡检方式：playwright-core 驱动系统 Chrome 登录后逐页截图核对（12 页 + 编辑弹窗），确认弹窗遮挡修复有效；临时脚本与依赖已清理
+- 验证：`npm run build` ✅
+
+### 2026-06-19 · 测试反馈三个 bug 修复（多选筛选 / 已读统计 / 越级保护）
+
+- **Bug1 筛选不支持多选**：`getUserPage` / `exportStudents`（用户管理）、`getStudentPage`（学生信息）三处接口的 `grade/major/className/roleLevel` 改为接收逗号分隔多值并用 `IN` 查询（`splitCsv`/`splitCsvInt`，兼容单值）；前端 `UserList.vue` / `StudentList.vue` 身份/年级/专业/班级改为 `multiple` 多选下拉（collapse-tags），查询参数以逗号拼接；导出确认逻辑适配多选（只取学生身份 3/4，含老师/院领导时提示忽略）
+- **Bug2 已读默认全已读**：广播历史"目标/已读"原显示 `sentCount`（已写入条数≈目标数）。`SysNotificationBroadcast` 新增瞬态 `readCount`，`getBroadcastPage/Detail` 按 `sys_notification(broadcast_id, type='system', is_read=true)` **实时统计真实已读**——群发后即为 0，学生在消息中心点开后才递增；前端列改用 `readCount`（0 灰色、>0 绿色）
+- **Bug3 老师越级禁用院领导**：`updateUser` / `setUserRole` 加越级保护——操作者只能管理**角色等级严格低于自己**的账号（数字更大=权限更低），老师(2) 无法修改/禁用院领导(1) 或其它老师(2)；`updateUser` 额外禁止顺带改 `roleLevel`（角色变更只能走受校验的 `setUserRole`，且不得提升到与自己同级/更高）；前端 `UserList.vue` 对不可管理行隐藏编辑/设置角色按钮并显示"不可管理"，"设置角色"仅院领导可见
+- 验证：后端 `mvnw compile` ✅、前端 `npm run build` ✅
+
 ### 2026-06-12 (七期) · 图标体系替换（去"单个大字"）+ 通知群发表单重排
 
 - **小程序图标体系**：新增 `static/icons/` 6 个 SVG 线条图标（问答气泡/文档/旗帜/审批勾选/证书/奖章）；首页服务卡从"2×2 大字卡 + 大字水印"改为**通栏横排行卡**（淡色圆角图标块 + 标题徽标 + 单行描述 + 箭头）；问答入口"问"字改 CSS 放大镜；推荐问题"问"字章改菱形红点；聊天用户侧"我"头像移除；申请页模板/确认首字图标改证书 SVG；个人中心"奖"字奖章改奖章 SVG
