@@ -76,6 +76,40 @@ college-service-platform/
 
 ## 快速开始
 
+> ### 🚀 日常开发速查（库已建过，直接看这里）
+>
+> 每次开发按顺序拉起 4 样东西即可（首次部署/建库见下方 1–6 步）：
+>
+> ```bash
+> # ① 依赖容器：数据库 / 向量 / 缓存 —— 若已停止就启动
+> docker compose up -d postgres embedding redis
+> #   若数据库是单独 docker run 的（本机就是 college-pgvector-dev，映射 5433），改用：
+> #   docker start college-pgvector-dev
+> #   ⚠ 本机 dev 后端连的是 5433（见 backend/src/main/resources/application-dev.yml），
+> #     和 docker-compose.yml 里示例的 5432 不是一回事，别搞混。
+>
+> # ② 后端（务必等数据库就绪后再启动）
+> cd backend && ./mvnw.cmd spring-boot:run        # Windows；macOS/Linux 用 ./mvnw
+>
+> # ③ 管理端 → http://localhost:5173 （admin / admin123）
+> cd frontend-admin && npm run dev
+>
+> # ④ 小程序 → 微信开发者工具导入 frontend-mp/dist/dev/mp-weixin
+> cd frontend-mp && npm run dev:mp-weixin
+> ```
+>
+> **⚠ 启动顺序 / 高频坑**：数据库必须先于后端就绪。**如果数据库容器是在后端启动之后才起来、或中途被重启过，后端连接池会握着失效连接，所有接口返回 `500「系统内部错误」`（连登录都进不去）——此时重启后端进程即可恢复**，与密码、与代码都无关。
+>
+> 接口全 500 时先做这两步自查：
+>
+> ```bash
+> docker ps        # 确认 pgvector / embedding / redis 都是 Up
+> curl -s -X POST http://localhost:8080/api/auth/login \
+>   -H "Content-Type: application/json" -d '{"studentId":"admin","password":"admin123"}'
+> #   返回 code:200 + token = 后端↔数据库链路正常
+> #   返回 code:500           = 多半就是上面的连接失效坑，回后端终端 Ctrl+C 重启即可
+> ```
+
 ### 1. 克隆与建库
 
 ```bash

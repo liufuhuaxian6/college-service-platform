@@ -10,12 +10,14 @@ export const authApi = {
 export const systemApi = {
   getUserPage: (params) => request.get('/system/user/page', { params }),
   getUserDetail: (id) => request.get(`/system/user/${id}`),
+  createUser: (data) => request.post('/system/user', data),
   updateUser: (id, data) => request.put(`/system/user/${id}`, data),
   setUserRole: (id, data) => request.put(`/system/user/${id}/role`, data),
   importUsers: (formData) => request.post('/system/user/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
-  exportStudents: (params) => request.get('/system/user/export', {
+  // 用户管理: 导出全角色用户名单
+  exportUsers: (params) => request.get('/system/user/export', {
     params,
     responseType: 'blob',
   }),
@@ -92,6 +94,11 @@ export const approvalApi = {
 export const studentApi = {
   getPage: (params) => request.get('/student/page', { params }),
   getDetail: (id) => request.get(`/student/${id}/detail`),
+  // 学生信息: 导出学生名单 (含骨干数据隔离, 后端按操作者权限处理)
+  exportStudents: (params) => request.get('/student/export', {
+    params,
+    responseType: 'blob',
+  }),
   addHonor: (id, data) => request.post(`/student/${id}/honor`, data),
   updateHonor: (id, data) => request.put(`/student/honor/${id}`, data),
   deleteHonor: (id) => request.delete(`/student/honor/${id}`),

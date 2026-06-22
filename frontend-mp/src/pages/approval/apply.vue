@@ -53,6 +53,23 @@
           <text>暂无可用模板，请联系管理员上传办公模板。</text>
         </view>
       </view>
+
+      <!-- 办理流程说明 (填充内容少时的留白, 也帮学生理解流程) -->
+      <view v-if="templates.length" class="flow-guide mp-card">
+        <text class="flow-guide__title">办理流程</text>
+        <view class="flow-guide__step">
+          <text class="flow-num">1</text>
+          <text class="flow-text">选择需要开具的证明模板</text>
+        </view>
+        <view class="flow-guide__step">
+          <text class="flow-num">2</text>
+          <text class="flow-text">核对自动带入的档案信息，补充缺失字段</text>
+        </view>
+        <view class="flow-guide__step">
+          <text class="flow-num">3</text>
+          <text class="flow-text">提交后进入审批，通过即可在「我的申请」预览 / 下载 PDF</text>
+        </view>
+      </view>
     </view>
 
     <!-- ===== 第 2 步: 填写信息 ===== -->
@@ -536,6 +553,48 @@ async function submitApply() {
   background: #FFFFFF;
   border-radius: 22rpx;
   font-size: 24rpx;
+}
+
+/* 办理流程说明 */
+.flow-guide {
+  margin-top: 24rpx;
+  padding: 26rpx 24rpx 10rpx;
+}
+
+.flow-guide__title {
+  display: block;
+  margin-bottom: 18rpx;
+  color: var(--mp-text-main);
+  font-size: 26rpx;
+  font-weight: 750;
+}
+
+.flow-guide__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+  margin-bottom: 18rpx;
+}
+
+.flow-num {
+  width: 38rpx;
+  height: 38rpx;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--mp-primary);
+  background: var(--mp-primary-light);
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.flow-text {
+  flex: 1;
+  color: var(--mp-text-regular);
+  font-size: 24rpx;
+  line-height: 1.55;
 }
 
 /* ===== 第 2 步: 表单 ===== */

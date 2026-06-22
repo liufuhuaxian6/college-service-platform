@@ -54,9 +54,14 @@ public class OpenAiCompatibleProvider implements AiProvider {
 
     @Override
     public String chat(String question, String context) {
+        return chat(question, context, null);
+    }
+
+    @Override
+    public String chat(String question, String context, List<Map<String, String>> history) {
         if (!isAvailable()) {
-            log.warn("AI provider 'openai' 未配置完整 (api-url/api-key/model 至少一项空), 走 fallback");
-            return fallback();
+            log.warn("AI provider 'openai' 未配置完整 (api-url/api-key/model 至少一项空), 交由上层走抽取式兜底");
+            return null;
         }
 
         long t0 = System.currentTimeMillis();
@@ -67,24 +72,40 @@ public class OpenAiCompatibleProvider implements AiProvider {
 
             String systemPrompt = """
                     你是学院学生综合服务与党团管理平台的政策问答助手。
-                    只能基于给定上下文回答；上下文没有明确依据时，请说明未找到明确依据并建议联系辅导员。
-                    回答要正式、简洁，涉及制度条款时尽量保留条款编号和原文要点。
+                    下面会给出若干以【数字】编号的政策资料，以及对话历史。
+                    请优先依据这些资料回答；资料不充分时可结合常识谨慎作答，并提醒以学院正式通知为准、必要时联系辅导员核实，不要直接拒答。
+                    回答要正式、简洁，涉及制度条款时保留条款编号与原文要点。
+                    在回答的最后另起一行，标注你实际引用到的资料编号，格式严格为：[引用: 1,3]；若没有用到任何给定资料，则写：[引用: 无]。
                     """;
+
+            // messages = system + 历史对话(最多保留最近若干轮) + 当前问题(带最新检索上下文)
+            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            messages.add(Map.of("role", "system", "content", systemPrompt));
+            int historyUsed = 0;
+            if (history != null) {
+                for (Map<String, String> h : history) {
+                    String role = h == null ? null : h.get("role");
+                    String content = h == null ? null : h.get("content");
+                    if (StringUtils.hasText(role) && StringUtils.hasText(content)
+                            && ("user".equals(role) || "assistant".equals(role))) {
+                        messages.add(Map.of("role", role, "content", content));
+                        historyUsed++;
+                    }
+                }
+            }
+            messages.add(Map.of("role", "user", "content",
+                    "【政策上下文】\n" + (context == null ? "" : context)
+                            + "\n\n【学生问题】\n" + question));
 
             Map<String, Object> body = Map.of(
                     "model", model,
                     "temperature", 0.2,
-                    "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user", "content",
-                                    "【政策上下文】\n" + (context == null ? "" : context)
-                                            + "\n\n【学生问题】\n" + question)
-                    )
+                    "messages", messages
             );
 
-            log.info("AI chat -> {} model={} qLen={} ctxLen={}",
+            log.info("AI chat -> {} model={} qLen={} ctxLen={} historyMsgs={}",
                     apiUrl, model, question == null ? 0 : question.length(),
-                    context == null ? 0 : context.length());
+                    context == null ? 0 : context.length(), historyUsed);
 
             ResponseEntity<String> response = restTemplate.postForEntity(
                     apiUrl,
@@ -103,12 +124,12 @@ public class OpenAiCompatibleProvider implements AiProvider {
                     cost,
                     response.getBody() == null ? "null" :
                             response.getBody().substring(0, Math.min(200, response.getBody().length())));
-            return fallback();
+            return null;
         } catch (Exception e) {
             long cost = System.currentTimeMillis() - t0;
             log.error("AI chat 调用失败 url={} model={} cost={}ms err={}",
                     apiUrl, model, cost, e.toString(), e);
-            return fallback();
+            return null;
         }
     }
 
@@ -122,9 +143,5 @@ public class OpenAiCompatibleProvider implements AiProvider {
         return StringUtils.hasText(apiUrl)
                 && StringUtils.hasText(apiKey)
                 && StringUtils.hasText(model);
-    }
-
-    private static String fallback() {
-        return "暂未找到匹配的标准答案，建议您联系辅导员获取准确信息。";
     }
 }

@@ -52,6 +52,10 @@ public class DocumentRagService {
     @Value("${rag.min-score:0.3}")
     private double minScore;
 
+    /** 宽松召回下限: 比 minScore 更低, 让大模型自行判断候选是否相关(召回更多供 AI 决定引用) */
+    @Value("${rag.candidate-min-score:0.2}")
+    private double candidateMinScore;
+
     @Value("${rag.rerank-pool-size:20}")
     private int rerankPoolSize;
 
@@ -163,6 +167,35 @@ public class DocumentRagService {
             }
         }
         return false;
+    }
+
+    /**
+     * 宽松召回候选片段: 不卡严格 minScore(只排除几乎无关的), 取更多候选,
+     * 交给大模型自行判断是否相关、引用哪些. 用于"AI 自主引用"流程.
+     */
+    public List<QaDocumentChunk> retrieveCandidates(String question, String category, int k) {
+        if (!enabled) {
+            return List.of();
+        }
+        try {
+            String retrievalQuery = expandRetrievalQuery(question);
+            String embedding = embeddingService.toVectorLiteral(embeddingService.embedQuery(retrievalQuery));
+            int poolSize = Math.max(k, k * Math.max(1, rerankPoolSize));
+            String effectiveCategory = StringUtils.hasText(category)
+                    ? category
+                    : (isCalendarIntent(question) ? "校历安排" : "");
+            return chunkMapper.searchSimilar(embedding, effectiveCategory, poolSize)
+                    .stream()
+                    // 仅排除几乎无关的(下限远低于 minScore), 其余都召回供 AI 判断
+                    .filter(c -> RagScoringUtil.nullToZero(c.getScore()) >= candidateMinScore)
+                    .peek(c -> c.setScore(boostScore(question, c)))
+                    .sorted((a, b) -> Double.compare(RagScoringUtil.nullToZero(b.getScore()), RagScoringUtil.nullToZero(a.getScore())))
+                    .limit(Math.max(1, k))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("RAG candidate retrieve skipped: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     public String buildContext(String question) {

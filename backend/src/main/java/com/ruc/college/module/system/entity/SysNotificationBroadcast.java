@@ -37,6 +37,10 @@ public class SysNotificationBroadcast {
     /** 邮件实际成功发送数量 */
     private Integer emailSent;
 
+    /** 真实已读人数: 由 sys_notification(broadcast_id, is_read=true) 实时统计, 不入库 */
+    @TableField(exist = false)
+    private Integer readCount;
+
     private Long operatorId;
 
     private Boolean withdrawn;

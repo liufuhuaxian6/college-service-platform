@@ -155,9 +155,13 @@
               </template>
             </el-table-column>
             <el-table-column prop="source" label="来源" width="100" />
-            <el-table-column label="目标 / 已读" width="120">
+            <el-table-column label="目标 / 已读" width="130">
               <template #default="{ row }">
-                {{ row.targetCount || 0 }} / {{ row.sentCount || 0 }}
+                <span class="read-stat">
+                  <b>{{ row.targetCount || 0 }}</b>
+                  <span class="read-sep">/</span>
+                  <span :class="(row.readCount || 0) > 0 ? 'read-num' : 'read-zero'">{{ row.readCount || 0 }}</span>
+                </span>
               </template>
             </el-table-column>
             <el-table-column label="邮件" width="80">
@@ -511,5 +515,23 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.read-stat {
+  font-variant-numeric: tabular-nums;
+}
+.read-stat b {
+  color: var(--app-text);
+}
+.read-sep {
+  margin: 0 4px;
+  color: var(--app-text-placeholder);
+}
+.read-num {
+  color: var(--app-success);
+  font-weight: 600;
+}
+.read-zero {
+  color: var(--app-text-secondary);
 }
 </style>

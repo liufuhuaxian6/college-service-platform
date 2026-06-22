@@ -55,7 +55,7 @@
         <div class="tpl-actions">
           <el-button size="small" :disabled="isPlaceholder(row)" @click="download(row)">下载</el-button>
           <el-button v-if="isPlaceholder(row)" size="small" type="primary" @click="showFillDialog(row)">补传文件</el-button>
-          <el-button v-else size="small" type="warning" plain @click="showFillDialog(row)">替换</el-button>
+          <el-button v-else size="small" type="primary" plain @click="showFillDialog(row)">替换</el-button>
           <el-popconfirm title="确定删除该模板吗？" @confirm="handleDelete(row.id)">
             <template #reference><el-button size="small" type="danger" plain>删除</el-button></template>
           </el-popconfirm>

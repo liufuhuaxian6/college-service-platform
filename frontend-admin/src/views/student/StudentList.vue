@@ -1,27 +1,31 @@
 <template>
   <div class="app-page">
-    <PageHeader title="学生信息" description="查看学生基本信息、荣誉记录及关联的党团流程和证明申请。" />
+    <PageHeader title="学生信息" description="查看学生基本信息、荣誉记录及关联的党团流程和证明申请。">
+      <template #actions>
+        <el-button type="primary" plain :loading="exporting" @click="handleExport">导出学生名单</el-button>
+      </template>
+    </PageHeader>
 
     <FilterBar>
       <el-form inline>
         <el-form-item label="身份">
-          <el-select v-model="query.roleLevel" clearable placeholder="全部" style="width: 130px" @change="handleSearch">
+          <el-select v-model="query.roleLevels" multiple collapse-tags collapse-tags-tooltip clearable placeholder="全部" style="width: 200px" @change="handleSearch">
             <el-option label="普通学生" :value="4" />
             <el-option label="学生骨干" :value="3" />
           </el-select>
         </el-form-item>
         <el-form-item label="年级">
-          <el-select v-model="query.grade" clearable filterable placeholder="全部年级" style="width: 140px" @change="handleSearch">
+          <el-select v-model="query.grades" multiple collapse-tags collapse-tags-tooltip clearable filterable placeholder="全部年级" style="width: 200px" @change="handleSearch">
             <el-option v-for="g in dimensions.grades" :key="g" :label="g" :value="g" />
           </el-select>
         </el-form-item>
         <el-form-item label="专业">
-          <el-select v-model="query.major" clearable filterable placeholder="全部专业" style="width: 200px" @change="handleSearch">
+          <el-select v-model="query.majors" multiple collapse-tags collapse-tags-tooltip clearable filterable placeholder="全部专业" style="width: 240px" @change="handleSearch">
             <el-option v-for="m in dimensions.majors" :key="m" :label="m" :value="m" />
           </el-select>
         </el-form-item>
         <el-form-item label="班级">
-          <el-select v-model="query.className" clearable filterable placeholder="全部班级" style="width: 170px" @change="handleSearch">
+          <el-select v-model="query.classNames" multiple collapse-tags collapse-tags-tooltip clearable filterable placeholder="全部班级" style="width: 220px" @change="handleSearch">
             <el-option v-for="c in dimensions.classNames" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
@@ -178,7 +182,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { studentApi, systemApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FilterBar from '@/components/common/FilterBar.vue'
@@ -187,6 +191,7 @@ import StatusTag from '@/components/common/StatusTag.vue'
 
 const loading = ref(false)
 const submitting = ref(false)
+const exporting = ref(false)
 const detailVisible = ref(false)
 const honorVisible = ref(false)
 const list = ref([])
@@ -196,16 +201,17 @@ const honors = ref([])
 const processes = ref([])
 const approvals = ref([])
 const currentStudentId = ref(null)
-const query = reactive({ page: 1, size: 20, grade: '', major: '', className: '', roleLevel: null })
+const query = reactive({ page: 1, size: 20, grades: [], majors: [], classNames: [], roleLevels: [] })
 const dimensions = reactive({ grades: [], majors: [], classNames: [] })
 const honorForm = reactive({ honorName: '', honorLevel: '', awardDate: '', certFile: '' })
 
+// 多选数组以逗号拼接传给后端 (后端按 IN 查询)
 function buildQueryParams() {
   const params = { page: query.page, size: query.size }
-  if (query.grade) params.grade = query.grade
-  if (query.major) params.major = query.major
-  if (query.className) params.className = query.className
-  if (query.roleLevel != null) params.roleLevel = query.roleLevel
+  if (query.grades.length) params.grade = query.grades.join(',')
+  if (query.majors.length) params.major = query.majors.join(',')
+  if (query.classNames.length) params.className = query.classNames.join(',')
+  if (query.roleLevels.length) params.roleLevel = query.roleLevels.join(',')
   return params
 }
 
@@ -235,12 +241,77 @@ function handleSearch() {
 }
 
 function resetQuery() {
-  query.grade = ''
-  query.major = ''
-  query.className = ''
-  query.roleLevel = null
+  query.grades = []
+  query.majors = []
+  query.classNames = []
+  query.roleLevels = []
   query.page = 1
   loadData()
+}
+
+// 导出学生名单: 按当前多选筛选导出 (后端只导学生 3/4, 骨干受数据隔离只导本班)
+async function handleExport() {
+  const studentRoles = query.roleLevels.filter(r => r === 3 || r === 4)
+  let identityText = '普通学生 + 学生骨干'
+  if (studentRoles.length === 1 && studentRoles[0] === 4) identityText = '仅普通学生'
+  else if (studentRoles.length === 1 && studentRoles[0] === 3) identityText = '仅学生骨干'
+  const dims = []
+  if (query.grades.length) dims.push(`年级=${query.grades.join('/')}`)
+  if (query.majors.length) dims.push(`专业=${query.majors.join('/')}`)
+  if (query.classNames.length) dims.push(`班级=${query.classNames.join('/')}`)
+  const dimsText = dims.length ? dims.join('，') : '不限'
+  try {
+    await ElMessageBox.confirm(
+      `<div style="line-height:1.9">
+        <p>将导出一份 Excel 学生名单：</p>
+        <p>· <b>对象</b>：${identityText}，仅<b>启用状态</b></p>
+        <p>· <b>筛选</b>：${dimsText}</p>
+        <p style="color:#909399;font-size:13px;margin-top:6px">表格含"身份"列区分普通学生与学生骨干；支持一次选多个年级/专业/班级。</p>
+      </div>`,
+      '导出学生名单',
+      { confirmButtonText: '确认导出', cancelButtonText: '取消', dangerouslyUseHTMLString: true },
+    )
+  } catch { return }
+
+  exporting.value = true
+  try {
+    const params = {}
+    if (query.grades.length) params.grade = query.grades.join(',')
+    if (query.majors.length) params.major = query.majors.join(',')
+    if (query.classNames.length) params.className = query.classNames.join(',')
+    if (studentRoles.length) params.roleLevel = studentRoles.join(',')
+    const res = await studentApi.exportStudents(params)
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const filename = parseFilename(res.headers['content-disposition']) || `学生名单_${todayStr()}.xlsx`
+    triggerDownload(blob, filename)
+    ElMessage.success('导出成功')
+  } finally {
+    exporting.value = false
+  }
+}
+
+function parseFilename(cd) {
+  if (!cd) return null
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/.exec(cd)
+  return m ? decodeURIComponent(m[1]) : null
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 }
 
 async function viewDetail(id) {

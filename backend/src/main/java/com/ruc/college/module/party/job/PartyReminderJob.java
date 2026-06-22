@@ -147,19 +147,19 @@ public class PartyReminderJob {
                 continue;
             }
 
-            // 防重: 24h 内同 (userId, broadcastId=null, content 含 [INST-<id>:<tag>]) 已发过则跳过
-            String marker = "[INST-" + inst.getId() + ":" + tag + "]";
-            String fullContent = marker + " " + content;
+            // 防重: 24h 内同 (userId, type=reminder, 同流程同当前步骤) 已发过则跳过.
+            // 用中文内容特征做去重, 不再往正文里塞 [INST-x:tag] 这类英文标记.
+            String dedupKey = "「" + tplName + "」第 " + inst.getCurrentStep() + " 步";
             LocalDateTime since = now.minusHours(24);
             Long existed = notificationMapper.selectCount(
                     new LambdaQueryWrapper<SysNotification>()
                             .eq(SysNotification::getUserId, inst.getUserId())
                             .eq(SysNotification::getType, "reminder")
-                            .like(SysNotification::getContent, marker)
+                            .like(SysNotification::getContent, dedupKey)
                             .ge(SysNotification::getCreatedAt, since));
             if (existed != null && existed > 0) continue;
 
-            systemService.sendNotification(inst.getUserId(), title, fullContent, "reminder");
+            systemService.sendNotification(inst.getUserId(), title, content, "reminder");
             sent++;
         }
         return sent;
