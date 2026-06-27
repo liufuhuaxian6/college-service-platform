@@ -11,6 +11,58 @@
     </view>
 
     <view class="section-head">
+      <text class="section-title">流程申请</text>
+      <text class="section-action" @click="openApplyForm">{{ showApplyForm ? '收起' : '发起申请' }}</text>
+    </view>
+
+    <view class="apply-card">
+      <view v-if="showApplyForm" class="apply-form">
+        <picker :range="applicationTemplateNames" @change="onTemplatePick">
+          <view class="input-wrap picker-wrap">
+            <text :class="applicationTemplateId ? 'input-text' : 'placeholder'">
+              {{ selectedApplicationTemplateName || '请选择入党 / 入团流程' }}
+            </text>
+            <text class="picker-arrow">›</text>
+          </view>
+        </picker>
+        <view class="textarea-wrap">
+          <textarea
+            v-model="applicationReason"
+            class="textarea"
+            maxlength="300"
+            placeholder="可填写申请说明、当前准备情况或希望老师关注的事项"
+          ></textarea>
+        </view>
+        <view class="apply-actions">
+          <button class="btn-ghost" @click="cancelApply">取消</button>
+          <button class="btn-solid" :disabled="submittingApplication" @click="submitApplication">
+            {{ submittingApplication ? '提交中' : '提交申请' }}
+          </button>
+        </view>
+      </view>
+
+      <view v-if="applicationList.length" class="application-list">
+        <view v-for="app in applicationList" :key="app.id" class="application-item">
+          <view class="application-main">
+            <view class="application-title-row">
+              <text class="application-title">{{ app.templateName || getTemplateName(app.templateId) }}</text>
+              <StatusPill :status="app.status" />
+            </view>
+            <text class="application-meta">申请编号 {{ app.appNo || app.id }} · {{ formatDate(app.createdAt) }}</text>
+            <text v-if="app.reason" class="application-reason">{{ app.reason }}</text>
+            <text v-if="app.reviewComment" class="application-comment">审核意见：{{ app.reviewComment }}</text>
+          </view>
+          <button v-if="app.status === 'pending'" class="btn-link" @click="withdrawApplication(app)">撤回</button>
+        </view>
+      </view>
+      <EmptyState
+        v-else-if="!showApplyForm"
+        title="暂无流程申请"
+        description="提交入党或入团流程申请后，可在这里查看审核状态。"
+      />
+    </view>
+
+    <view class="section-head">
       <text class="section-title">我的流程</text>
       <text class="section-extra">{{ progressList.length }} 项</text>
     </view>
@@ -81,6 +133,11 @@ import RucSeal from '@/components/RucSeal.vue'
 
 const progressList = ref([])
 const templates = ref([])
+const applicationList = ref([])
+const showApplyForm = ref(false)
+const applicationTemplateId = ref(null)
+const applicationReason = ref('')
+const submittingApplication = ref(false)
 
 const localTemplateMeta = {
   1: { icon: '党', localDescription: '发展党员工作程序', localSteps: 29 },
@@ -106,6 +163,12 @@ const templateCards = computed(() => {
   })
 })
 
+const applicationTemplateNames = computed(() => templates.value.map((item) => item.name))
+
+const selectedApplicationTemplateName = computed(() => (
+  templates.value.find((item) => item.id === applicationTemplateId.value)?.name || ''
+))
+
 function progressPercent(item) {
   const total = item.steps?.length || 0
   if (!total) return 0
@@ -129,18 +192,87 @@ function openTemplate(template) {
   })
 }
 
-onMounted(async () => {
+function getTemplateName(id) {
+  return templates.value.find((item) => item.id === id)?.name || '党团流程'
+}
+
+function formatDate(value) {
+  if (!value) return '-'
+  return String(value).replace('T', ' ').slice(0, 16)
+}
+
+function openApplyForm() {
+  if (showApplyForm.value) {
+    showApplyForm.value = false
+    return
+  }
+  if (!templates.value.length) {
+    uni.showToast({ title: '暂无可申请的流程模板', icon: 'none' })
+    return
+  }
+  applicationTemplateId.value = applicationTemplateId.value || templates.value[0]?.id || null
+  showApplyForm.value = true
+}
+
+function cancelApply() {
+  showApplyForm.value = false
+  applicationReason.value = ''
+}
+
+function onTemplatePick(e) {
+  const index = Number(e.detail.value || 0)
+  applicationTemplateId.value = templates.value[index]?.id || null
+}
+
+async function submitApplication() {
+  if (!applicationTemplateId.value) {
+    uni.showToast({ title: '请选择流程模板', icon: 'none' })
+    return
+  }
+  submittingApplication.value = true
   try {
-    const [progressRes, templateRes] = await Promise.all([
-      partyApi.getMyProgress(),
-      partyApi.getTemplates(),
+    await partyApi.apply({
+      templateId: Number(applicationTemplateId.value),
+      reason: applicationReason.value.trim(),
+    })
+    uni.showToast({ title: '申请已提交', icon: 'success' })
+    showApplyForm.value = false
+    applicationReason.value = ''
+    await loadPartyData()
+  } finally {
+    submittingApplication.value = false
+  }
+}
+
+function withdrawApplication(app) {
+  uni.showModal({
+    title: '撤回申请',
+    content: `确定撤回「${app.templateName || getTemplateName(app.templateId)}」申请吗？`,
+    success: async (res) => {
+      if (!res.confirm) return
+      await partyApi.withdrawApplication(app.id)
+      uni.showToast({ title: '已撤回', icon: 'success' })
+      loadPartyData()
+    },
+  })
+}
+
+async function loadPartyData() {
+  try {
+    const [progressRes, templateRes, applicationRes] = await Promise.all([
+      partyApi.getMyProgress().catch(() => ({ data: [] })),
+      partyApi.getTemplates().catch(() => ({ data: [] })),
+      partyApi.getMyApplications({ page: 1, size: 20 }).catch(() => ({ data: { records: [] } })),
     ])
     progressList.value = progressRes.data || []
     templates.value = templateRes.data || []
+    applicationList.value = applicationRes.data?.records || []
   } catch (e) {
     uni.showToast({ title: '流程数据加载失败', icon: 'none' })
   }
-})
+}
+
+onMounted(loadPartyData)
 </script>
 
 <style scoped>
@@ -220,12 +352,167 @@ onMounted(async () => {
   font-size: 23rpx;
 }
 
+.section-action {
+  color: var(--mp-primary);
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
 .panel,
+.apply-card,
 .template-card {
   background: var(--mp-card);
   border: 1rpx solid var(--mp-border);
   border-radius: 24rpx;
   box-shadow: 0 10rpx 28rpx rgba(31, 35, 41, .04);
+}
+
+.apply-card {
+  padding: 18rpx;
+}
+
+.apply-form {
+  padding: 6rpx;
+}
+
+.input-wrap,
+.textarea-wrap {
+  min-height: 88rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid var(--mp-border);
+  border-radius: 18rpx;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.picker-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.input-text,
+.placeholder {
+  font-size: 27rpx;
+}
+
+.input-text {
+  color: var(--mp-text-main);
+}
+
+.placeholder {
+  color: var(--mp-text-muted);
+}
+
+.picker-arrow {
+  color: var(--mp-text-muted);
+  font-size: 34rpx;
+}
+
+.textarea-wrap {
+  min-height: 170rpx;
+  margin-top: 16rpx;
+  padding-top: 18rpx;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 130rpx;
+  color: var(--mp-text-main);
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.apply-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.btn-ghost,
+.btn-solid,
+.btn-link {
+  height: 72rpx;
+  margin: 0;
+  border-radius: 18rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 72rpx;
+}
+
+.btn-ghost {
+  flex: 1;
+  color: var(--mp-text-sub);
+  background: var(--mp-bg-warm);
+  border: 1rpx solid var(--mp-border);
+}
+
+.btn-solid {
+  flex: 2;
+  color: #fff;
+  background: var(--mp-red-gradient);
+  border: 0;
+}
+
+.application-list {
+  margin-top: 4rpx;
+}
+
+.application-item {
+  display: flex;
+  gap: 18rpx;
+  padding: 22rpx 8rpx;
+}
+
+.application-item + .application-item {
+  border-top: 1rpx solid var(--mp-border);
+}
+
+.application-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.application-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14rpx;
+}
+
+.application-title {
+  color: var(--mp-text-main);
+  font-size: 28rpx;
+  font-weight: 720;
+}
+
+.application-meta,
+.application-reason,
+.application-comment {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--mp-text-sub);
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.application-reason {
+  color: var(--mp-text-main);
+}
+
+.application-comment {
+  color: var(--mp-primary);
+}
+
+.btn-link {
+  align-self: center;
+  width: 104rpx;
+  height: 58rpx;
+  color: var(--mp-primary);
+  background: #fff;
+  border: 1rpx solid rgba(157, 34, 53, 0.22);
+  font-size: 23rpx;
+  line-height: 58rpx;
 }
 
 .progress-list {

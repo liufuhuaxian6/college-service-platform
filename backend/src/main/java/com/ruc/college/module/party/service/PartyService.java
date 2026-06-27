@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ruc.college.common.exception.BusinessException;
 import com.ruc.college.common.security.UserContext;
+import com.ruc.college.module.auth.entity.SysUser;
+import com.ruc.college.module.auth.mapper.SysUserMapper;
 import com.ruc.college.module.party.entity.*;
 import com.ruc.college.module.party.mapper.*;
+import com.ruc.college.module.system.service.SystemService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +16,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +33,9 @@ public class PartyService {
     private final PartyProcessStepMapper stepMapper;
     private final PartyProcessInstanceMapper instanceMapper;
     private final PartyStepRecordMapper stepRecordMapper;
+    private final PartyProcessApplicationMapper applicationMapper;
+    private final SysUserMapper userMapper;
+    private final SystemService systemService;
 
     // ==================== 学生端 ====================
 
@@ -124,6 +135,79 @@ public class PartyService {
         return startDate.plusDays(days);
     }
 
+    // ==================== 流程申请 ====================
+
+    public Page<PartyProcessApplication> getMyApplications(int page, int size, String status) {
+        LambdaQueryWrapper<PartyProcessApplication> wrapper = new LambdaQueryWrapper<PartyProcessApplication>()
+                .eq(PartyProcessApplication::getUserId, UserContext.getUserId())
+                .eq(StringUtils.hasText(status), PartyProcessApplication::getStatus, status)
+                .orderByDesc(PartyProcessApplication::getCreatedAt);
+        Page<PartyProcessApplication> result = applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        enrichApplications(result.getRecords());
+        return result;
+    }
+
+    @Transactional
+    public PartyProcessApplication applyForProcess(Long templateId, String reason) {
+        if (UserContext.getRoleLevel() <= 2) {
+            throw new BusinessException("管理端账号请直接创建学生流程");
+        }
+        if (templateId == null) {
+            throw new BusinessException("请选择流程模板");
+        }
+        PartyProcessTemplate template = templateMapper.selectById(templateId);
+        if (template == null || template.getStatus() == null || template.getStatus() != 1) {
+            throw new BusinessException("流程模板不存在或未启用");
+        }
+
+        Long userId = UserContext.getUserId();
+        PartyProcessInstance activeInstance = instanceMapper.selectOne(
+                new LambdaQueryWrapper<PartyProcessInstance>()
+                        .eq(PartyProcessInstance::getUserId, userId)
+                        .eq(PartyProcessInstance::getTemplateId, templateId)
+                        .eq(PartyProcessInstance::getStatus, "active")
+                        .last("LIMIT 1")
+        );
+        if (activeInstance != null) {
+            throw new BusinessException("你已有进行中的同类流程");
+        }
+
+        PartyProcessApplication pending = applicationMapper.selectOne(
+                new LambdaQueryWrapper<PartyProcessApplication>()
+                        .eq(PartyProcessApplication::getUserId, userId)
+                        .eq(PartyProcessApplication::getTemplateId, templateId)
+                        .eq(PartyProcessApplication::getStatus, "pending")
+                        .last("LIMIT 1")
+        );
+        if (pending != null) {
+            throw new BusinessException("你已有待审核的同类流程申请");
+        }
+
+        PartyProcessApplication app = new PartyProcessApplication();
+        app.setAppNo(buildPartyApplicationNo(userId));
+        app.setUserId(userId);
+        app.setTemplateId(templateId);
+        app.setReason(StringUtils.hasText(reason) ? reason.trim() : null);
+        app.setStatus("pending");
+        applicationMapper.insert(app);
+        enrichApplications(List.of(app));
+        return app;
+    }
+
+    @Transactional
+    public void withdrawMyApplication(Long id) {
+        PartyProcessApplication app = applicationMapper.selectById(id);
+        if (app == null) throw new BusinessException("申请不存在");
+        if (!app.getUserId().equals(UserContext.getUserId())) {
+            throw new BusinessException(403, "无权撤回他人申请");
+        }
+        if (!"pending".equals(app.getStatus())) {
+            throw new BusinessException("仅待审核申请可以撤回");
+        }
+        app.setStatus("withdrawn");
+        applicationMapper.updateById(app);
+    }
+
     // ==================== 管理端 ====================
 
     public Page<PartyProcessTemplate> getTemplatePage(int page, int size) {
@@ -197,6 +281,64 @@ public class PartyService {
                 .eq(status != null, PartyProcessInstance::getStatus, status)
                 .orderByDesc(PartyProcessInstance::getCreatedAt);
         return instanceMapper.selectPage(new Page<>(page, size), wrapper);
+    }
+
+    public Page<PartyProcessApplication> getApplicationPage(int page, int size, Long templateId, Long userId, String status) {
+        LambdaQueryWrapper<PartyProcessApplication> wrapper = new LambdaQueryWrapper<PartyProcessApplication>()
+                .eq(templateId != null, PartyProcessApplication::getTemplateId, templateId)
+                .eq(userId != null, PartyProcessApplication::getUserId, userId)
+                .eq(StringUtils.hasText(status), PartyProcessApplication::getStatus, status)
+                .orderByDesc(PartyProcessApplication::getCreatedAt);
+        Page<PartyProcessApplication> result = applicationMapper.selectPage(new Page<>(page, size), wrapper);
+        enrichApplications(result.getRecords());
+        return result;
+    }
+
+    @Transactional
+    public void approveApplication(Long id, String comment) {
+        PartyProcessApplication app = applicationMapper.selectById(id);
+        if (app == null) throw new BusinessException("申请不存在");
+        if (!"pending".equals(app.getStatus())) throw new BusinessException("仅待审核申请可以通过");
+
+        Long instanceId = createInstance(app.getUserId(), app.getTemplateId(), LocalDate.now());
+        app.setStatus("approved");
+        app.setReviewerId(UserContext.getUserId());
+        app.setReviewComment(StringUtils.hasText(comment) ? comment.trim() : null);
+        app.setReviewedAt(LocalDateTime.now());
+        app.setInstanceId(instanceId);
+        applicationMapper.updateById(app);
+
+        PartyProcessTemplate template = templateMapper.selectById(app.getTemplateId());
+        String templateName = template != null ? template.getName() : "党团流程";
+        systemService.sendNotification(
+                app.getUserId(),
+                "党团流程申请已通过",
+                "你的「" + templateName + "」申请已通过，系统已创建个人流程，请在党团进度中查看。",
+                "system"
+        );
+    }
+
+    @Transactional
+    public void rejectApplication(Long id, String comment) {
+        PartyProcessApplication app = applicationMapper.selectById(id);
+        if (app == null) throw new BusinessException("申请不存在");
+        if (!"pending".equals(app.getStatus())) throw new BusinessException("仅待审核申请可以驳回");
+        if (!StringUtils.hasText(comment)) throw new BusinessException("驳回原因不能为空");
+
+        app.setStatus("rejected");
+        app.setReviewerId(UserContext.getUserId());
+        app.setReviewComment(comment.trim());
+        app.setReviewedAt(LocalDateTime.now());
+        applicationMapper.updateById(app);
+
+        PartyProcessTemplate template = templateMapper.selectById(app.getTemplateId());
+        String templateName = template != null ? template.getName() : "党团流程";
+        systemService.sendNotification(
+                app.getUserId(),
+                "党团流程申请被驳回",
+                "你的「" + templateName + "」申请被驳回，原因：" + comment.trim(),
+                "system"
+        );
     }
 
     public Long createInstance(Long userId, Long templateId, LocalDate startDate) {
@@ -292,5 +434,52 @@ public class PartyService {
                 new LambdaQueryWrapper<PartyStepRecord>().eq(PartyStepRecord::getInstanceId, instanceId)
         );
         instanceMapper.deleteById(instanceId);
+    }
+
+    private String buildPartyApplicationNo(Long userId) {
+        return "PT" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")) + userId;
+    }
+
+    private void enrichApplications(List<PartyProcessApplication> apps) {
+        if (apps == null || apps.isEmpty()) {
+            return;
+        }
+
+        Set<Long> templateIds = apps.stream()
+                .map(PartyProcessApplication::getTemplateId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, PartyProcessTemplate> templateMap = templateIds.isEmpty() ? Map.of()
+                : templateMapper.selectBatchIds(templateIds).stream()
+                .collect(Collectors.toMap(PartyProcessTemplate::getId, t -> t, (a, b) -> a));
+
+        Set<Long> userIds = apps.stream()
+                .flatMap(a -> {
+                    List<Long> ids = new ArrayList<>();
+                    ids.add(a.getUserId());
+                    ids.add(a.getReviewerId());
+                    return ids.stream();
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, SysUser> userMap = userIds.isEmpty() ? Map.of()
+                : userMapper.selectBatchIds(userIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+
+        for (PartyProcessApplication app : apps) {
+            PartyProcessTemplate template = templateMap.get(app.getTemplateId());
+            if (template != null) {
+                app.setTemplateName(template.getName());
+            }
+            SysUser user = userMap.get(app.getUserId());
+            if (user != null) {
+                app.setUserName(user.getName());
+                app.setStudentId(user.getStudentId());
+            }
+            SysUser reviewer = userMap.get(app.getReviewerId());
+            if (reviewer != null) {
+                app.setReviewerName(reviewer.getName());
+            }
+        }
     }
 }

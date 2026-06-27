@@ -187,13 +187,24 @@ else
 fi
 
 # backend is internal-only in production; smoke-test it through nginx.
-login_resp=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/api/auth/login \
-    -H 'Content-Type: application/json' \
-    -d '{"studentId":"admin","password":"admin123"}' || echo 000)
+# The Java app may still be booting after the container enters "running", so retry before warning.
+login_resp=000
+login_deadline=$(($(date +%s) + 90))
+while [ "$(date +%s)" -lt "$login_deadline" ]; do
+    login_resp=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/api/auth/login \
+        -H 'Content-Type: application/json' \
+        -d '{"studentId":"admin","password":"admin123"}' || echo 000)
+    case "$login_resp" in
+        200|400|401|403) break ;;
+    esac
+    sleep 3
+done
 if [ "$login_resp" = 200 ]; then
     ok '后端登录接口 200 OK'
+elif [ "$login_resp" = 400 ] || [ "$login_resp" = 401 ] || [ "$login_resp" = 403 ]; then
+    ok "后端接口已可达 (HTTP $login_resp, 演示账号可能已改密或被禁用)"
 else
-    warn "后端登录返回 HTTP $login_resp, 看日志: $DC logs backend"
+    warn "后端登录返回 HTTP $login_resp, 看日志: $DC logs backend; $DC logs nginx"
 fi
 
 nginx_resp=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/ || echo 000)
