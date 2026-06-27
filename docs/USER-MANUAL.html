@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="中国人民大学信息学院" />
+  <meta name="dcterms.date" content="2026-06-27" />
+  <title>学院学生综合服务与党团管理平台 用户使用说明书</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+  <style type="text/css">@page {
+size: A4;
+margin: 18mm 16mm 18mm 16mm;
+}
+html {
+color: #1f2329;
+font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+font-size: 14px;
+line-height: 1.72;
+}
+body {
+max-width: 860px;
+margin: 0 auto;
+background: #fff;
+}
+.title {
+margin-top: 56px;
+color: #8f1d2d;
+font-size: 30px;
+font-weight: 800;
+text-align: center;
+}
+.author,
+.date {
+text-align: center;
+color: #606266;
+}
+#TOC {
+margin: 24px 0 36px;
+padding: 18px 24px;
+border: 1px solid #dcdfe6;
+border-radius: 8px;
+background: #fafafa;
+}
+#TOC > h2 {
+margin-top: 0;
+color: #8f1d2d;
+}
+#TOC ul {
+margin: 4px 0;
+padding-left: 22px;
+}
+#TOC a {
+color: #303133;
+text-decoration: none;
+}
+h1 {
+margin-top: 34px;
+padding-bottom: 8px;
+border-bottom: 2px solid #8f1d2d;
+color: #8f1d2d;
+font-size: 25px;
+page-break-before: always;
+}
+body > h1:first-of-type,
+.title + .author + .date + h1 {
+page-break-before: auto;
+}
+h2 {
+margin-top: 22px;
+color: #303133;
+font-size: 19px;
+}
+h3 {
+margin-top: 18px;
+color: #4a4f57;
+font-size: 16px;
+}
+p {
+margin: 8px 0;
+}
+table {
+width: 100%;
+margin: 12px 0 18px;
+border-collapse: collapse;
+page-break-inside: avoid;
+}
+th,
+td {
+padding: 8px 10px;
+border: 1px solid #dcdfe6;
+text-align: left;
+vertical-align: top;
+}
+th {
+background: #f6f1f2;
+color: #8f1d2d;
+font-weight: 700;
+}
+code {
+padding: 1px 4px;
+border-radius: 4px;
+background: #f4f4f5;
+color: #8f1d2d;
+font-family: "Cascadia Mono", Consolas, monospace;
+font-size: 0.92em;
+}
+pre {
+padding: 12px 14px;
+overflow-wrap: break-word;
+white-space: pre-wrap;
+border: 1px solid #dcdfe6;
+border-radius: 8px;
+background: #f7f8fa;
+}
+pre code {
+padding: 0;
+background: transparent;
+color: #303133;
+}
+img {
+display: block;
+max-width: 100%;
+margin: 12px auto 18px;
+}
+blockquote {
+margin: 12px 0;
+padding: 8px 14px;
+border-left: 4px solid #8f1d2d;
+background: #fafafa;
+color: #606266;
+}
+ul,
+ol {
+padding-left: 24px;
+}
+li {
+margin: 4px 0;
+}
+a {
+color: #8f1d2d;
+}
+hr {
+border: none;
+border-top: 1px solid #dcdfe6;
+}
+@media print {
+body {
+max-width: none;
+}
+a {
+color: #8f1d2d;
+text-decoration: none;
+}
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">学院学生综合服务与党团管理平台 用户使用说明书</h1>
+<p class="author">中国人民大学信息学院</p>
+<p class="date">2026-06-27</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<h2 id="toc-title">目录</h2>
+<ul>
+<li><a href="#学院学生综合服务与党团管理平台" id="toc-学院学生综合服务与党团管理平台">学院学生综合服务与党团管理平台</a></li>
+<li><a href="#用户使用说明书" id="toc-用户使用说明书">用户使用说明书</a>
+<ul>
+<li><a href="#文档变更历史记录" id="toc-文档变更历史记录">文档变更历史记录</a></li>
+</ul></li>
+<li><a href="#系统概述" id="toc-系统概述">1 系统概述</a>
+<ul>
+<li><a href="#编写目的" id="toc-编写目的">1.1 编写目的</a></li>
+<li><a href="#系统简介" id="toc-系统简介">1.2 系统简介</a></li>
+<li><a href="#系统功能概览" id="toc-系统功能概览">1.3
+系统功能概览</a></li>
+<li><a href="#用户角色说明" id="toc-用户角色说明">1.4
+用户角色说明</a></li>
+</ul></li>
+<li><a href="#系统运行环境" id="toc-系统运行环境">2 系统运行环境</a>
+<ul>
+<li><a href="#客户端环境" id="toc-客户端环境">2.1 客户端环境</a></li>
+<li><a href="#浏览器要求" id="toc-浏览器要求">2.2 浏览器要求</a></li>
+<li><a href="#系统访问方式" id="toc-系统访问方式">2.3
+系统访问方式</a></li>
+</ul></li>
+<li><a href="#系统登录与退出" id="toc-系统登录与退出">3
+系统登录与退出</a>
+<ul>
+<li><a href="#pc-管理端登录" id="toc-pc-管理端登录">3.1 PC
+管理端登录</a></li>
+<li><a href="#微信小程序登录" id="toc-微信小程序登录">3.2
+微信小程序登录</a></li>
+<li><a href="#修改密码" id="toc-修改密码">3.3 修改密码</a></li>
+<li><a href="#用户退出" id="toc-用户退出">3.4 用户退出</a></li>
+</ul></li>
+<li><a href="#公共功能说明" id="toc-公共功能说明">4 公共功能说明</a>
+<ul>
+<li><a href="#首页与工作台" id="toc-首页与工作台">4.1
+首页与工作台</a></li>
+<li><a href="#消息中心" id="toc-消息中心">4.2 消息中心</a></li>
+<li><a href="#个人信息管理" id="toc-个人信息管理">4.3
+个人信息管理</a></li>
+<li><a href="#权限与数据隔离" id="toc-权限与数据隔离">4.4
+权限与数据隔离</a></li>
+</ul></li>
+<li><a href="#院领导管理员功能使用说明" id="toc-院领导管理员功能使用说明">5 院领导/管理员功能使用说明</a>
+<ul>
+<li><a href="#智能问答管理" id="toc-智能问答管理">5.1
+智能问答管理</a></li>
+<li><a href="#党团流程管理" id="toc-党团流程管理">5.2
+党团流程管理</a></li>
+<li><a href="#电子证明审批" id="toc-电子证明审批">5.3
+电子证明审批</a></li>
+<li><a href="#学生信息管理" id="toc-学生信息管理">5.4
+学生信息管理</a></li>
+<li><a href="#用户管理" id="toc-用户管理">5.5 用户管理</a></li>
+<li><a href="#通知群发" id="toc-通知群发">5.6 通知群发</a></li>
+<li><a href="#操作日志" id="toc-操作日志">5.7 操作日志</a></li>
+</ul></li>
+<li><a href="#管理教师与学生骨干功能使用说明" id="toc-管理教师与学生骨干功能使用说明">6
+管理教师与学生骨干功能使用说明</a>
+<ul>
+<li><a href="#管理教师功能" id="toc-管理教师功能">6.1
+管理教师功能</a></li>
+<li><a href="#学生骨干-pc-端功能" id="toc-学生骨干-pc-端功能">6.2
+学生骨干 PC 端功能</a></li>
+</ul></li>
+<li><a href="#学生功能使用说明" id="toc-学生功能使用说明">7
+学生功能使用说明</a>
+<ul>
+<li><a href="#首页" id="toc-首页">7.1 首页</a></li>
+<li><a href="#智能问答" id="toc-智能问答">7.2 智能问答</a></li>
+<li><a href="#文件与模板" id="toc-文件与模板">7.3 文件与模板</a></li>
+<li><a href="#党团进度与流程申请" id="toc-党团进度与流程申请">7.4
+党团进度与流程申请</a></li>
+<li><a href="#我的申请" id="toc-我的申请">7.5 我的申请</a></li>
+<li><a href="#消息中心-1" id="toc-消息中心-1">7.6 消息中心</a></li>
+<li><a href="#个人中心" id="toc-个人中心">7.7 个人中心</a></li>
+</ul></li>
+<li><a href="#常见问题与解决方法" id="toc-常见问题与解决方法">8
+常见问题与解决方法</a>
+<ul>
+<li><a href="#无法打开-pc-管理端" id="toc-无法打开-pc-管理端">8.1
+无法打开 PC 管理端</a></li>
+<li><a href="#pc-管理端登录失败" id="toc-pc-管理端登录失败">8.2 PC
+管理端登录失败</a></li>
+<li><a href="#小程序提示网络错误" id="toc-小程序提示网络错误">8.3
+小程序提示网络错误</a></li>
+<li><a href="#智能问答未找到明确依据" id="toc-智能问答未找到明确依据">8.4 智能问答未找到明确依据</a></li>
+<li><a href="#邮件发送数量为-0" id="toc-邮件发送数量为-0">8.5
+邮件发送数量为 0</a></li>
+<li><a href="#证明下载后无法撤回" id="toc-证明下载后无法撤回">8.6
+证明下载后无法撤回</a></li>
+<li><a href="#学生看不到党团流程" id="toc-学生看不到党团流程">8.7
+学生看不到党团流程</a></li>
+</ul></li>
+<li><a href="#联系方式与技术支持" id="toc-联系方式与技术支持">9
+联系方式与技术支持</a></li>
+</ul>
+</nav>
+<p>文档编号：SMS-UM-1.0</p>
+<h1 id="学院学生综合服务与党团管理平台">学院学生综合服务与党团管理平台</h1>
+<h1 id="用户使用说明书">用户使用说明书</h1>
+<h2 id="文档变更历史记录">文档变更历史记录</h2>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>序号</th>
+<th>日期</th>
+<th>编写人</th>
+<th>变更内容</th>
+<th>版本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>2026-06-27</td>
+<td>项目组</td>
+<td>依据模板、测试指南和当前代码实现整理初始用户使用说明</td>
+<td>V1.0</td>
+</tr>
+</tbody>
+</table>
+<h1 id="系统概述">1 系统概述</h1>
+<h2 id="编写目的">1.1 编写目的</h2>
+<p>本文档用于指导院领导、管理教师、学生骨干和普通学生正确使用“学院学生综合服务与党团管理平台”。文档以当前代码仓库中的实际功能为准，覆盖
+PC 管理端和微信小程序端的登录、主要功能、常见操作和问题处理方法。</p>
+<h2 id="系统简介">1.2 系统简介</h2>
+<p>学院学生综合服务与党团管理平台是一套面向学院学生工作的综合服务系统。系统由
+PC
+管理端、微信小程序端和后端服务组成，面向学院日常学生服务、党团事务、电子证明审批、学生画像、通知推送和政策问答等场景。</p>
+<p>系统主要技术形态如下：</p>
+<table>
+<thead>
+<tr>
+<th>组成</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PC 管理端</td>
+<td>面向院领导、管理教师、学生骨干的 Web 后台</td>
+</tr>
+<tr>
+<td>微信小程序端</td>
+<td>面向学生的移动端服务入口</td>
+</tr>
+<tr>
+<td>后端服务</td>
+<td>提供认证、权限、审批、党团流程、问答、通知、文件等接口</td>
+</tr>
+<tr>
+<td>数据服务</td>
+<td>使用 PostgreSQL/pgvector、Redis，支持 RAG 检索和缓存</td>
+</tr>
+</tbody>
+</table>
+<h2 id="系统功能概览">1.3 系统功能概览</h2>
+<p>系统当前实现的主要功能包括：</p>
+<ul>
+<li>统一登录、角色权限控制、修改密码、退出登录。</li>
+<li>智能问答：标准知识库问答、政策文档管理、文档向量索引、学生端智能问答。</li>
+<li>党团流程：流程模板、学生流程实例、学生发起入党/入团流程申请、教师审核申请。</li>
+<li>电子证明审批：学生提交证明申请、教师审批、学生预览/下载
+PDF、下载后锁定归档。</li>
+<li>学生画像：学生基础信息、荣誉记录、党团流程、申请记录、敏感字段脱敏展示。</li>
+<li>信息精准推送：按角色、年级、专业、班级等条件群发通知，支持站内信、邮件降级和短信模拟。</li>
+<li>系统管理：用户管理、学生导入导出、操作日志、消息中心。</li>
+</ul>
+<h2 id="用户角色说明">1.4 用户角色说明</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 30%" />
+<col style="width: 23%" />
+<col style="width: 23%" />
+</colgroup>
+<thead>
+<tr>
+<th>角色</th>
+<th style="text-align: right;">角色等级</th>
+<th>使用入口</th>
+<th>主要权限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>院领导/管理员</td>
+<td style="text-align: right;">1 级</td>
+<td>PC 管理端</td>
+<td>全部菜单可见，包含操作日志和系统管理能力</td>
+</tr>
+<tr>
+<td>管理教师</td>
+<td style="text-align: right;">2 级</td>
+<td>PC 管理端</td>
+<td>可处理业务模块、审批、党团流程、通知和用户管理，不含操作日志</td>
+</tr>
+<tr>
+<td>学生骨干</td>
+<td style="text-align: right;">3 级</td>
+<td>PC 管理端、微信小程序</td>
+<td>PC 端仅查看本班学生信息；小程序端按学生身份使用</td>
+</tr>
+<tr>
+<td>普通学生</td>
+<td style="text-align: right;">4 级</td>
+<td>微信小程序</td>
+<td>查看个人服务、提交申请、查看进度、接收通知</td>
+</tr>
+</tbody>
+</table>
+<p>注意：PC 管理端只允许 1 至 3
+级角色登录；普通学生请使用微信小程序。微信小程序只允许学生类角色登录，院领导和管理教师请使用
+PC 管理端。</p>
+<h1 id="系统运行环境">2 系统运行环境</h1>
+<h2 id="客户端环境">2.1 客户端环境</h2>
+<p>PC 管理端支持以下操作系统：</p>
+<ul>
+<li>Windows 10 及以上。</li>
+<li>macOS。</li>
+<li>Linux。</li>
+</ul>
+<p>微信小程序端需使用可运行微信小程序的手机或微信开发者工具。</p>
+<h2 id="浏览器要求">2.2 浏览器要求</h2>
+<p>PC 管理端推荐使用以下浏览器：</p>
+<ul>
+<li>Google Chrome。</li>
+<li>Microsoft Edge。</li>
+<li>Firefox。</li>
+</ul>
+<p>不建议使用 IE 浏览器。</p>
+<h2 id="系统访问方式">2.3 系统访问方式</h2>
+<h3 id="pc-管理端">2.3.1 PC 管理端</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>访问地址</td>
+<td><code>http://10.10.0.27</code></td>
+</tr>
+<tr>
+<td>网络要求</td>
+<td>学院内网 WiFi 或 VPN</td>
+</tr>
+<tr>
+<td>推荐账号</td>
+<td><code>admin / admin123</code></td>
+</tr>
+</tbody>
+</table>
+<p>如浏览器无法打开页面，请先确认设备已连接学院内网或 VPN。</p>
+<h3 id="微信小程序端">2.3.2 微信小程序端</h3>
+<p>学生可通过体验版小程序二维码进入系统。</p>
+<figure>
+<img role="img" aria-label="微信小程序体验版二维码" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAYkAAAGGCAYAAACOi31oAAAQAElEQVR4AeydCdxd47X/n5MgZqkYgkreIKKGEEMpap4qhuhwTaVxL67pokXrX1qNohT34ralpZfWXG2lplLUnJrFWIkpqDFinsf//u68a1tnv3vvc847nPfs8/58rDx7P89a61nP7znvXvuZ1h70mf4TAkJACAgBIZCDwKCg/4SAEBACQkAI5CAgJ5EDjLKFQMsiIMOEQBMRkJNoItiqSggIASFQNgTkJMrWY7JXCAgBIdBEBOQkegVsKRECQkAItCcCchLt2a9qlRAQAkKgVxCQk+gVGKVECAiBsiEge+tDQE6iPpzEJQSEgBAYkAjISQzIblejhYAQEAL1ISAnUR9O4moGAqpDCAiBlkNATqLlukQGCQEhIARaBwE5idbpC1kiBISAEGg5BGo4iZazVwYJASEgBIRAExGQk2gi2KpKCAgBIVA2BOQkytZjslcI1EBAxUKgNxGQk+hNNKVLCAgBIdBmCMhJtFmHqjlCQAgIgd5EQE6iN9HM06V8ISAEhEBJEZCTKGnHyWwhIASEQDMQkJNoBsqqQwgIgbIhIHs7EZCT6ARCiRAQAkJACHRFQE6iKybKEQJCQAgIgU4E5CQ6gVDS+gjIQiEgBJqPgJxE8zFXjUJACAiB0iAgJ1GarpKhQkAICIHmI9AzJ9F8e1WjEBACQkAINBEBOYkmgq2qhIAQEAJlQ0BOomw9JnuFQM8QkLQQaAgBOYmG4BKzEBACQmBgISAnMbD6W60VAkJACDSEgJxEQ3D1DbO0CgEhIARaFQE5iVbtGdklBISAEGgBBOQkWqATZIIQEAJlQ2Dg2CsnMXD6Wi0VAkJACDSMgJxEw5BJQAgIASEwcBCQkxg4fd3uLVX7hIAQ6AME5CT6AFSpFAJCQAi0CwJyEu3Sk2qHEBACQqAPEOhTJ9EH9kqlEBACQkAINBEBOYkmgq2qhIAQEAJlQ0BOomw9JnuFQJ8iIOVCoBoBOYlqPHQnBISAEBACDgE5CQeGLoWAEBACQqAaATmJajxa8U42CQEhIAT6DQE5iX6DXhULASEgBFofATmJ1u8jWSgEhEDZEGgje+Uk2qgz1RQhIASEQG8jICfR24hKnxAQAkKgjRCQk2ijzlRTihBQmRAQAt1BQE6iO6hJRggIASEwQBCQkxggHa1mCgEhIAS6g0B/Oonu2CsZISAEhIAQaCICchJNBFtVCQEhIATKhoCcRNl6TPYKgf5EQHUPOATkJAZcl6vBQkAICIH6EZCTqB8rcQoBISAEBhwCchKl73I1QAgIASHQdwjISfQdttIsBISAECg9AnISpe9CNUAICIGyIVAme+UkytRbslUICAEh0GQE5CSaDLiqEwJCQAiUCQE5iTL1lmztOwSkWQgIgUwE5CQyYVGmEBACQkAIgICcBCiIhIAQEAJCIBOBFnYSmfYqUwgIASEgBJqIgJxEE8FWVUJACAiBsiEgJ1G2HpO9QqCFEZBp7YeAnET79alaJASEgBDoNQTkJHoNSikSAkJACLQfAnIS7den1S3SnRAQAkKgBwjISfQAPIkKASEgBNodATmJNujhX/7yl+HEE0/sdUJvI/C8++67VTY8++yzdYlTT3ftnzZtWl11eKbrrrsusfOyyy7zRZnXefzp9tbbBuQyK+rMBLd6ddXDd99993Vqzk/OPvvsBJN6dDbCU6u9+VYN2JKWaricREt1R/eMmTRpUvj+97/f64TeRix65513qmx44okn6hKnnu7a/8ADD9RVh2eaPHlyYud5553nizKv8/jT7a23DchlVtSZCW716qqHb8qUKZ2a85OTTz45waQenY3w1GpvvlUqaQUE5CRaoRdkgxAQAkKgRRGQk2jRjumuWcsuu2xYa621uk3IN1L3q6++Gu66666Ypk6d2ohoIe+SSy6ZtGGFFVYI/r/VVlstKVt44YV9Ue71Qw89FNuIrS+//HLCl2d/mt8EPD88HusFFljA2EKR/eCEHZ6ef/75RBY9Xm/e9ciRIxOZootnnnkmaTujlCJeytCbV2c9+en+QqeovAjISZS37zIt/9nPfhbuvPPObhPymYpzMq+//vrw5S9/OaYtttgih6vx7L333jtpw+mnn16l4G9/+1tStummm1aV5d3stNNOsY3YeskllyRsefbXw7/jjjsmdoD5Gmuskegtsh+csMPTmWeemciiB3216LDDDktkii5+/vOfJ23/f//v/xWxxmXorVV3UXm6v2Kl+qe0CMhJlLbrZLgQEAJCoO8RKK+T6HtsVIMQEAJCYMAjICfRxj+Bc889N4waNaomwVcLBqZITJfn33rrrcNTTz0V0z333FOlZuedd07qPuWUU5Ky22+/PclHJ9NH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" style="width:35.0%" alt="微信小程序体验版二维码" />
+<figcaption aria-hidden="true">微信小程序体验版二维码</figcaption>
+</figure>
+<p>使用小程序前请确认：</p>
+<ol type="1">
+<li>微信号已加入小程序体验成员。</li>
+<li>手机连接学院内网 WiFi 或 VPN。</li>
+<li>首次体验内网 HTTP
+服务时，需在小程序右上角菜单中打开“调试”模式后重新进入。</li>
+</ol>
+<p>若无法加入体验成员，也可使用微信开发者工具导入
+<code>frontend-mp/dist/build/mp-weixin/</code> 目录进行本地预览。</p>
+<h1 id="系统登录与退出">3 系统登录与退出</h1>
+<h2 id="pc-管理端登录">3.1 PC 管理端登录</h2>
+<h3 id="操作步骤">操作步骤</h3>
+<ol type="1">
+<li>打开浏览器，访问 <code>http://10.10.0.27</code>。</li>
+<li>在登录页输入账号和密码。</li>
+<li>点击“登录”进入系统。</li>
+</ol>
+<h3 id="演示账号">演示账号</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>用户名</th>
+<th>密码</th>
+<th>角色</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>admin</code></td>
+<td><code>admin123</code></td>
+<td>院领导/管理员</td>
+<td>全部菜单可见</td>
+</tr>
+<tr>
+<td><code>T2024001</code> / <code>T2024002</code> /
+<code>T2024003</code></td>
+<td><code>admin123</code></td>
+<td>管理教师</td>
+<td>可演示业务管理和审批</td>
+</tr>
+<tr>
+<td><code>L2024001</code> / <code>L2024002</code> /
+<code>L2023001</code></td>
+<td><code>admin123</code></td>
+<td>学生骨干</td>
+<td>PC 端仅可查看本班学生信息</td>
+</tr>
+</tbody>
+</table>
+<p>普通学生账号如 <code>20240001</code> 不能登录 PC
+管理端。系统会提示该账号为学生角色，请使用微信小程序登录。</p>
+<h2 id="微信小程序登录">3.2 微信小程序登录</h2>
+<h3 id="操作步骤-1">操作步骤</h3>
+<ol type="1">
+<li>扫描体验版小程序二维码或在微信开发者工具中打开小程序。</li>
+<li>输入学号和密码。</li>
+<li>点击登录，进入学生服务首页。</li>
+</ol>
+<h3 id="演示账号-1">演示账号</h3>
+<table>
+<thead>
+<tr>
+<th>学号</th>
+<th>密码</th>
+<th>角色</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>20240001</code></td>
+<td><code>admin123</code></td>
+<td>普通学生</td>
+<td>用于学生端主要功能演示</td>
+</tr>
+<tr>
+<td><code>L2024001</code> 等</td>
+<td><code>admin123</code></td>
+<td>学生骨干</td>
+<td>可作为学生身份登录小程序</td>
+</tr>
+</tbody>
+</table>
+<p>院领导和管理教师账号不能登录小程序。系统会提示请使用 PC
+管理端登录。</p>
+<h2 id="修改密码">3.3 修改密码</h2>
+<p>PC 管理端：</p>
+<ol type="1">
+<li>登录后点击右上角用户区域。</li>
+<li>选择“修改密码”。</li>
+<li>输入原密码、新密码和确认新密码。</li>
+<li>点击“确定”。修改成功后系统会退出登录，需要使用新密码重新登录。</li>
+</ol>
+<p>微信小程序端当前主要提供个人信息和联系方式维护，密码修改以 PC
+管理端入口为准。</p>
+<h2 id="用户退出">3.4 用户退出</h2>
+<p>PC 管理端点击右上角用户区域，选择“退出登录”即可退出。</p>
+<p>微信小程序端进入“我的/个人中心”，点击“退出登录”即可退出。</p>
+<h1 id="公共功能说明">4 公共功能说明</h1>
+<h2 id="首页与工作台">4.1 首页与工作台</h2>
+<p>PC 管理端登录后进入“工作台”。工作台展示以下信息：</p>
+<ul>
+<li>在校学生数、系统用户数、待审批申请数、进行中流程数。</li>
+<li>审批状态分布图。</li>
+<li>党团流程模板分布图。</li>
+<li>近 7 日活动趋势。</li>
+<li>待办审批列表和快捷入口。</li>
+</ul>
+<p>微信小程序首页展示以下信息：</p>
+<ul>
+<li>学生姓名、问候语和未读通知提醒。</li>
+<li>智能问答快捷入口。</li>
+<li>“我的事项速览”，包含审批中的申请和进行中的党团流程。</li>
+<li>智能问答、文件与模板、党团进度、我的申请等服务卡片。</li>
+<li>最新通知列表。</li>
+</ul>
+<h2 id="消息中心">4.2 消息中心</h2>
+<p>PC 管理端可点击顶部铃铛图标打开消息中心，查看未读消息并标记已读。</p>
+<p>微信小程序可进入“消息中心”，按标签查看通知。点击通知后系统会自动标记为已读，也可使用“全部标记已读”。</p>
+<h2 id="个人信息管理">4.3 个人信息管理</h2>
+<p>微信小程序“我的/个人中心”展示：</p>
+<ul>
+<li>姓名、学号、专业、班级。</li>
+<li>我的申请、党团进度、消息中心快捷入口。</li>
+<li>联系方式，包括邮箱和手机号。</li>
+<li>我的荣誉列表。</li>
+</ul>
+<p>邮箱为空时系统按 <code>学号@ruc.edu.cn</code>
+派生默认邮箱；手机号保存时会进行格式校验。</p>
+<h2 id="权限与数据隔离">4.4 权限与数据隔离</h2>
+<p>系统按角色等级控制菜单和接口权限：</p>
+<ul>
+<li>1 级院领导可查看全部管理功能。</li>
+<li>2 级管理教师可使用主要业务管理功能。</li>
+<li>3 级学生骨干在 PC 管理端只开放“学生信息”，并限制为本班数据。</li>
+<li>4 级普通学生只使用微信小程序端。</li>
+</ul>
+<h1 id="院领导管理员功能使用说明">5 院领导/管理员功能使用说明</h1>
+<h2 id="智能问答管理">5.1 智能问答管理</h2>
+<h3 id="知识库管理">5.1.1 知识库管理</h3>
+<p>功能入口：PC 管理端左侧菜单“智能问答 → 知识库管理”。</p>
+<p>管理员可维护标准问答：</p>
+<ol type="1">
+<li>进入“知识库管理”。</li>
+<li>可按分类或关键词查询已有问答。</li>
+<li>点击新增，填写问题、答案、分类和官方链接等信息。</li>
+<li>保存后，学生端智能问答会优先匹配这些标准答案。</li>
+</ol>
+<p>标准问答适合维护高频、确定性强的问题，如报道安排、证明申请规则、常见办事流程等。</p>
+<h3 id="政策文档管理">5.1.2 政策文档管理</h3>
+<p>功能入口：PC 管理端“智能问答 → 政策文档”。</p>
+<p>可执行以下操作：</p>
+<ul>
+<li>上传 PDF、DOCX、TXT 等政策文件。</li>
+<li>下载或删除已上传文件。</li>
+<li>点击“向量入库/重新索引”，将文档切片并写入向量表，供学生端 RAG
+问答检索。</li>
+</ul>
+<p>若向量服务未启动，标准知识库问答仍可使用；政策文档检索能力会受到影响。</p>
+<h3 id="办公模板管理">5.1.3 办公模板管理</h3>
+<p>功能入口：PC 管理端“智能问答 → 办公模板”。</p>
+<p>管理员可维护用于学生证明申请的模板文件。学生在小程序“我的申请”中提交证明申请时，会选择这些模板并填写对应字段。</p>
+<h2 id="党团流程管理">5.2 党团流程管理</h2>
+<h3 id="流程模板">5.2.1 流程模板</h3>
+<p>功能入口：PC 管理端“党团流程 → 流程模板”。</p>
+<p>系统内置入党流程和入团流程模板。管理员可查看模板步骤，并维护步骤名称、顺序、预计天数等信息。</p>
+<h3 id="学生流程">5.2.2 学生流程</h3>
+<p>功能入口：PC 管理端“党团流程 → 学生流程”。</p>
+<p>管理员可为指定学生创建流程实例，并进行以下操作：</p>
+<ul>
+<li>查看学生当前流程进度。</li>
+<li>推进到下一步。</li>
+<li>暂停流程。</li>
+<li>恢复已暂停流程。</li>
+<li>删除流程实例。</li>
+</ul>
+<p>学生端会在“党团进度”中看到自己的流程状态和当前步骤。</p>
+<h3 id="流程申请">5.2.3 流程申请</h3>
+<p>功能入口：PC 管理端“党团流程 → 流程申请”。</p>
+<p>学生可在小程序“党团进度”中发起入党或入团流程申请。管理员或管理教师可在此页面审核。</p>
+<p>操作步骤：</p>
+<ol type="1">
+<li>进入“流程申请”。</li>
+<li>可按状态、流程模板、学生筛选申请记录。</li>
+<li>点击“去审核”打开申请详情。</li>
+<li>查看申请编号、申请人、流程模板、申请说明等信息。</li>
+<li>点击“通过并创建流程”，系统会自动为学生创建对应流程实例。</li>
+<li>如不符合要求，填写审核意见后点击“驳回”。</li>
+</ol>
+<p>申请状态包括待审核、已通过、已驳回、已撤回。</p>
+<h2 id="电子证明审批">5.3 电子证明审批</h2>
+<p>功能入口：PC 管理端“审批服务 → 审批中心”。</p>
+<p>审批中心合并了“待审批”和“全部申请”两个视图。</p>
+<h3 id="待审批处理">待审批处理</h3>
+<ol type="1">
+<li>进入“审批中心”。</li>
+<li>默认停留在“待审批”页签。</li>
+<li>可按证明类型筛选。</li>
+<li>点击申请行或“去审批”打开详情抽屉。</li>
+<li>查看学生提交的表单内容。</li>
+<li>点击“通过”或“驳回”。驳回时必须填写审批意见。</li>
+</ol>
+<h3 id="全部申请查询">全部申请查询</h3>
+<ol type="1">
+<li>切换到“全部申请”页签。</li>
+<li>可按状态和申请人用户 ID 查询。</li>
+<li>点击记录查看详情。</li>
+</ol>
+<h3 id="撤回重批规则">撤回重批规则</h3>
+<p>对于“已通过但学生尚未下载”的申请，管理员可填写撤回原因并执行“撤回重批”。学生一旦下载证明，申请状态变为已锁定归档，系统禁止撤回或重新审批。</p>
+<h2 id="学生信息管理">5.4 学生信息管理</h2>
+<p>功能入口：PC 管理端“学生工作 → 学生信息”。</p>
+<p>可执行以下操作：</p>
+<ul>
+<li>查看学生列表。</li>
+<li>按身份、年级、专业、班级筛选。</li>
+<li>打开学生详情抽屉，查看基础信息、荣誉记录、党团流程、申请记录。</li>
+<li>新增或删除学生荣誉记录。</li>
+<li>导出学生信息。</li>
+</ul>
+<p>敏感字段如身份证、生源地、户籍地在数据库中加密存储，页面只显示脱敏结果。</p>
+<h2 id="用户管理">5.5 用户管理</h2>
+<p>功能入口：PC 管理端“系统管理 → 用户管理”。</p>
+<p>管理员可管理系统账号：</p>
+<ul>
+<li>查询院领导、管理教师、学生骨干、普通学生。</li>
+<li>按身份、年级、专业、班级筛选。</li>
+<li>新增或编辑用户。</li>
+<li>设置用户角色等级。</li>
+<li>下载 Excel 导入模板。</li>
+<li>批量导入学生。</li>
+<li>导出启用状态的学生名单。</li>
+</ul>
+<p>导出学生名单时，系统只导出普通学生和学生骨干，不包含教师、院领导和已禁用账号。</p>
+<h2 id="通知群发">5.6 通知群发</h2>
+<p>功能入口：PC 管理端“系统管理 → 通知群发”。</p>
+<p>操作步骤：</p>
+<ol type="1">
+<li>点击新建群发。</li>
+<li>填写标题、正文、标签、来源。</li>
+<li>选择接收对象，可组合选择普通学生、学生骨干、管理教师、院领导。</li>
+<li>如目标包含学生，可继续按年级、专业、班级筛选。</li>
+<li>预览目标人数，确认各角色命中人数。</li>
+<li>选择通知渠道并发送。</li>
+</ol>
+<p>站内消息为必发渠道。邮件未配置 SMTP 授权码时，系统会降级为
+<code>email_sim</code>
+站内通知，不阻塞群发流程。短信当前为模拟渠道。</p>
+<p>通知发送后 24
+小时内可撤回，撤回只删除未读消息，已读消息保留留痕。</p>
+<h2 id="操作日志">5.7 操作日志</h2>
+<p>功能入口：PC 管理端“系统管理 → 操作日志”。</p>
+<p>该功能仅 1
+级院领导/管理员可见。系统会记录关键管理操作，例如审批、驳回、导入、群发、设置角色等。管理员可按模块和时间查询日志。</p>
+<h1 id="管理教师与学生骨干功能使用说明">6
+管理教师与学生骨干功能使用说明</h1>
+<h2 id="管理教师功能">6.1 管理教师功能</h2>
+<p>管理教师使用 PC
+管理端登录，可处理日常学生工作业务。主要功能包括：</p>
+<ul>
+<li>查看工作台统计和待办。</li>
+<li>管理知识库、政策文档、办公模板。</li>
+<li>管理党团流程模板、学生流程和流程申请。</li>
+<li>处理电子证明审批。</li>
+<li>查看学生信息和荣誉记录。</li>
+<li>使用用户管理和通知群发功能。</li>
+</ul>
+<p>管理教师默认不能查看“操作日志”。</p>
+<h2 id="学生骨干-pc-端功能">6.2 学生骨干 PC 端功能</h2>
+<p>学生骨干可登录 PC 管理端，但只开放“学生信息”功能。</p>
+<p>使用限制：</p>
+<ul>
+<li>登录后系统会自动引导到“学生信息”页。</li>
+<li>只能查看本班学生数据。</li>
+<li>无法进入工作台、审批中心、系统管理等高权限菜单。</li>
+</ul>
+<p>学生骨干同时也可作为学生登录微信小程序，使用学生端服务。</p>
+<h1 id="学生功能使用说明">7 学生功能使用说明</h1>
+<p>学生端通过微信小程序使用，底部 TabBar
+包含“首页”“问答”“申请”“我的”等入口，并提供党团进度、文件模板和消息中心等二级页面。</p>
+<h2 id="首页">7.1 首页</h2>
+<p>首页提供学生常用服务入口：</p>
+<ul>
+<li>顶部欢迎卡片和未读通知提示。</li>
+<li>智能问答入口。</li>
+<li>我的事项速览。</li>
+<li>智能问答、文件与模板、党团进度、我的申请服务卡片。</li>
+<li>最新通知列表。</li>
+</ul>
+<p>点击对应卡片即可进入功能页面。</p>
+<h2 id="智能问答">7.2 智能问答</h2>
+<p>功能入口：小程序底部“问答”。</p>
+<p>操作步骤：</p>
+<ol type="1">
+<li>进入“智能问答”。</li>
+<li>可点击推荐问题，也可在输入框中输入自己的问题。</li>
+<li>系统优先匹配标准知识库；未命中时会尝试从政策文档中检索依据；仍无明确依据时返回参考建议。</li>
+</ol>
+<p>系统对每个用户每天的提问次数有限制，超过限制后会提示错误。</p>
+<h2 id="文件与模板">7.3 文件与模板</h2>
+<p>功能入口：首页服务卡片“文件与模板”，或问答页中的“政策文档”入口。</p>
+<p>页面提供两个分类：</p>
+<ul>
+<li>政策文档：查看和下载学院政策文件。</li>
+<li>办公模板：查看和下载证明或办事模板。</li>
+</ul>
+<p>点击下载后，小程序会调用微信内置能力打开 PDF、DOCX 等文件。</p>
+<h2 id="党团进度与流程申请">7.4 党团进度与流程申请</h2>
+<p>功能入口：首页“党团进度”或小程序二级页面“我的党团进度”。</p>
+<p>页面包含三个区域：</p>
+<ul>
+<li>流程申请。</li>
+<li>我的流程。</li>
+<li>流程模板。</li>
+</ul>
+<h3 id="发起入党入团流程申请">发起入党/入团流程申请</h3>
+<ol type="1">
+<li>进入“党团进度”。</li>
+<li>在“流程申请”区域点击“发起申请”。</li>
+<li>选择入党或入团流程模板。</li>
+<li>填写申请说明，可描述申请原因、准备情况或希望老师关注的事项。</li>
+<li>点击“提交申请”。</li>
+<li>提交后可在同一区域查看申请编号、状态和审核意见。</li>
+</ol>
+<p>待审核状态下，学生可点击“撤回”撤回申请。教师审核通过后，系统会自动创建个人党团流程，学生可在“我的流程”中查看进度。</p>
+<h3 id="查看个人流程">查看个人流程</h3>
+<ol type="1">
+<li>进入“党团进度”。</li>
+<li>在“我的流程”中查看流程名称、当前步骤、进度百分比和状态。</li>
+<li>点击流程卡片进入详情页，查看每个阶段和步骤。</li>
+</ol>
+<p>如暂无个人流程，可先查看官方流程模板，或提交流程申请等待审核。</p>
+<h2 id="我的申请">7.5 我的申请</h2>
+<p>功能入口：小程序底部“申请”。</p>
+<p>该页面用于电子证明申请，不同于党团流程申请。</p>
+<h3 id="提交新证明申请">提交新证明申请</h3>
+<ol type="1">
+<li>进入“我的申请”。</li>
+<li>点击底部“提交新申请”。</li>
+<li>选择证明模板。</li>
+<li>按页面要求填写补充信息。</li>
+<li>确认信息后提交。</li>
+</ol>
+<p>提交后申请进入待审批状态。</p>
+<h3 id="查看和处理申请">查看和处理申请</h3>
+<p>“我的申请”页面展示待审批、可下载、已归档等统计，并支持按状态筛选：</p>
+<ul>
+<li>待审批：可撤回申请。</li>
+<li>已通过：可预览或下载证明。</li>
+<li>已驳回：可查看驳回原因。</li>
+<li>已归档：表示证明已下载并锁定。</li>
+<li>已撤回：表示学生已主动撤回。</li>
+</ul>
+<p>重要规则：预览证明不会锁定状态；点击“下载证明”并确认后，申请会变为已锁定归档，之后不能撤回或重新审批。</p>
+<h2 id="消息中心-1">7.6 消息中心</h2>
+<p>功能入口：首页通知入口或“我的 → 消息中心”。</p>
+<p>学生可查看站内通知，按标签筛选，点击通知后自动标记为已读。</p>
+<h2 id="个人中心">7.7 个人中心</h2>
+<p>功能入口：小程序底部“我的”。</p>
+<p>个人中心可查看：</p>
+<ul>
+<li>姓名、学号、专业、班级。</li>
+<li>我的申请、党团进度、消息中心快捷入口。</li>
+<li>邮箱、手机号。</li>
+<li>我的荣誉。</li>
+</ul>
+<p>可修改邮箱和手机号；退出登录也在该页面完成。</p>
+<h1 id="常见问题与解决方法">8 常见问题与解决方法</h1>
+<h2 id="无法打开-pc-管理端">8.1 无法打开 PC 管理端</h2>
+<p>可能原因：</p>
+<ul>
+<li>设备未连接学院内网或 VPN。</li>
+<li>服务未启动。</li>
+<li>浏览器缓存异常。</li>
+</ul>
+<p>解决方法：</p>
+<ol type="1">
+<li>确认浏览器访问地址为 <code>http://10.10.0.27</code>。</li>
+<li>确认设备已连接学院内网或 VPN。</li>
+<li>换用 Chrome 或 Edge 重新访问。</li>
+<li>仍无法访问时联系系统管理员。</li>
+</ol>
+<h2 id="pc-管理端登录失败">8.2 PC 管理端登录失败</h2>
+<p>可能原因：</p>
+<ul>
+<li>用户名或密码错误。</li>
+<li>普通学生误登录 PC 管理端。</li>
+<li>账号被禁用。</li>
+</ul>
+<p>解决方法：</p>
+<ul>
+<li>院领导、管理教师、学生骨干使用 PC 管理端。</li>
+<li>普通学生使用微信小程序。</li>
+<li>忘记密码或账号异常时联系管理员重置。</li>
+</ul>
+<h2 id="小程序提示网络错误">8.3 小程序提示网络错误</h2>
+<p>可能原因：</p>
+<ul>
+<li>手机未连接学院内网或 VPN。</li>
+<li>首次体验时未打开小程序调试模式。</li>
+<li>后端服务不可达。</li>
+</ul>
+<p>解决方法：</p>
+<ol type="1">
+<li>手机浏览器尝试打开 <code>http://10.10.0.27</code>。</li>
+<li>确认微信号已加入体验成员。</li>
+<li>打开小程序右上角菜单中的“调试”开关后重新进入。</li>
+<li>仍失败时联系管理员。</li>
+</ol>
+<h2 id="智能问答未找到明确依据">8.4 智能问答未找到明确依据</h2>
+<p>可能原因：</p>
+<ul>
+<li>标准知识库中没有对应问题。</li>
+<li>政策文档尚未上传或未完成向量索引。</li>
+<li>问题表述过于模糊。</li>
+</ul>
+<p>解决方法：</p>
+<ul>
+<li>学生可换一种更具体的问法。</li>
+<li>管理员可在“知识库管理”补充标准问答。</li>
+<li>管理员可在“政策文档”中重新索引相关文件。</li>
+</ul>
+<h2 id="邮件发送数量为-0">8.5 邮件发送数量为 0</h2>
+<p>可能原因：</p>
+<ul>
+<li>未配置 SMTP 授权码。</li>
+<li>邮件服务器地址或端口不正确。</li>
+<li>授权码与发件邮箱不匹配。</li>
+</ul>
+<p>说明：邮件未配置时，系统会自动降级为 <code>email_sim</code>
+站内通知，不影响站内消息发送。</p>
+<h2 id="证明下载后无法撤回">8.6 证明下载后无法撤回</h2>
+<p>这是系统的正常规则。证明下载后申请会进入“已锁定归档”状态，系统禁止撤回、重新审批或修改，以保证证明文件的一致性和可追溯性。</p>
+<h2 id="学生看不到党团流程">8.7 学生看不到党团流程</h2>
+<p>可能原因：</p>
+<ul>
+<li>教师尚未为学生创建流程实例。</li>
+<li>学生提交的流程申请尚未通过审核。</li>
+</ul>
+<p>解决方法：</p>
+<ul>
+<li>学生可在“党团进度 → 流程申请”中提交入党/入团申请。</li>
+<li>教师可在 PC 管理端“党团流程 →
+流程申请”中审核；通过后系统会自动创建学生流程。</li>
+</ul>
+<h1 id="联系方式与技术支持">9 联系方式与技术支持</h1>
+<p>如发现问题，请按以下格式反馈给系统管理员或项目组：</p>
+<pre class="text"><code>【模块】例如：申请-PDF生成 / 通知-群发 / 党团流程申请
+【账号】admin 或 学号
+【操作步骤】
+1. ...
+2. ...
+【期望结果】...
+【实际结果】...
+【截图】如有请附图
+【发生时间】例如：2026-06-27 12:30</code></pre>
+<p>技术支持邮箱：<code>2024201564@ruc.edu.cn</code></p>
+<p>紧急问题，如系统无法访问或无法登录，请直接联系系统管理员处理。</p>
+</body>
+</html>

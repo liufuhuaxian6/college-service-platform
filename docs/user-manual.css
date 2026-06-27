@@ -1,0 +1,172 @@
+@page {
+  size: A4;
+  margin: 18mm 16mm 18mm 16mm;
+}
+
+html {
+  color: #1f2329;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+body {
+  max-width: 860px;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.title {
+  margin-top: 56px;
+  color: #8f1d2d;
+  font-size: 30px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.author,
+.date {
+  text-align: center;
+  color: #606266;
+}
+
+#TOC {
+  margin: 24px 0 36px;
+  padding: 18px 24px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+#TOC > h2 {
+  margin-top: 0;
+  color: #8f1d2d;
+}
+
+#TOC ul {
+  margin: 4px 0;
+  padding-left: 22px;
+}
+
+#TOC a {
+  color: #303133;
+  text-decoration: none;
+}
+
+h1 {
+  margin-top: 34px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #8f1d2d;
+  color: #8f1d2d;
+  font-size: 25px;
+  page-break-before: always;
+}
+
+body > h1:first-of-type,
+.title + .author + .date + h1 {
+  page-break-before: auto;
+}
+
+h2 {
+  margin-top: 22px;
+  color: #303133;
+  font-size: 19px;
+}
+
+h3 {
+  margin-top: 18px;
+  color: #4a4f57;
+  font-size: 16px;
+}
+
+p {
+  margin: 8px 0;
+}
+
+table {
+  width: 100%;
+  margin: 12px 0 18px;
+  border-collapse: collapse;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  border: 1px solid #dcdfe6;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f6f1f2;
+  color: #8f1d2d;
+  font-weight: 700;
+}
+
+code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f4f4f5;
+  color: #8f1d2d;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.92em;
+}
+
+pre {
+  padding: 12px 14px;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+pre code {
+  padding: 0;
+  background: transparent;
+  color: #303133;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  margin: 12px auto 18px;
+}
+
+blockquote {
+  margin: 12px 0;
+  padding: 8px 14px;
+  border-left: 4px solid #8f1d2d;
+  background: #fafafa;
+  color: #606266;
+}
+
+ul,
+ol {
+  padding-left: 24px;
+}
+
+li {
+  margin: 4px 0;
+}
+
+a {
+  color: #8f1d2d;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #dcdfe6;
+}
+
+@media print {
+  body {
+    max-width: none;
+  }
+
+  a {
+    color: #8f1d2d;
+    text-decoration: none;
+  }
+}
