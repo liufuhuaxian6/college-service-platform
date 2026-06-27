@@ -51,6 +51,12 @@ const routes = [
         component: () => import('@/views/party/InstanceList.vue'),
         meta: { title: '学生流程', icon: 'User', minRole: 2 },
       },
+      {
+        path: 'party/application',
+        name: 'PartyApplication',
+        component: () => import('@/views/party/ApplicationList.vue'),
+        meta: { title: '流程申请', icon: 'Tickets', minRole: 2 },
+      },
       // 审批服务: 待审批/全部申请合并为审批中心 (页内 Tab), 旧路径重定向保持深链可用
       {
         path: 'approval/center',

@@ -147,6 +147,7 @@ const rawGroups = [
     items: [
       { path: '/party/template', title: '流程模板', icon: 'List', minRole: 2 },
       { path: '/party/instance', title: '学生流程', icon: 'Connection', minRole: 2 },
+      { path: '/party/application', title: '流程申请', icon: 'Tickets', minRole: 2 },
     ],
   },
   {

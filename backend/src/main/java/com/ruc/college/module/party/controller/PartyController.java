@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ruc.college.common.log.OperationLog;
 import com.ruc.college.common.result.Result;
 import com.ruc.college.common.security.RequireRole;
+import com.ruc.college.module.party.entity.PartyProcessApplication;
 import com.ruc.college.module.party.entity.PartyProcessInstance;
 import com.ruc.college.module.party.entity.PartyProcessStep;
 import com.ruc.college.module.party.entity.PartyProcessTemplate;
@@ -49,6 +50,27 @@ public class PartyController {
 
     // ==================== 管理端 ====================
 
+    @GetMapping("/my-applications")
+    public Result<Page<PartyProcessApplication>> myApplications(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String status) {
+        return Result.ok(partyService.getMyApplications(page, size, status));
+    }
+
+    @PostMapping("/applications")
+    @OperationLog(module = "党团流程", action = "学生提交流程申请")
+    public Result<PartyProcessApplication> apply(@RequestBody ApplyRequest request) {
+        return Result.ok(partyService.applyForProcess(request.getTemplateId(), request.getReason()));
+    }
+
+    @PutMapping("/my-applications/{id}/withdraw")
+    @OperationLog(module = "党团流程", action = "学生撤回流程申请")
+    public Result<Void> withdrawMyApplication(@PathVariable Long id) {
+        partyService.withdrawMyApplication(id);
+        return Result.ok();
+    }
+
     @GetMapping("/template/page")
     @RequireRole(minLevel = 2)
     public Result<Page<PartyProcessTemplate>> templatePage(
@@ -88,6 +110,33 @@ public class PartyController {
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String status) {
         return Result.ok(partyService.getInstancePage(page, size, templateId, userId, status));
+    }
+
+    @GetMapping("/application/page")
+    @RequireRole(minLevel = 2)
+    public Result<Page<PartyProcessApplication>> applicationPage(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Long templateId,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String status) {
+        return Result.ok(partyService.getApplicationPage(page, size, templateId, userId, status));
+    }
+
+    @PutMapping("/application/{id}/approve")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "党团流程", action = "通过流程申请")
+    public Result<Void> approveApplication(@PathVariable Long id, @RequestBody(required = false) RemarkRequest request) {
+        partyService.approveApplication(id, request != null ? request.getRemark() : null);
+        return Result.ok();
+    }
+
+    @PutMapping("/application/{id}/reject")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "党团流程", action = "驳回流程申请")
+    public Result<Void> rejectApplication(@PathVariable Long id, @RequestBody RemarkRequest request) {
+        partyService.rejectApplication(id, request != null ? request.getRemark() : null);
+        return Result.ok();
     }
 
     @PostMapping("/instance")
@@ -141,6 +190,12 @@ public class PartyController {
         private Long userId;
         private Long templateId;
         private LocalDate startDate;
+    }
+
+    @Data
+    public static class ApplyRequest {
+        private Long templateId;
+        private String reason;
     }
 
     @Data

@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -62,6 +63,9 @@ public class DocumentRagService {
     @Value("${rag.enabled:true}")
     private boolean enabled;
 
+    @Value("${file.upload-path:./uploads}")
+    private String uploadPath;
+
     /**
      * 切片边界识别. 命中以下任一格式即作为新章节起点:
      *   - 第X章/节/条 (法规体, 如《学籍管理规定》)
@@ -87,7 +91,7 @@ public class DocumentRagService {
         if (doc == null) throw new BusinessException("文档不存在");
         if (!StringUtils.hasText(doc.getFilePath())) throw new BusinessException("文档文件路径为空");
 
-        File file = new File(System.getProperty("user.dir"), StringUtils.cleanPath(doc.getFilePath()));
+        File file = resolveUploadedFile(doc.getFilePath());
         if (!file.exists() || !file.isFile()) throw new BusinessException("文档文件不存在");
 
         String text = extractText(file, doc);
@@ -114,6 +118,53 @@ public class DocumentRagService {
             throw new BusinessException("向量数据库未初始化或不可用，请先执行 deploy/sql/rag_pgvector.sql 并确认数据库使用 pgvector 镜像");
         }
         return Map.of("documentId", documentId, "chunks", chunks.size());
+    }
+
+    private File resolveUploadedFile(String rawPath) {
+        String cleanPath = requireUploadedRelativePath(rawPath);
+        try {
+            File baseDir = new File(System.getProperty("user.dir")).getCanonicalFile();
+            File uploadDir = new File(baseDir, normalizeRelativePath(uploadPath)).getCanonicalFile();
+            File file = new File(baseDir, cleanPath).getCanonicalFile();
+            if (!file.toPath().startsWith(uploadDir.toPath())) {
+                throw new BusinessException(403, "Invalid file path");
+            }
+            return file;
+        } catch (IOException e) {
+            throw new BusinessException(400, "Invalid file path");
+        }
+    }
+
+    private String requireUploadedRelativePath(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            throw new BusinessException("File path cannot be empty");
+        }
+        String cleanPath = StringUtils.cleanPath(raw.trim()).replace("\\", "/");
+        while (cleanPath.startsWith("/")) {
+            cleanPath = cleanPath.substring(1);
+        }
+        String uploadPathPrefix = normalizeRelativePath(uploadPath).replace("\\", "/");
+        if (cleanPath.contains("..")
+                || cleanPath.contains(":")
+                || !cleanPath.startsWith(uploadPathPrefix + "/")) {
+            throw new BusinessException(403, "Invalid file path; upload file first");
+        }
+        return cleanPath;
+    }
+
+    private static String normalizeRelativePath(String raw) {
+        String value = StringUtils.hasText(raw) ? raw.trim() : "uploads";
+        value = value.replace("\\", "/");
+        if (value.startsWith("./")) {
+            value = value.substring(2);
+        }
+        while (value.startsWith("/")) {
+            value = value.substring(1);
+        }
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return StringUtils.hasText(value) ? value : "uploads";
     }
 
     public List<QaDocumentChunk> retrieve(String question, String category) {

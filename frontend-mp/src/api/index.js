@@ -63,6 +63,9 @@ export const partyApi = {
   getTemplateSteps: (id) => request({ url: `/party/templates/${id}/steps` }),
   getMyProgress: () => request({ url: '/party/my-progress' }),
   getProgressDetail: (id) => request({ url: `/party/my-progress/${id}` }),
+  getMyApplications: (params) => request({ url: '/party/my-applications', data: params }),
+  apply: (data) => request({ url: '/party/applications', method: 'POST', data }),
+  withdrawApplication: (id) => request({ url: `/party/my-applications/${id}/withdraw`, method: 'PUT' }),
 }
 
 // ==================== 审批 ====================

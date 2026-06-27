@@ -105,8 +105,10 @@ public class SystemService {
         List<String> majors = splitCsv(major);
         List<String> classes = splitCsv(className);
         List<Integer> roleLevels = splitCsvInt(roleLevel);
+        int operatorLevel = UserContext.getRoleLevel();
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .in(!roleLevels.isEmpty(), SysUser::getRoleLevel, roleLevels)
+                .gt(operatorLevel > 1, SysUser::getRoleLevel, operatorLevel)
                 .in(!grades.isEmpty(), SysUser::getGrade, grades)
                 .in(!majors.isEmpty(), SysUser::getMajor, majors)
                 .in(!classes.isEmpty(), SysUser::getClassName, classes)
@@ -145,6 +147,9 @@ public class SystemService {
     public SysUser getUserDetail(Long id) {
         SysUser user = userMapper.selectById(id);
         if (user == null) throw new BusinessException("用户不存在");
+        if (UserContext.getRoleLevel() > 1) {
+            assertCanManage(user.getRoleLevel(), "No permission to view this account");
+        }
         user.setPassword(null);
         user.setEmail(emailService.resolveEmail(user));
         return user;
@@ -187,7 +192,7 @@ public class SystemService {
     private void assertCanManage(Integer targetLevel, String denyMessage) {
         int operatorLevel = UserContext.getRoleLevel();
         if (targetLevel == null || operatorLevel >= targetLevel) {
-            throw new BusinessException(denyMessage);
+            throw new BusinessException(403, denyMessage);
         }
     }
 
@@ -337,8 +342,10 @@ public class SystemService {
         List<String> majors = splitCsv(major);
         List<String> classes = splitCsv(className);
         List<Integer> roleLevels = splitCsvInt(roleLevel); // 全角色, 不过滤
+        int operatorLevel = UserContext.getRoleLevel();
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .in(!roleLevels.isEmpty(), SysUser::getRoleLevel, roleLevels)
+                .gt(operatorLevel > 1, SysUser::getRoleLevel, operatorLevel)
                 .in(!grades.isEmpty(), SysUser::getGrade, grades)
                 .in(!majors.isEmpty(), SysUser::getMajor, majors)
                 .in(!classes.isEmpty(), SysUser::getClassName, classes)

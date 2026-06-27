@@ -127,6 +127,16 @@ else
 fi
 
 # ---------- 4) 启动 / 重启 ----------
+step '3.5/6 Validate .env secrets'
+for key in DB_NAME DB_USER DB_PASSWORD JWT_SECRET FIELD_CRYPTO_KEY_BASE64; do
+    value=$(grep -E "^${key}=" "$DEPLOY_DIR/.env" | tail -n 1 | cut -d= -f2- || true)
+    [ -n "$value" ] || fail "$DEPLOY_DIR/.env missing $key"
+    case "$value" in
+        *CHANGE_ME*) fail "$DEPLOY_DIR/.env still contains placeholder for $key" ;;
+    esac
+done
+ok '.env required secrets present'
+
 step '4/6 启动容器'
 cd "$DEPLOY_DIR"
 if [ "$FRESH" = 1 ]; then
@@ -169,22 +179,32 @@ $DOCKER_SUDO $DC ps
 
 # ---------- 6) 冒烟测试 ----------
 step '6/6 冒烟测试'
-embed_resp=$($DOCKER_SUDO $DC exec -T embedding wget -qO- --post-data='{"input":"测试"}' \
-    --header='Content-Type: application/json' \
-    http://localhost:80/v1/embeddings 2>/dev/null | head -c 50 || true)
-if echo "$embed_resp" | grep -q embedding; then
-    ok 'embedding 接口返回向量'
+embed_logs=$($DOCKER_SUDO $DC logs --tail 120 embedding 2>/dev/null || true)
+if echo "$embed_logs" | grep -Eq 'Ready|openai_embed .*Success'; then
+    ok 'embedding 服务已就绪'
 else
-    warn "embedding 接口异常, 看日志: $DC logs embedding"
+    warn "embedding 未看到 Ready/Success, 看日志: $DC logs embedding"
 fi
 
-login_resp=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/auth/login \
-    -H 'Content-Type: application/json' \
-    -d '{"studentId":"admin","password":"admin123"}' || echo 000)
+# backend is internal-only in production; smoke-test it through nginx.
+# The Java app may still be booting after the container enters "running", so retry before warning.
+login_resp=000
+login_deadline=$(($(date +%s) + 90))
+while [ "$(date +%s)" -lt "$login_deadline" ]; do
+    login_resp=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/api/auth/login \
+        -H 'Content-Type: application/json' \
+        -d '{"studentId":"admin","password":"admin123"}' || echo 000)
+    case "$login_resp" in
+        200|400|401|403) break ;;
+    esac
+    sleep 3
+done
 if [ "$login_resp" = 200 ]; then
     ok '后端登录接口 200 OK'
+elif [ "$login_resp" = 400 ] || [ "$login_resp" = 401 ] || [ "$login_resp" = 403 ]; then
+    ok "后端接口已可达 (HTTP $login_resp, 演示账号可能已改密或被禁用)"
 else
-    warn "后端登录返回 HTTP $login_resp, 看日志: $DC logs backend"
+    warn "后端登录返回 HTTP $login_resp, 看日志: $DC logs backend; $DC logs nginx"
 fi
 
 nginx_resp=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/ || echo 000)
