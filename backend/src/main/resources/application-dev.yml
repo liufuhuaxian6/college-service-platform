@@ -23,3 +23,6 @@ rag:
   chunk-size: 450
   embedding:
     api-url: "http://localhost:8081/v1/embeddings"
+
+jwt:
+  secret: dev-only-secret-key-must-be-at-least-256-bits-long

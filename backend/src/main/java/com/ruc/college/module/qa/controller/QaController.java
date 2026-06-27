@@ -136,21 +136,16 @@ public class QaController {
     @GetMapping("/document/{id}/download")
     public ResponseEntity<Resource> downloadDocument(@PathVariable Long id) {
         QaDocument doc = qaService.getDocumentForDownload(id);
-        String cleanPath = StringUtils.cleanPath(doc.getFilePath());
-        if (cleanPath.contains("..")) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        File file = new File(System.getProperty("user.dir") + File.separator + cleanPath);
+        File file = qaService.resolveDocumentFile(doc);
         if (!file.exists() || !file.isFile()) {
             return ResponseEntity.notFound().build();
         }
 
+        String fileName = file.getName();
         String extension = "";
-        int dotIndex = cleanPath.lastIndexOf('.');
-        int slashIndex = Math.max(cleanPath.lastIndexOf('/'), cleanPath.lastIndexOf('\\'));
-        if (dotIndex > slashIndex) {
-            extension = cleanPath.substring(dotIndex);
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex >= 0) {
+            extension = fileName.substring(dotIndex);
         }
         String baseName = StringUtils.hasText(doc.getTitle()) ? doc.getTitle().trim() : file.getName();
         String downloadName = baseName;

@@ -156,7 +156,7 @@ public class ApprovalService {
         ApprovalApplication app = applicationMapper.selectById(id);
         if (app == null) throw new BusinessException("申请不存在");
         // 学生只能看自己的
-        if (UserContext.getRoleLevel() == 4 && !app.getUserId().equals(UserContext.getUserId())) {
+        if (UserContext.getRoleLevel() > 2 && !app.getUserId().equals(UserContext.getUserId())) {
             throw new BusinessException(403, "无权查看他人申请");
         }
         enrichApplicationList(List.of(app));

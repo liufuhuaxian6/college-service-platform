@@ -55,7 +55,7 @@ public class PartyService {
         PartyProcessInstance instance = instanceMapper.selectById(instanceId);
         if (instance == null) throw new BusinessException("流程实例不存在");
         // 学生只能查看自己的
-        if (UserContext.getRoleLevel() == 4 && !instance.getUserId().equals(UserContext.getUserId())) {
+        if (UserContext.getRoleLevel() > 2 && !instance.getUserId().equals(UserContext.getUserId())) {
             throw new BusinessException(403, "无权查看他人流程");
         }
         return buildProgressDetail(instance);

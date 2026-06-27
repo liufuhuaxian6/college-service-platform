@@ -1,9 +1,9 @@
 spring:
   datasource:
     # Docker 环境中使用容器名连接；非 Docker 环境改为实际 IP
-    url: jdbc:postgresql://${DB_HOST:kingbase}:${DB_PORT:5432}/${DB_NAME:college_service}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       # 数据库重启/网络抖动后自动剔除失效连接, 避免后端握死连接导致接口全 500
