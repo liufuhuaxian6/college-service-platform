@@ -4,6 +4,7 @@ import com.ruc.college.common.result.Result;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,9 +16,22 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public Result<Void> handleBusinessException(BusinessException e) {
+    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
         log.warn("业务异常: {}", e.getMessage());
-        return Result.fail(e.getCode(), e.getMessage());
+        return ResponseEntity.status(toHttpStatus(e.getCode()))
+                .body(Result.fail(e.getCode(), e.getMessage()));
+    }
+
+    private HttpStatus toHttpStatus(int code) {
+        return switch (code) {
+            case 400 -> HttpStatus.BAD_REQUEST;
+            case 401 -> HttpStatus.UNAUTHORIZED;
+            case 403 -> HttpStatus.FORBIDDEN;
+            case 404 -> HttpStatus.NOT_FOUND;
+            case 409 -> HttpStatus.CONFLICT;
+            case 429 -> HttpStatus.TOO_MANY_REQUESTS;
+            default -> code >= 500 ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.BAD_REQUEST;
+        };
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -198,11 +198,14 @@ if (Test-Path 'deploy/.env.prod') {
     @"
 DB_NAME=college_service
 DB_USER=postgres
-DB_PASSWORD=postgres
+DB_PASSWORD=CHANGE_ME_DATABASE_PASSWORD
 REDIS_PASSWORD=
-JWT_SECRET=ChangeThisJwtSecretBefore生产部署MustBe32BytesAtLeast
+JWT_SECRET=CHANGE_ME_WITH_OPENSSL_RAND_BASE64_48
+JWT_EXPIRATION=86400000
+FIELD_CRYPTO_KEY_BASE64=CHANGE_ME_WITH_OPENSSL_RAND_BASE64_32
+CORS_ALLOWED_ORIGINS=http://10.10.0.27
 "@ | Out-File -Encoding utf8 (Join-Path $DeployPkg '.env')
-    Write-Host '  [WARN] 用了默认 .env, 部署前请改 JWT_SECRET 和 DB_PASSWORD' -ForegroundColor Yellow
+    Write-Host '  [WARN] 用了默认 .env, 部署前请改 DB_PASSWORD / JWT_SECRET / FIELD_CRYPTO_KEY_BASE64' -ForegroundColor Yellow
 }
 Ok '配置文件 + deploy.sh'
 

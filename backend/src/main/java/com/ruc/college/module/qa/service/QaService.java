@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -257,6 +258,7 @@ public class QaService {
         if (doc.getFileSize() != null && doc.getFileSize() > MAX_DOC_SIZE) {
             throw new BusinessException("文件大小不能超过30MB");
         }
+        doc.setFilePath(requireUploadedRelativePath(doc.getFilePath()));
         if (!StringUtils.hasText(doc.getDocType())) {
             doc.setDocType("policy");
         }
@@ -283,7 +285,7 @@ public class QaService {
         if (fileInfo.getFileSize() != null && fileInfo.getFileSize() > MAX_DOC_SIZE) {
             throw new BusinessException("文件大小不能超过30MB");
         }
-        existing.setFilePath(fileInfo.getFilePath());
+        existing.setFilePath(requireUploadedRelativePath(fileInfo.getFilePath()));
         existing.setFileSize(fileInfo.getFileSize());
         if (StringUtils.hasText(fileInfo.getFileType())) {
             existing.setFileType(fileInfo.getFileType());
@@ -310,6 +312,24 @@ public class QaService {
         return doc;
     }
 
+    public File resolveDocumentFile(QaDocument doc) {
+        if (doc == null) {
+            throw new BusinessException(404, "Document not found");
+        }
+        String cleanPath = requireUploadedRelativePath(doc.getFilePath());
+        try {
+            File baseDir = new File(System.getProperty("user.dir")).getCanonicalFile();
+            File uploadDir = new File(baseDir, normalizeRelativePath(uploadPath)).getCanonicalFile();
+            File file = new File(baseDir, cleanPath).getCanonicalFile();
+            if (!file.toPath().startsWith(uploadDir.toPath())) {
+                throw new BusinessException(403, "Invalid file path");
+            }
+            return file;
+        } catch (IOException e) {
+            throw new BusinessException(400, "Invalid file path");
+        }
+    }
+
     public void deleteDocument(Long id) {
         QaDocument doc = documentMapper.selectById(id);
         if (doc == null) {
@@ -317,17 +337,13 @@ public class QaService {
         }
 
         if (StringUtils.hasText(doc.getFilePath())) {
-            String cleanPath = StringUtils.cleanPath(doc.getFilePath());
-            String uploadPathPrefix = normalizeRelativePath(uploadPath);
-            boolean inUploadDir = StringUtils.hasText(uploadPathPrefix)
-                    && (cleanPath.startsWith(uploadPathPrefix + "/") || cleanPath.startsWith(uploadPathPrefix + "\\"));
-            boolean suspicious = cleanPath.contains("..")
-                    || cleanPath.contains(":")
-                    || cleanPath.startsWith("/")
-                    || cleanPath.startsWith("\\");
-
-            if (inUploadDir && !suspicious) {
-                File file = new File(System.getProperty("user.dir"), cleanPath);
+            File file = null;
+            try {
+                file = resolveDocumentFile(doc);
+            } catch (BusinessException ignored) {
+                // Legacy or suspicious paths are removed from DB only.
+            }
+            if (file != null) {
                 if (file.exists() && file.isFile()) {
                     boolean deleted = file.delete();
                     if (!deleted) {
@@ -390,6 +406,23 @@ public class QaService {
             value = "uploads";
         }
         return value;
+    }
+
+    private String requireUploadedRelativePath(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            throw new BusinessException("File path cannot be empty");
+        }
+        String cleanPath = StringUtils.cleanPath(raw.trim()).replace("\\", "/");
+        while (cleanPath.startsWith("/")) {
+            cleanPath = cleanPath.substring(1);
+        }
+        String uploadPathPrefix = normalizeRelativePath(uploadPath).replace("\\", "/");
+        if (cleanPath.contains("..")
+                || cleanPath.contains(":")
+                || !cleanPath.startsWith(uploadPathPrefix + "/")) {
+            throw new BusinessException(403, "Invalid file path; upload file first");
+        }
+        return cleanPath;
     }
 
 
