@@ -274,6 +274,31 @@ public class PartyService {
         }
     }
 
+    @Transactional
+    public void deleteTemplate(Long id) {
+        PartyProcessTemplate existing = templateMapper.selectById(id);
+        if (existing == null) throw new BusinessException("流程模板不存在");
+
+        Long instanceCount = instanceMapper.selectCount(
+                new LambdaQueryWrapper<PartyProcessInstance>()
+                        .eq(PartyProcessInstance::getTemplateId, id)
+        );
+        if (instanceCount != null && instanceCount > 0) {
+            throw new BusinessException("该模板已有学生流程，不能删除，以免影响历史进度数据");
+        }
+
+        Long applicationCount = applicationMapper.selectCount(
+                new LambdaQueryWrapper<PartyProcessApplication>()
+                        .eq(PartyProcessApplication::getTemplateId, id)
+        );
+        if (applicationCount != null && applicationCount > 0) {
+            throw new BusinessException("该模板已有学生申请记录，不能删除，以免影响历史申请数据");
+        }
+
+        stepMapper.delete(new LambdaQueryWrapper<PartyProcessStep>().eq(PartyProcessStep::getTemplateId, id));
+        templateMapper.deleteById(id);
+    }
+
     public Page<PartyProcessInstance> getInstancePage(int page, int size, Long templateId, Long userId, String status) {
         LambdaQueryWrapper<PartyProcessInstance> wrapper = new LambdaQueryWrapper<PartyProcessInstance>()
                 .eq(templateId != null, PartyProcessInstance::getTemplateId, templateId)

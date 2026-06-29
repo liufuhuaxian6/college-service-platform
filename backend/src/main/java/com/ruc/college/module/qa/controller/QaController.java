@@ -160,9 +160,30 @@ public class QaController {
 
         Resource resource = new FileSystemResource(file);
         return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentType(resolveDownloadMediaType(doc, file))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
                 .body(resource);
+    }
+
+    private static MediaType resolveDownloadMediaType(QaDocument doc, File file) {
+        if (doc != null && StringUtils.hasText(doc.getFileType())) {
+            try {
+                return MediaType.parseMediaType(doc.getFileType());
+            } catch (Exception ignored) {
+                // Fall through to extension-based detection.
+            }
+        }
+
+        String name = file == null ? "" : file.getName().toLowerCase();
+        if (name.endsWith(".pdf")) return MediaType.APPLICATION_PDF;
+        if (name.endsWith(".png")) return MediaType.IMAGE_PNG;
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return MediaType.IMAGE_JPEG;
+        if (name.endsWith(".gif")) return MediaType.IMAGE_GIF;
+        if (name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".csv") || name.endsWith(".log")) {
+            return MediaType.TEXT_PLAIN;
+        }
+        if (name.endsWith(".json")) return MediaType.APPLICATION_JSON;
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     @DeleteMapping("/document/{id}")

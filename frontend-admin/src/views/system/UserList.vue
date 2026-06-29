@@ -117,6 +117,7 @@
         <el-form-item label="年级"><el-input v-model="createForm.grade" placeholder="学生填写，如 2024" /></el-form-item>
         <el-form-item label="专业"><el-input v-model="createForm.major" /></el-form-item>
         <el-form-item label="班级"><el-input v-model="createForm.className" /></el-form-item>
+        <el-form-item label="导师"><el-input v-model="createForm.tutor" /></el-form-item>
         <el-form-item label="手机号"><el-input v-model="createForm.phone" /></el-form-item>
         <el-form-item label="邮箱"><el-input v-model="createForm.email" placeholder="为空时默认 学号@ruc.edu.cn" /></el-form-item>
       </el-form>
@@ -189,12 +190,12 @@ const creatableRoles = computed(() => [1, 2, 3, 4].filter(r => r > userStore.rol
 const createVisible = ref(false)
 const creating = ref(false)
 const createForm = reactive({
-  studentId: '', name: '', roleLevel: 4, grade: '', major: '', className: '', phone: '', email: '',
+  studentId: '', name: '', roleLevel: 4, grade: '', major: '', className: '', tutor: '', phone: '', email: '',
 })
 
 function showCreateDialog() {
   Object.assign(createForm, {
-    studentId: '', name: '', grade: '', major: '', className: '', phone: '', email: '',
+    studentId: '', name: '', grade: '', major: '', className: '', tutor: '', phone: '', email: '',
     roleLevel: creatableRoles.value[creatableRoles.value.length - 1] || 4, // 默认普通学生
   })
   createVisible.value = true
@@ -212,6 +213,7 @@ async function handleCreate() {
       grade: createForm.grade || null,
       major: createForm.major || null,
       className: createForm.className || null,
+      tutor: createForm.tutor || null,
       phone: createForm.phone || null,
       email: createForm.email || null,
     })

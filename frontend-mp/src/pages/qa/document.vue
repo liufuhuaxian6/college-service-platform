@@ -39,6 +39,18 @@
     </view>
 
     <EmptyState v-if="!loading && !list.length" :title="emptyText" />
+
+    <view v-if="textPreview.visible" class="text-preview-mask" @click="closeTextPreview">
+      <view class="text-preview-panel" @click.stop>
+        <view class="text-preview-head">
+          <text class="text-preview-title">{{ textPreview.title }}</text>
+          <text class="text-preview-close" @click="closeTextPreview">×</text>
+        </view>
+        <scroll-view scroll-y class="text-preview-body">
+          <text class="text-preview-content">{{ textPreview.content }}</text>
+        </scroll-view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -54,6 +66,7 @@ const tabs = [
 const activeTab = ref('policy')
 const list = ref([])
 const loading = ref(false)
+const textPreview = ref({ visible: false, title: '', content: '' })
 
 const emptyText = computed(() => activeTab.value === 'template' ? '暂无办公模板' : '暂无政策文档')
 
@@ -63,18 +76,26 @@ function isPlaceholder(doc) {
 
 function fileExt(doc) {
   if (isPlaceholder(doc)) return '·'
+  return (getActualExt(doc).toUpperCase() || 'FILE').slice(0, 4)
+}
+
+function getActualExt(doc) {
   // 优先从文件名/路径取真实扩展名 (fileType 多为 MIME, 直接截会得到 APPL/IMAG 乱码)
-  const m = (doc.fileName || doc.filePath || '').match(/\.([a-zA-Z0-9]+)$/)
-  if (m) return m[1].toUpperCase().slice(0, 4)
+  const m = (doc.fileName || doc.filePath || doc.title || '').match(/\.([a-zA-Z0-9]+)$/)
+  if (m) return m[1].toLowerCase()
   // 退而从 MIME 映射常见类型
   const type = (doc.fileType || '').toLowerCase()
-  if (type.includes('pdf')) return 'PDF'
-  if (type.includes('word') || type.includes('msword')) return 'DOC'
-  if (type.includes('sheet') || type.includes('excel')) return 'XLS'
-  if (type.includes('presentation') || type.includes('powerpoint')) return 'PPT'
-  if (type.includes('image')) return 'IMG'
-  if (type.includes('text')) return 'TXT'
-  return 'FILE'
+  if (type.includes('pdf')) return 'pdf'
+  if (type.includes('word') || type.includes('msword')) return type.includes('openxml') ? 'docx' : 'doc'
+  if (type.includes('sheet') || type.includes('excel')) return type.includes('openxml') ? 'xlsx' : 'xls'
+  if (type.includes('presentation') || type.includes('powerpoint')) return type.includes('openxml') ? 'pptx' : 'ppt'
+  if (type.includes('png')) return 'png'
+  if (type.includes('jpeg') || type.includes('jpg')) return 'jpg'
+  if (type.includes('gif')) return 'gif'
+  if (type.includes('webp')) return 'webp'
+  if (type.includes('image')) return 'img'
+  if (type.includes('text') || type.includes('json')) return 'txt'
+  return ''
 }
 
 async function loadData() {
@@ -112,14 +133,31 @@ function download(doc) {
         uni.showToast({ title: '下载失败', icon: 'none' })
         return
       }
-      const ext = fileExt(doc).toLowerCase()
+      const ext = getActualExt(doc)
+      if (isImageExt(ext)) {
+        previewImageFile(res.tempFilePath, ext)
+        return
+      }
+      if (isTextExt(ext)) {
+        previewTextFile(res.tempFilePath, doc)
+        return
+      }
+
       // uni.openDocument 支持: doc/docx/xls/xlsx/ppt/pptx/pdf
       const supported = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf']
-      const openParams = { filePath: res.tempFilePath, showMenu: true }
-      if (supported.includes(ext)) openParams.fileType = ext
+      if (!supported.includes(ext)) {
+        uni.showModal({
+          title: '暂不支持预览',
+          content: `当前小程序暂不支持直接预览 ${ext || '该格式'} 文件，请在 PC 管理端下载查看。`,
+          showCancel: false,
+        })
+        return
+      }
 
       uni.openDocument({
-        ...openParams,
+        filePath: res.tempFilePath,
+        fileType: ext,
+        showMenu: true,
         fail: (err) => {
           // 微信内嵌预览失败时, 仍保留临时文件并提示用户改成另存
           uni.showModal({
@@ -137,6 +175,64 @@ function download(doc) {
       uni.hideLoading()
     },
   })
+}
+
+function isImageExt(ext) {
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'img'].includes(ext)
+}
+
+function isTextExt(ext) {
+  return ['txt', 'text', 'md', 'csv', 'log', 'json'].includes(ext)
+}
+
+function previewImageFile(filePath, ext) {
+  uni.previewImage({
+    current: filePath,
+    urls: [filePath],
+    fail: () => {
+      uni.showModal({
+        title: '预览失败',
+        content: `图片已下载，但当前环境无法直接预览 ${ext || '图片'} 文件。`,
+        showCancel: false,
+      })
+    },
+  })
+}
+
+function previewTextFile(filePath, doc) {
+  const fs = typeof uni.getFileSystemManager === 'function' ? uni.getFileSystemManager() : null
+  if (!fs) {
+    uni.showModal({
+      title: '暂不支持预览',
+      content: '当前环境无法读取文本文件，请在 PC 管理端下载查看。',
+      showCancel: false,
+    })
+    return
+  }
+
+  fs.readFile({
+    filePath,
+    encoding: 'utf8',
+    success: (readRes) => {
+      const content = String(readRes.data || '')
+      textPreview.value = {
+        visible: true,
+        title: doc.title || doc.fileName || '文本预览',
+        content: content || '文件内容为空',
+      }
+    },
+    fail: () => {
+      uni.showModal({
+        title: '文本预览失败',
+        content: '文件已下载，但无法按 UTF-8 文本读取。请确认文件编码，或在 PC 管理端下载查看。',
+        showCancel: false,
+      })
+    },
+  })
+}
+
+function closeTextPreview() {
+  textPreview.value.visible = false
 }
 
 function formatSize(bytes) {
@@ -337,5 +433,73 @@ onMounted(loadData)
   background: #fff8e1;
   border: 1rpx solid #f3e0a3;
   border-radius: 24rpx;
+}
+
+.text-preview-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24rpx;
+  background: rgba(0, 0, 0, 0.42);
+  box-sizing: border-box;
+}
+
+.text-preview-panel {
+  width: 100%;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28rpx;
+  background: #fff;
+  box-shadow: 0 18rpx 44rpx rgba(0, 0, 0, 0.18);
+}
+
+.text-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 26rpx 30rpx 20rpx;
+  border-bottom: 1rpx solid rgba(35, 31, 32, 0.08);
+}
+
+.text-preview-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--mp-text-main);
+  font-size: 30rpx;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-preview-close {
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 52rpx;
+  text-align: center;
+  border-radius: 50%;
+  color: var(--mp-text-sub);
+  background: var(--mp-bg-warm);
+  font-size: 42rpx;
+}
+
+.text-preview-body {
+  max-height: 62vh;
+  padding: 26rpx 30rpx 34rpx;
+  box-sizing: border-box;
+}
+
+.text-preview-content {
+  color: var(--mp-text-regular);
+  font-size: 25rpx;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

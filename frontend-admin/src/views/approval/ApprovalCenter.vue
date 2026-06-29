@@ -121,7 +121,7 @@
 
       <div class="detail-section">
         <h3>申请表单内容</h3>
-        <el-input type="textarea" :rows="7" readonly :model-value="formatFormData(detail.formData)" />
+        <el-input type="textarea" :rows="7" readonly :model-value="formattedFormData" />
       </div>
 
       <!-- 操作区: 按状态显示可用动作 -->
@@ -148,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, toRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { approvalApi } from '@/api'
@@ -183,11 +183,54 @@ const canApprove = computed(() => detail.value.status === 'pending')
 const canAdminWithdraw = computed(
   () => detail.value.status === 'approved' && !detail.value.downloadedAt,
 )
+const formattedFormData = computed(() => formatFormData(detail.value.formData))
 
 function openDetail(row) {
-  detail.value = row
+  detail.value = { ...toRaw(row) }
   actionComment.value = ''
   detailVisible.value = true
+}
+
+function formatFormData(formData) {
+  if (!formData) return '无'
+
+  let data = formData
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data)
+    } catch (_) {
+      return data || '无'
+    }
+  }
+
+  if (Array.isArray(data)) {
+    return data.length
+      ? data.map((item, index) => `${index + 1}. ${formatFormValue(item)}`).join('\n')
+      : '无'
+  }
+
+  if (typeof data !== 'object') {
+    return String(data)
+  }
+
+  const lines = Object.entries(data)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .map(([key, value]) => `${key}：${formatFormValue(value)}`)
+
+  return lines.length ? lines.join('\n') : '无'
+}
+
+function formatFormValue(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  if (Array.isArray(value)) return value.map(formatFormValue).join('，')
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch (_) {
+      return String(value)
+    }
+  }
+  return String(value)
 }
 
 async function doApprove() {

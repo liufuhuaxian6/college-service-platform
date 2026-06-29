@@ -72,6 +72,7 @@ export const partyApi = {
   getTemplateDetail: (id) => request.get(`/party/template/${id}`),
   createTemplate: (data) => request.post('/party/template', data),
   updateTemplate: (id, data) => request.put(`/party/template/${id}`, data),
+  deleteTemplate: (id) => request.delete(`/party/template/${id}`),
   getInstancePage: (params) => request.get('/party/instance/page', { params }),
   createInstance: (data) => request.post('/party/instance', data),
   getApplicationPage: (params) => request.get('/party/application/page', { params }),

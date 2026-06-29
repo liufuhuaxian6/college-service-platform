@@ -101,6 +101,14 @@ public class PartyController {
         return Result.ok();
     }
 
+    @DeleteMapping("/template/{id}")
+    @RequireRole(minLevel = 2)
+    @OperationLog(module = "党团流程", action = "删除流程模板")
+    public Result<Void> deleteTemplate(@PathVariable Long id) {
+        partyService.deleteTemplate(id);
+        return Result.ok();
+    }
+
     @GetMapping("/instance/page")
     @RequireRole(minLevel = 2)
     public Result<Page<PartyProcessInstance>> instancePage(

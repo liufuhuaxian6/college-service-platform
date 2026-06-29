@@ -19,7 +19,10 @@
         <p class="template-card__desc">{{ t.description || '暂无描述' }}</p>
         <div class="template-card__foot">
           <span class="template-card__steps">共 {{ t.totalSteps ?? '-' }} 个节点</span>
-          <el-button link type="primary" @click.stop="editTemplate(t)">编辑 ›</el-button>
+          <div class="template-card__actions">
+            <el-button link type="primary" @click.stop="editTemplate(t)">编辑 ›</el-button>
+            <el-button link type="danger" @click.stop="handleDelete(t)">删除</el-button>
+          </div>
         </div>
       </div>
 
@@ -84,7 +87,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { partyApi } from '@/api'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
@@ -199,6 +202,21 @@ async function editTemplate(row) {
   }
 }
 
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除流程模板「${row.name}」吗？删除后将同时移除该模板下的流程步骤。`,
+      '删除流程模板',
+      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await partyApi.deleteTemplate(row.id)
+    ElMessage.success('删除模板成功')
+    loadData()
+  } catch (e) {
+    if (e === 'cancel' || e === 'close') return
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -277,6 +295,12 @@ onMounted(loadData)
   color: var(--app-gold-deep);
   font-size: 13px;
   font-weight: 600;
+}
+
+.template-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* 新建卡片 */
